@@ -7,7 +7,7 @@ p.setGravity(0,0,-10)
 planeId = p.loadURDF("plane.urdf")
 cubeStartPos = [0,0,1]
 cubeStartOrientation = p.getQuaternionFromEuler([0,0,0])
-boxId = p.loadURDF("thymio.urdf",cubeStartPos, cubeStartOrientation)
+boxId = p.loadURDF("r2d2.urdf",cubeStartPos, cubeStartOrientation)
 
 # experimentation
 num_joints = p.getNumJoints(boxId)
