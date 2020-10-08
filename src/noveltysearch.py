@@ -1,33 +1,43 @@
 import random
 import numpy as np
-import math
 import matplotlib.pyplot as plt
-from deap import tools, base, algorithms, creator
+from deap import tools, base, creator
 from scipy.spatial import cKDTree as KDTree
 
 
-INDIVIDUAL_SIZE = 2
-POP_SIZE = 100
-K = 5 # number of nearest neighbours for novelty computation
+POP_SIZE = 10
+K = 5  # number of nearest neighbours for novelty computation
 ARCHIVE = 'random'  # random or elitist
-ARCHIVE_PB = 0.5 # if ARCHIVE is random, probability to add individual to archive
+ARCHIVE_PB = 0.5  # if ARCHIVE is random, probability to add individual to archive
 
-CXPB = 0.5 # probability with which two individuals are crossed
-MUTPB = 0.2 # probability for mutating an individual
-ABS_BOUND = 5 # absolute boundary for each dimension of individual genotype, can be None
+CXPB = 0.5  # probability with which two individuals are crossed
+MUTPB = 0.2  # probability for mutating an individual
+ABS_BOUND = 5  # absolute boundary for each dimension of individual genotype, can be None
 
-def initialize_tool():
-    # initialize the toolbox
 
+def initialize_tool(initial_gen_size, min):
+    """Initialize the toolbox
+
+    Args:
+        initial_gen_size (int): initial size of genotype
+        min (bool): True if fitness to minimize, False if fitness to maximize
+
+    Returns:
+        Toolbox: the DEAP toolbox
+    """
     # container for behavior descriptor
     creator.create('BehaviorDescriptor', list)
     # container for novelty
     creator.create('Novelty', base.Fitness, weights=(1.0,))
     # container for fitness
-    creator.create('FitnessMin', base.Fitness, weights=(-1.0,))
+    if min:
+        creator.create('Fit', base.Fitness, weights=(-1.0,))
+    else:
+        creator.create('Fit', base.Fitness, weights=(1.0,))
+
     # container for individual
     creator.create('Individual', list, behavior_descriptor=creator.BehaviorDescriptor,
-        novelty=creator.Novelty, fitness=creator.FitnessMin)
+                   novelty=creator.Novelty, fitness=creator.Fit)
 
     # create toolbox
     toolbox = base.Toolbox()
@@ -36,8 +46,8 @@ def initialize_tool():
     toolbox.register('init_ind', random.random)
 
     # create function for individual creation
-    toolbox.register('individual', tools.initRepeat, creator.Individual, \
-        toolbox.init_ind, INDIVIDUAL_SIZE)
+    toolbox.register('individual', tools.initRepeat, creator.Individual,
+                     toolbox.init_ind, initial_gen_size)
 
     # create function for population creation
     toolbox.register('population', tools.initRepeat, list, toolbox.individual, POP_SIZE)
@@ -48,31 +58,34 @@ def initialize_tool():
     toolbox.register('select', tools.selTournament, tournsize=3)
     return creator, toolbox
 
-def assess_behavior(individual):
-    # returns the behavior of the individual in the behavior space
-    # assumption: behavior is equal to genotype
-    behavior = individual.copy()
-    return behavior
-
-def evaluate_fitness(individual):
-    # returns the fitness of the individual as a tuple
-    # example: Rastrigin function
-    dim = len(individual)
-    A = 10
-    fitness = 0
-    for i in range(dim):
-        fitness += individual[i]**2 - A * math.cos(2 * math.pi * individual[i])
-    fitness += A * dim
-    return fitness,
 
 def compute_average_distance(query, k_tree):
+    """Finds K nearest neighbours and distances
+
+    Args:
+        query (int): index of the individual
+        k_tree (KDTree): tree in the behavior descriptor space
+
+    Returns:
+        float: average distance to the K nearest neighbours
+    """
     # find K nearest neighbours and distances
     neighbours = k_tree.query(query, range(2, K + 2))
     # compute mean distance
     avg_distance = np.mean(neighbours[0])
     return avg_distance,
 
+
 def assess_novelties(pop, archive):
+    """Compute novelties of current population
+
+    Args:
+        pop (list): list of current individuals
+        archive (list): list of archive individuals
+
+    Returns:
+        list: list of novelties of current individualss
+    """
     if not archive:
         # archive is empty --> only consider current population
         reference_pop = pop
@@ -88,7 +101,13 @@ def assess_novelties(pop, archive):
         novelties.append(compute_average_distance(b_descriptors[i], k_tree))
     return novelties
 
+
 def bound(offsprings):
+    """Bound the individuals from the new population to the genotype constraints
+
+    Args:
+        offsprings (list): list of offsprings
+    """
     for ind in offsprings:
         for i in range(len(ind)):
             if ind[i] > ABS_BOUND:
@@ -96,7 +115,14 @@ def bound(offsprings):
             if ind[i] < -ABS_BOUND:
                 ind[i] = ABS_BOUND
 
+
 def operate_offsprings(offsprings, toolbox):
+    """Applies crossover and mutation to the offsprings
+
+    Args:
+        offsprings (list): list of offsprings
+        toolbox (Toolbox): DEAP's toolbox
+    """
     # crossover
     for child1, child2 in zip(offsprings[::2], offsprings[1::2]):
         # child 1 has even index, child 2 has odd index
@@ -116,7 +142,16 @@ def operate_offsprings(offsprings, toolbox):
     if ABS_BOUND is not None:
         bound(offsprings)
 
-def gen_plot(mean_hist, min_hist, arch_size_hist):
+
+def gen_plot(mean_hist, min_hist, max_hist, arch_size_hist):
+    """Plotting
+
+    Args:
+        mean_hist (list): history of mean fitness
+        min_hist (list): history of min fitness
+        max_hist (list): history of max fitness
+        arch_size_hist (list): history of archive size
+    """
     mean_hist = np.array(mean_hist)
     min_hist = np.array(min_hist)
 
@@ -125,6 +160,8 @@ def gen_plot(mean_hist, min_hist, arch_size_hist):
     ax.set(title='Test with Rastrigin function', xlabel='Generations', ylabel='Fitness')
     ax.plot(mean_hist, label='Mean')
     ax.plot(min_hist, label='Min')
+    ax.plot(max_hist, label='Max')
+
     plt.legend()
 
     # plot evolution
@@ -133,18 +170,19 @@ def gen_plot(mean_hist, min_hist, arch_size_hist):
     ax.plot(arch_size_hist)
 
 
-def main():
+def novelty_algo(evaluate_individual, initial_gen_size, min=True, plot=False, nb_gen=100, algo_type='ns'):
 
-    creator, toolbox = initialize_tool()
+    creator, toolbox = initialize_tool(initial_gen_size, min)
     pop = toolbox.population()
 
     # plot initial population
-    pop_n = np.array(pop)
-    fig, ax = plt.subplots(figsize=(5, 5))
-    ax.set(title='Initial Population', xlabel='x1', ylabel='x2')
-    ax.scatter(pop_n[:,0], pop_n[:,1])
-    for i in range(len(pop)):
-        ax.annotate(i, (pop_n[i,0], pop_n[i,1]))
+    if plot:
+        pop_n = np.array(pop)
+        fig, ax = plt.subplots(figsize=(5, 5))
+        ax.set(title='Initial Population', xlabel='x1', ylabel='x2')
+        ax.scatter(pop_n[:, 0], pop_n[:, 1])
+        for i in range(len(pop)):
+            ax.annotate(i, (pop_n[i, 0], pop_n[i, 1]))
 
     # initialize the archive
     archive = []
@@ -153,8 +191,8 @@ def main():
     gen = 0
 
     # evaluate initial population
-    b_descriptors = list(map(assess_behavior, pop))
-    fitnesses = list(map(evaluate_fitness, pop))
+    evaluation_pop = list(map(evaluate_individual, pop))
+    b_descriptors, fitnesses = map(list, zip(*evaluation_pop))
 
     # attribute fitness and behavior descriptors to individuals
     for ind, fit, bd in zip(pop, fitnesses, b_descriptors):
@@ -174,30 +212,33 @@ def main():
                 archive.append(member)
     # TODO: if ARCHIVE == 'elitist':
 
-    #keep track of stats
+    # keep track of stats
     mean_hist = []
     min_hist = []
+    max_hist = []
     arch_size_hist = []
 
     # begin evolution
-    while gen < 100:
+    while gen < nb_gen:
         # a new generation
         gen += 1
         print('--Generation %i --' % gen)
 
-        # novelty search: selection on novelty
-        offsprings = toolbox.select(pop, len(pop), fit_attr='novelty') # list contains references to selected individuals
+        if algo_type == 'ns':
+            # novelty search: selection on novelty
+            offsprings = toolbox.select(pop, len(pop), fit_attr='novelty')  # references to selected individuals
 
-        # classical EA: selection on fitness
-        # offsprings = toolbox.select(pop, len(pop), fit_attr='fitness') # list contains references to selected individuals
-
-        offsprings = list(map(toolbox.clone, offsprings)) # clone selected indivduals
-        operate_offsprings(offsprings, toolbox) # crossover and mutation
+        if algo_type == 'classic_ea':
+            # classical EA: selection on fitness
+            offsprings = toolbox.select(pop, len(pop), fit_attr='fitness')  # references to selected individuals
+        
+        offsprings = list(map(toolbox.clone, offsprings))  # clone selected indivduals
+        operate_offsprings(offsprings, toolbox)  # crossover and mutation
 
         # evaluate the indivduals with an invalid fitness
         invalid_ind = [ind for ind in offsprings if not ind.fitness.valid]
-        inv_b_descriptors = list(map(assess_behavior, invalid_ind))
-        inv_fitnesses = list(map(evaluate_fitness, invalid_ind))
+        evaluation_pop = list(map(evaluate_individual, invalid_ind))
+        inv_b_descriptors, inv_fitnesses = map(list, zip(*evaluation_pop))
 
         # attribute fitness and behavior descriptors to new individuals
         for ind, fit, bd in zip(invalid_ind, inv_fitnesses, inv_b_descriptors):
@@ -224,24 +265,19 @@ def main():
         fits = np.array([ind.fitness.values[0] for ind in pop])
         mean = np.mean(fits)
         std = np.std(fits)
-        print("  Min %s" % np.min(fits))
-        print("  Max %s" % np.max(fits))
-        print("  Avg %s" % mean)
-        print("  Std %s" % std)
+        # print("  Min %s" % np.min(fits))
+        # print("  Max %s" % np.max(fits))
+        # print("  Avg %s" % mean)
+        # print("  Std %s" % std)
         arch_size_hist.append(len(archive))
         mean_hist.append(mean)
         min_hist.append(np.min(fits))
+        max_hist.append(np.max(fits))
 
-    gen_plot(mean_hist, min_hist, arch_size_hist)
-
-    # plot initial population
-    archive_n = np.array(archive)
-    fig, ax = plt.subplots(figsize=(5, 5))
-    ax.set(title='Final Archive', xlabel='x1', ylabel='x2')
-    ax.scatter(archive_n[:,0], archive_n[:,1])
+    if plot:
+        gen_plot(mean_hist, min_hist, max_hist, arch_size_hist)
 
     # show all plots
     plt.show()
 
-if __name__ == '__main__':
-    main()
+    return pop, archive
