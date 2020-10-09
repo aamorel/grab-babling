@@ -1,6 +1,7 @@
 from time import sleep
 import pybullet as p
 import numpy as np
+import gym
 
 MAX_FORCE = 100
 
@@ -17,13 +18,14 @@ def setUpWorld(initialSimSteps=100):
     -------
     baxterId : int
     endEffectorId : int
+    obj_to_grab_id : int
     """
     p.resetSimulation()
+    p.configureDebugVisualizer(p.COV_ENABLE_RENDERING, 0)
 
     # load plane
     p.loadURDF("plane.urdf", [0, 0, -1], useFixedBase=True)
     sleep(0.1)
-    p.configureDebugVisualizer(p.COV_ENABLE_RENDERING, 0)
 
     # load Baxter
     # urdf_flags = p.URDF_USE_SELF_COLLISION    makes the simulation go crazy
@@ -85,8 +87,6 @@ def setUpWorld(initialSimSteps=100):
     obj_to_grab_id = p.createMultiBody(baseMass=1, baseCollisionShapeIndex=col_id, baseVisualShapeIndex=viz_id)
     p.resetBasePositionAndOrientation(obj_to_grab_id, [0, 0.2, 3], [0, 0, 0, 1])
 
-    p.configureDebugVisualizer(p.COV_ENABLE_RENDERING, 1)
-
     # grab relevant joint IDs
     endEffectorId = 48  # (left gripper left finger)
 
@@ -97,7 +97,7 @@ def setUpWorld(initialSimSteps=100):
     for _ in range(initialSimSteps):
         p.stepSimulation()
 
-    return baxterId, endEffectorId
+    return baxterId, endEffectorId, obj_to_grab_id
 
 
 def getJointRanges(bodyId, includeFixed=False):
@@ -187,51 +187,68 @@ def setMotors(bodyId, jointPoses):
                                     targetPosition=jointPoses[qIndex - 7], force=MAX_FORCE)
 
 
-if __name__ == "__main__":
-    guiClient = p.connect(p.GUI)
-    p.resetDebugVisualizerCamera(2., 180, 0., [0.52, 0.2, np.pi / 4.])
+class Baxter_grabbingEnv(gym.Env):
 
-    targetPosXId = p.addUserDebugParameter("targetPosX", -1, 1, 0.2)
-    targetPosYId = p.addUserDebugParameter("targetPosY", -1, 1, 0)
-    targetPosZId = p.addUserDebugParameter("targetPosZ", -1, 1, -0.1)
-    nullSpaceId = p.addUserDebugParameter("nullSpace", 0, 1, 1)
+    def __init__(self):
 
-    target_gripper_pos_ID = p.addUserDebugParameter("target gripper pos", 0, 0.020833, 0.0)
+        self.display = False
 
-    # set up the world, endEffector is the tip of the left finger
-    baxterId, endEffectorId = setUpWorld()
+        p.connect(p.GUI)
 
-    lowerLimits, upperLimits, jointRanges, restPoses = getJointRanges(baxterId, includeFixed=False)
-    targetPosition = [0.2, 0.0, -0.1]
+        # set up the world, endEffector is the tip of the left finger
+        self.baxterId, self.endEffectorId, self.objectId = setUpWorld()
 
-    maxIters = 100000
+        self.lowerLimits, self.upperLimits, self.jointRanges, self.restPoses = getJointRanges(self.baxterId,
+                                                                                              includeFixed=False)
 
-    sleep(1.)
+        sleep(1.)
 
-    p.getCameraImage(320, 200, renderer=p.ER_BULLET_HARDWARE_OPENGL)
+    def enable_display(self):
+        self.display = True
+        p.configureDebugVisualizer(p.COV_ENABLE_RENDERING, 1)
+        p.resetDebugVisualizerCamera(2., 180, 0., [0.52, 0.2, np.pi / 4.])
+        p.getCameraImage(320, 200, renderer=p.ER_BULLET_HARDWARE_OPENGL)
+            
+    def step(self, action):
+        """Executes one step of the simulation
 
-    # start simu iteration
-    for _ in range(maxIters):
+        Args:
+            action (list): size 3, target position of end effector in Cartesian coordinate
+
+        Returns:
+            list: observation
+            float: reward
+            bool: done
+            dict: info
+        """
+        targetPosition = action
         p.stepSimulation()
-        targetPosX = p.readUserDebugParameter(targetPosXId)
-        targetPosY = p.readUserDebugParameter(targetPosYId)
-        targetPosZ = p.readUserDebugParameter(targetPosZId)
-        nullSpace = p.readUserDebugParameter(nullSpaceId)
 
-        target_gripper_pos = p.readUserDebugParameter(target_gripper_pos_ID)
+        jointPoses = accurateIK(self.baxterId, self.endEffectorId, targetPosition, self.lowerLimits,
+                                self.upperLimits, self.jointRanges, self.restPoses, useNullSpace=True)
+        setMotors(self.baxterId, jointPoses)
 
-        targetPosition = [targetPosX, targetPosY, targetPosZ]
-      
-        useNullSpace = nullSpace > 0.5
-        jointPoses = accurateIK(baxterId, endEffectorId, targetPosition, lowerLimits, upperLimits,
-                                jointRanges, restPoses, useNullSpace=useNullSpace)
+        # get information on target object
+        obj = p.getBasePositionAndOrientation(self.objectId)
+        obj_pos = list(obj[0])  # x, y, z
+        obj_orientation = p.getEulerFromQuaternion(list(obj[1]))
 
-        setMotors(baxterId, jointPoses)
+        # get information on gripper
+        grip = p.getLinkState(self.baxterId, self.endEffectorId)
+        grip_pos = list(grip[0])  # x, y, z
+        grip_orientation = p.getEulerFromQuaternion(list(grip[1]))
 
-        # explicitly control the gripper
-        p.setJointMotorControl2(bodyIndex=baxterId, jointIndex=49, controlMode=p.POSITION_CONTROL,
-                                targetPosition=target_gripper_pos, force=MAX_FORCE)
-        p.setJointMotorControl2(bodyIndex=baxterId, jointIndex=51, controlMode=p.POSITION_CONTROL,
-                                targetPosition=-target_gripper_pos, force=MAX_FORCE)
+        observation = [obj_pos, obj_orientation, grip_pos, grip_orientation]
+        reward = None
+        info = None
+        done = False
+        return observation, reward, done, info
 
-        # sleep(0.1)
+    def reset(self):
+        self.baxterId, self.endEffectorId, self.objectId = setUpWorld()
+
+    def render(self, mode='human'):
+        pass
+
+    def close(self):
+        p.disconnect()

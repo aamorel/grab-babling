@@ -5,10 +5,12 @@ from deap import tools, base, creator
 from scipy.spatial import cKDTree as KDTree
 
 
-POP_SIZE = 10
-K = 5  # number of nearest neighbours for novelty computation
-ARCHIVE = 'random'  # random or elitist
-ARCHIVE_PB = 0.5  # if ARCHIVE is random, probability to add individual to archive
+POP_SIZE = 100
+HOF_SIZE = 10
+K = 15  # number of nearest neighbours for novelty computation
+ARCHIVE = 'random'  # random or novelty_based
+ARCHIVE_PB = 0.2  # if ARCHIVE is random, probability to add individual to archive
+ARCHIVE_NB = int(0.2 * POP_SIZE)  # if ARCHIVE is novelty_based, number of individuals added per generation
 
 CXPB = 0.5  # probability with which two individuals are crossed
 MUTPB = 0.2  # probability for mutating an individual
@@ -84,7 +86,7 @@ def assess_novelties(pop, archive):
         archive (list): list of archive individuals
 
     Returns:
-        list: list of novelties of current individualss
+        list: list of novelties of current individuals
     """
     if not archive:
         # archive is empty --> only consider current population
@@ -170,11 +172,15 @@ def gen_plot(mean_hist, min_hist, max_hist, arch_size_hist):
     ax.plot(arch_size_hist)
 
 
-def novelty_algo(evaluate_individual, initial_gen_size, min=True, plot=False, nb_gen=100, algo_type='ns'):
+def novelty_algo(evaluate_individual, initial_gen_size, min=True, plot=False, nb_gen=100, algo_type='ns_nov'):
 
     creator, toolbox = initialize_tool(initial_gen_size, min)
     pop = toolbox.population()
 
+    if algo_type == 'ns_nov':
+        archive_type = 'novelty_based'
+    if algo_type == 'ns_rand' or algo_type == 'classic_ea':
+        archive_type = 'random'
     # plot initial population
     if plot:
         pop_n = np.array(pop)
@@ -186,6 +192,9 @@ def novelty_algo(evaluate_individual, initial_gen_size, min=True, plot=False, nb
 
     # initialize the archive
     archive = []
+
+    # initialize the HOF
+    hall_of_fame = tools.HallOfFame(HOF_SIZE)
 
     # initialize generation counter
     gen = 0
@@ -204,13 +213,19 @@ def novelty_algo(evaluate_individual, initial_gen_size, min=True, plot=False, nb
         ind.novelty.values = nov
 
     # fill archive
-    if ARCHIVE == 'random':
+    if archive_type == 'random':
         # fill archive randomly
         for ind in pop:
             if random.random() < ARCHIVE_PB:
                 member = toolbox.clone(ind)
                 archive.append(member)
-    # TODO: if ARCHIVE == 'elitist':
+    if archive_type == 'novelty_based':
+        # fill archive with the most novel individuals
+        novel_n = np.array([nov[0] for nov in novelties])
+        max_novelties_idx = np.argsort(-novel_n)[:ARCHIVE_NB]
+        for i in max_novelties_idx:
+            member = toolbox.clone(pop[i])
+            archive.append(member)
 
     # keep track of stats
     mean_hist = []
@@ -224,7 +239,7 @@ def novelty_algo(evaluate_individual, initial_gen_size, min=True, plot=False, nb
         gen += 1
         print('--Generation %i --' % gen)
 
-        if algo_type == 'ns':
+        if algo_type == 'ns_nov' or algo_type == 'ns_rand':
             # novelty search: selection on novelty
             offsprings = toolbox.select(pop, len(pop), fit_attr='novelty')  # references to selected individuals
 
@@ -254,17 +269,27 @@ def novelty_algo(evaluate_individual, initial_gen_size, min=True, plot=False, nb
             ind.novelty.values = nov
 
         # fill archive
-        if ARCHIVE == 'random':
+        if archive_type == 'random':
             # fill archive randomly
             for ind in pop:
                 if random.random() < ARCHIVE_PB:
                     member = toolbox.clone(ind)
                     archive.append(member)
+        if archive_type == 'novelty_based':
+            # fill archive with the most novel individuals
+            novel_n = np.array([nov[0] for nov in novelties])
+            max_novelties_idx = np.argsort(-novel_n)[:ARCHIVE_NB]
+            for i in max_novelties_idx:
+                member = toolbox.clone(pop[i])
+                archive.append(member)
+
+        # update Hall of fame
+        hall_of_fame.update(pop)
 
         # gather all the fitnesses in one list and compute stats
         fits = np.array([ind.fitness.values[0] for ind in pop])
         mean = np.mean(fits)
-        std = np.std(fits)
+        # std = np.std(fits)
         # print("  Min %s" % np.min(fits))
         # print("  Max %s" % np.max(fits))
         # print("  Avg %s" % mean)
@@ -280,4 +305,4 @@ def novelty_algo(evaluate_individual, initial_gen_size, min=True, plot=False, nb
     # show all plots
     plt.show()
 
-    return pop, archive
+    return pop, archive, hall_of_fame

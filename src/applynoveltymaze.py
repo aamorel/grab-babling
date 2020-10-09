@@ -1,5 +1,5 @@
 import gym
-import gym_fastsim
+import gym_fastsim  # must still be imported
 import noveltysearch
 import math
 import time
@@ -39,7 +39,7 @@ def evaluate_individual(individual):
 
         action = [0, 0]
 
-        for i in range(1000):
+        for i in range(1500):
             env.render()
             # apply previously chosen action
             o, r, eo, info = env.step(action)
@@ -69,8 +69,9 @@ def evaluate_individual(individual):
 
 plot = True
 initial_genotype_size = 12
-pop, archive = noveltysearch.novelty_algo(evaluate_individual, initial_genotype_size, min=True,
-                                          plot=plot, algo_type='classic_ea', nb_gen=100)
+algo = 'classic_ea'
+pop, archive, hof = noveltysearch.novelty_algo(evaluate_individual, initial_genotype_size, min=True,
+                                               plot=plot, algo_type=algo, nb_gen=2)
 
 if plot:
     # plot final states
@@ -84,11 +85,13 @@ if plot:
     maze = np.array(maze, dtype='float')
     archive_behavior = np.array([ind.behavior_descriptor.values for ind in archive])
     pop_behavior = np.array([ind.behavior_descriptor.values for ind in pop])
+    hof_behavior = np.array([ind.behavior_descriptor.values for ind in hof])
     fig, ax = plt.subplots(figsize=(5, 5))
     ax.set(title='Final Archive', xlabel='x1', ylabel='x2')
     ax.imshow(maze)
     ax.scatter(archive_behavior[:, 0] / 3, archive_behavior[:, 1] / 3, color='red', label='Archive')
     ax.scatter(pop_behavior[:, 0] / 3, pop_behavior[:, 1] / 3, color='blue', label='Population')
+    ax.scatter(hof_behavior[:, 0] / 3, hof_behavior[:, 1] / 3, color='green', label='Hall of Fame')
     plt.legend()
     
 plt.show()
