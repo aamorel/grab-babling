@@ -25,11 +25,11 @@ def setUpWorld(initialSimSteps=100):
 
     # load plane
     p.loadURDF("plane.urdf", [0, 0, -1], useFixedBase=True)
-    sleep(0.1)
 
     # load Baxter
-    # urdf_flags = p.URDF_USE_SELF_COLLISION    makes the simulation go crazy
+    # urdf_flags = p.URDF_USE_SELF_COLLISION    makes the simulation go crazys
     baxterId = p.loadURDF("baxter_common/baxter_description/urdf/toms_baxter.urdf", useFixedBase=True)
+
     p.resetBasePositionAndOrientation(baxterId, [0, -0.8, 0.0], [0., 0., -1., -1.])
 
     # table robot part shapes
@@ -39,9 +39,9 @@ def setUpWorld(initialSimSteps=100):
     t_legs = p.createCollisionShape(p.GEOM_BOX, halfExtents=[0.1, 0.1, 0.4])
     t_legs_v = p.createVisualShape(p.GEOM_BOX, halfExtents=[0.1, 0.1, 0.4], rgbaColor=[0.3, 0.3, 0, 1])
 
-    body_Mass = 20
+    body_Mass = 500
     visualShapeId = t_body_v
-    link_Masses = [.1, .1, .1, .1]
+    link_Masses = [30, 30, 30, 30]
 
     linkCollisionShapeIndices = [t_legs] * 4
 
@@ -66,19 +66,18 @@ def setUpWorld(initialSimSteps=100):
     basePosition = [0, 0.4, 0]
     baseOrientation = [0, 0, 0, 1]
     # main function that creates the table
-    tab = p.createMultiBody(body_Mass, t_body, visualShapeId, basePosition, baseOrientation,
-                            linkMasses=link_Masses,
-                            linkCollisionShapeIndices=linkCollisionShapeIndices,
-                            linkVisualShapeIndices=linkVisualShapeIndices,
-                            linkPositions=linkPositions,
-                            linkOrientations=linkOrientations,
-                            linkInertialFramePositions=linkInertialFramePositions,
-                            linkInertialFrameOrientations=linkInertialFrameOrientations,
-                            linkParentIndices=indices,
-                            linkJointTypes=jointTypes,
-                            linkJointAxis=axis)
-    print(tab)
-
+    p.createMultiBody(body_Mass, t_body, visualShapeId, basePosition, baseOrientation,
+                      linkMasses=link_Masses,
+                      linkCollisionShapeIndices=linkCollisionShapeIndices,
+                      linkVisualShapeIndices=linkVisualShapeIndices,
+                      linkPositions=linkPositions,
+                      linkOrientations=linkOrientations,
+                      linkInertialFramePositions=linkInertialFramePositions,
+                      linkInertialFrameOrientations=linkInertialFrameOrientations,
+                      linkParentIndices=indices,
+                      linkJointTypes=jointTypes,
+                      linkJointAxis=axis)
+                       
     # create object to grab
     square_base = 0.02
     height = 0.08
@@ -121,7 +120,7 @@ def getJointRanges(bodyId, includeFixed=False):
     # loop through all joints
     for i in range(numJoints):
         jointInfo = p.getJointInfo(bodyId, i)
-        print(jointInfo[0], jointInfo[1], jointInfo[2], jointInfo[3], jointInfo[8:10])
+        # print(jointInfo[0], jointInfo[1], jointInfo[2], jointInfo[3], jointInfo[8:10])
         if includeFixed or jointInfo[3] > -1:
             # jointInfo[3] > -1 means that the joint is not fixed
             ll, ul = jointInfo[8:10]
@@ -189,25 +188,24 @@ def setMotors(bodyId, jointPoses):
 
 class Baxter_grabbingEnv(gym.Env):
 
-    def __init__(self):
+    def __init__(self, display=False):
 
-        self.display = False
-
-        p.connect(p.GUI)
+        self.display = display
+        if self.display:
+            p.connect(p.GUI)
+        else:
+            p.connect(p.DIRECT)
 
         # set up the world, endEffector is the tip of the left finger
         self.baxterId, self.endEffectorId, self.objectId = setUpWorld()
 
         self.lowerLimits, self.upperLimits, self.jointRanges, self.restPoses = getJointRanges(self.baxterId,
                                                                                               includeFixed=False)
-
-        sleep(1.)
-
-    def enable_display(self):
-        self.display = True
-        p.configureDebugVisualizer(p.COV_ENABLE_RENDERING, 1)
-        p.resetDebugVisualizerCamera(2., 180, 0., [0.52, 0.2, np.pi / 4.])
-        p.getCameraImage(320, 200, renderer=p.ER_BULLET_HARDWARE_OPENGL)
+        if self.display:
+            p.configureDebugVisualizer(p.COV_ENABLE_RENDERING, 1)
+            p.resetDebugVisualizerCamera(2., 180, 0., [0.52, 0.2, np.pi / 4.])
+            p.getCameraImage(320, 200, renderer=p.ER_BULLET_HARDWARE_OPENGL)
+            sleep(1.)
             
     def step(self, action):
         """Executes one step of the simulation

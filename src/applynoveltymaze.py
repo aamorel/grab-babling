@@ -5,9 +5,30 @@ import math
 import time
 import numpy as np
 import matplotlib.pyplot as plt
+from deap import base, creator
 
 EXAMPLE = False
 DISPLAY = False
+PARALLELIZE = False
+
+
+if PARALLELIZE:
+    # container for behavior descriptor
+    creator.create('BehaviorDescriptor', list)
+    # container for novelty
+    creator.create('Novelty', base.Fitness, weights=(1.0,))
+    # container for fitness
+    if min:
+        creator.create('Fit', base.Fitness, weights=(-1.0,))
+    else:
+        creator.create('Fit', base.Fitness, weights=(1.0,))
+
+    # container for individual
+    creator.create('Individual', list, behavior_descriptor=creator.BehaviorDescriptor,
+                   novelty=creator.Novelty, fitness=creator.Fit)
+
+    # set creator
+    noveltysearch.set_creator(creator)
 
 
 def evaluate_individual(individual):
@@ -67,31 +88,32 @@ def evaluate_individual(individual):
         return (behavior, (fitness,))
 
 
-plot = True
-initial_genotype_size = 12
-algo = 'classic_ea'
-pop, archive, hof = noveltysearch.novelty_algo(evaluate_individual, initial_genotype_size, min=True,
-                                               plot=plot, algo_type=algo, nb_gen=2)
+if __name__ == "__main__":
+    plot = True
+    initial_genotype_size = 12
+    algo = 'classic_ea'
+    pop, archive, hof = noveltysearch.novelty_algo(evaluate_individual, initial_genotype_size, min=True,
+                                                   plot=plot, algo_type=algo, nb_gen=3, parallelize=PARALLELIZE)
 
-if plot:
-    # plot final states
-    env = gym.make('FastsimSimpleNavigation-v0')
-    env.reset()
-    maze = env.map.get_data()
-    maze = np.array([str(pix) for pix in maze])
-    maze[maze == 'status_t.obstacle'] = 0.0
-    maze[maze == 'status_t.free'] = 1.0
-    maze = np.reshape(maze, (200, 200))
-    maze = np.array(maze, dtype='float')
-    archive_behavior = np.array([ind.behavior_descriptor.values for ind in archive])
-    pop_behavior = np.array([ind.behavior_descriptor.values for ind in pop])
-    hof_behavior = np.array([ind.behavior_descriptor.values for ind in hof])
-    fig, ax = plt.subplots(figsize=(5, 5))
-    ax.set(title='Final Archive', xlabel='x1', ylabel='x2')
-    ax.imshow(maze)
-    ax.scatter(archive_behavior[:, 0] / 3, archive_behavior[:, 1] / 3, color='red', label='Archive')
-    ax.scatter(pop_behavior[:, 0] / 3, pop_behavior[:, 1] / 3, color='blue', label='Population')
-    ax.scatter(hof_behavior[:, 0] / 3, hof_behavior[:, 1] / 3, color='green', label='Hall of Fame')
-    plt.legend()
-    
-plt.show()
+    if plot:
+        # plot final states
+        env = gym.make('FastsimSimpleNavigation-v0')
+        env.reset()
+        maze = env.map.get_data()
+        maze = np.array([str(pix) for pix in maze])
+        maze[maze == 'status_t.obstacle'] = 0.0
+        maze[maze == 'status_t.free'] = 1.0
+        maze = np.reshape(maze, (200, 200))
+        maze = np.array(maze, dtype='float')
+        archive_behavior = np.array([ind.behavior_descriptor.values for ind in archive])
+        pop_behavior = np.array([ind.behavior_descriptor.values for ind in pop])
+        hof_behavior = np.array([ind.behavior_descriptor.values for ind in hof])
+        fig, ax = plt.subplots(figsize=(5, 5))
+        ax.set(title='Final Archive', xlabel='x1', ylabel='x2')
+        ax.imshow(maze)
+        ax.scatter(archive_behavior[:, 0] / 3, archive_behavior[:, 1] / 3, color='red', label='Archive')
+        ax.scatter(pop_behavior[:, 0] / 3, pop_behavior[:, 1] / 3, color='blue', label='Population')
+        ax.scatter(hof_behavior[:, 0] / 3, hof_behavior[:, 1] / 3, color='green', label='Hall of Fame')
+        plt.legend()
+        
+    plt.show()

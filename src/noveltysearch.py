@@ -1,8 +1,16 @@
 import random
 import numpy as np
 import matplotlib.pyplot as plt
-from deap import tools, base, creator
+from deap import tools, base
 from scipy.spatial import cKDTree as KDTree
+from scoop import futures
+
+creator = None
+
+
+def set_creator(cr):
+    global creator
+    creator = cr
 
 
 POP_SIZE = 100
@@ -14,38 +22,47 @@ ARCHIVE_NB = int(0.2 * POP_SIZE)  # if ARCHIVE is novelty_based, number of indiv
 
 CXPB = 0.5  # probability with which two individuals are crossed
 MUTPB = 0.2  # probability for mutating an individual
-ABS_BOUND = 5  # absolute boundary for each dimension of individual genotype, can be None
 
 
-def initialize_tool(initial_gen_size, min):
+def initialize_tool(initial_gen_size, min, parallelize):
     """Initialize the toolbox
 
     Args:
         initial_gen_size (int): initial size of genotype
         min (bool): True if fitness to minimize, False if fitness to maximize
+        parallelize (bool): True if evaluation of individuals must be parallelized
 
     Returns:
         Toolbox: the DEAP toolbox
     """
-    # container for behavior descriptor
-    creator.create('BehaviorDescriptor', list)
-    # container for novelty
-    creator.create('Novelty', base.Fitness, weights=(1.0,))
-    # container for fitness
-    if min:
-        creator.create('Fit', base.Fitness, weights=(-1.0,))
-    else:
-        creator.create('Fit', base.Fitness, weights=(1.0,))
-
-    # container for individual
-    creator.create('Individual', list, behavior_descriptor=creator.BehaviorDescriptor,
-                   novelty=creator.Novelty, fitness=creator.Fit)
-
+    global creator
     # create toolbox
     toolbox = base.Toolbox()
 
+    if not parallelize:
+        from deap import creator
+        # container for behavior descriptor
+        creator.create('BehaviorDescriptor', list)
+        # container for novelty
+        creator.create('Novelty', base.Fitness, weights=(1.0,))
+        # container for fitness
+        if min:
+            creator.create('Fit', base.Fitness, weights=(-1.0,))
+        else:
+            creator.create('Fit', base.Fitness, weights=(1.0,))
+
+        # container for individual
+        creator.create('Individual', list, behavior_descriptor=creator.BehaviorDescriptor,
+                       novelty=creator.Novelty, fitness=creator.Fit)
+
+        # overwrite map function with normal map
+        toolbox.register('map', map)
+    else:
+        # overwrite map function with scoop for parallelization
+        toolbox.register('map', futures.map)
+
     # create function for individual initialization
-    toolbox.register('init_ind', random.random)
+    toolbox.register('init_ind', random.uniform, -1, 1)
 
     # create function for individual creation
     toolbox.register('individual', tools.initRepeat, creator.Individual,
@@ -104,7 +121,7 @@ def assess_novelties(pop, archive):
     return novelties
 
 
-def bound(offsprings):
+def bound(offsprings, bound_genotype):
     """Bound the individuals from the new population to the genotype constraints
 
     Args:
@@ -112,18 +129,19 @@ def bound(offsprings):
     """
     for ind in offsprings:
         for i in range(len(ind)):
-            if ind[i] > ABS_BOUND:
-                ind[i] = ABS_BOUND
-            if ind[i] < -ABS_BOUND:
-                ind[i] = ABS_BOUND
+            if ind[i] > bound_genotype:
+                ind[i] = bound_genotype
+            if ind[i] < -bound_genotype:
+                ind[i] = bound_genotype
 
 
-def operate_offsprings(offsprings, toolbox):
+def operate_offsprings(offsprings, toolbox, bound_genotype):
     """Applies crossover and mutation to the offsprings
 
     Args:
         offsprings (list): list of offsprings
         toolbox (Toolbox): DEAP's toolbox
+        bound_genotype (float): absolute value bound of genotype values
     """
     # crossover
     for child1, child2 in zip(offsprings[::2], offsprings[1::2]):
@@ -141,8 +159,8 @@ def operate_offsprings(offsprings, toolbox):
             del mutant.fitness.values
 
     # bound genotype to given constraints
-    if ABS_BOUND is not None:
-        bound(offsprings)
+    if bound_genotype is not None:
+        bound(offsprings, bound_genotype)
 
 
 def gen_plot(mean_hist, min_hist, max_hist, arch_size_hist):
@@ -172,9 +190,10 @@ def gen_plot(mean_hist, min_hist, max_hist, arch_size_hist):
     ax.plot(arch_size_hist)
 
 
-def novelty_algo(evaluate_individual, initial_gen_size, min=True, plot=False, nb_gen=100, algo_type='ns_nov'):
+def novelty_algo(evaluate_individual, initial_gen_size, min=True, plot=False, nb_gen=100,
+                 algo_type='ns_nov', bound_genotype=5, parallelize=False):
 
-    creator, toolbox = initialize_tool(initial_gen_size, min)
+    creator, toolbox = initialize_tool(initial_gen_size, min, parallelize)
     pop = toolbox.population()
 
     if algo_type == 'ns_nov':
@@ -200,7 +219,7 @@ def novelty_algo(evaluate_individual, initial_gen_size, min=True, plot=False, nb
     gen = 0
 
     # evaluate initial population
-    evaluation_pop = list(map(evaluate_individual, pop))
+    evaluation_pop = list(toolbox.map(evaluate_individual, pop))
     b_descriptors, fitnesses = map(list, zip(*evaluation_pop))
 
     # attribute fitness and behavior descriptors to individuals
@@ -248,11 +267,11 @@ def novelty_algo(evaluate_individual, initial_gen_size, min=True, plot=False, nb
             offsprings = toolbox.select(pop, len(pop), fit_attr='fitness')  # references to selected individuals
         
         offsprings = list(map(toolbox.clone, offsprings))  # clone selected indivduals
-        operate_offsprings(offsprings, toolbox)  # crossover and mutation
+        operate_offsprings(offsprings, toolbox, bound_genotype)  # crossover and mutation
 
         # evaluate the indivduals with an invalid fitness
         invalid_ind = [ind for ind in offsprings if not ind.fitness.valid]
-        evaluation_pop = list(map(evaluate_individual, invalid_ind))
+        evaluation_pop = list(toolbox.map(evaluate_individual, invalid_ind))
         inv_b_descriptors, inv_fitnesses = map(list, zip(*evaluation_pop))
 
         # attribute fitness and behavior descriptors to new individuals
