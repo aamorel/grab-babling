@@ -208,7 +208,7 @@ class Baxter_grabbingEnv(gym.Env):
             p.getCameraImage(320, 200, renderer=p.ER_BULLET_HARDWARE_OPENGL)
             sleep(1.)
         
-        self.interp_grip = interp1d([-1, 1], [0, 0.020833])
+        self.interp_grip = interp1d([-1, 1], [0, 0.020833], bounds_error=False, fill_value='extrapolate')
             
     def step(self, action):
         """Executes one step of the simulation

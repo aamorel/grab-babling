@@ -228,6 +228,8 @@ if __name__ == "__main__":
 
         setMotors(baxterId, jointPoses)
 
+        # print(p.getBasePositionAndOrientation(obj_id))
+
         # explicitly control the gripper
         p.setJointMotorControl2(bodyIndex=baxterId, jointIndex=49, controlMode=p.POSITION_CONTROL,
                                 targetPosition=target_gripper_pos, force=MAX_FORCE)

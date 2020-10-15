@@ -22,6 +22,7 @@ ARCHIVE_PB = 0.2  # if ARCHIVE is random, probability to add individual to archi
 # if ARCHIVE is novelty_based, proportion of individuals added per gen
 CXPB = 0.5  # probability with which two individuals are crossed
 MUTPB = 0.2  # probability for mutating an individual
+TOURNSIZE = 10  # drives towards selective pressure
 
 
 def initialize_tool(initial_gen_size, mini, pop_size, parallelize):
@@ -75,7 +76,7 @@ def initialize_tool(initial_gen_size, mini, pop_size, parallelize):
     # create operators
     toolbox.register('mate', tools.cxTwoPoint)
     toolbox.register('mutate', tools.mutGaussian, mu=0, sigma=0.1, indpb=0.3)
-    toolbox.register('select', tools.selTournament, tournsize=3)
+    toolbox.register('select', tools.selTournament, tournsize=TOURNSIZE)
     return creator, toolbox
 
 
