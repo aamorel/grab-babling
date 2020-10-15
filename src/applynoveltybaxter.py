@@ -1,16 +1,31 @@
 import gym
 import noveltysearch
-import math
+import utils
 import numpy as np
 import matplotlib.pyplot as plt
-import os
 from deap import base, creator
+import controllers
 
 DISPLAY = False
 PARALLELIZE = True
+PLOT = True
+DISPLAY_HOF = False
+DISPLAY_RAND = True
 
+# choose parameters
 NB_KEYPOINTS = 3
 NB_ITER = 5000
+MINI = False  # maximization problem
+BD_BOUNDS = [[-0.35, 0.35], [-0.15, 0.2]]
+
+
+# choose controller type
+CONTROLLER = 'discrete_key_points'
+
+# choose algorithm type
+ALGO = 'ns_rand'
+
+controllers_dict = {'discrete_key_points': controllers.controller_discrete_key_points}
 
 if PARALLELIZE:
     # container for behavior descriptor
@@ -18,7 +33,7 @@ if PARALLELIZE:
     # container for novelty
     creator.create('Novelty', base.Fitness, weights=(1.0,))
     # container for fitness
-    if min:
+    if MINI:
         creator.create('Fit', base.Fitness, weights=(-1.0,))
     else:
         creator.create('Fit', base.Fitness, weights=(1.0,))
@@ -29,20 +44,6 @@ if PARALLELIZE:
 
     # set creator
     noveltysearch.set_creator(creator)
-
-
-def choose_action(i):
-    """Share the keypoints time equally
-
-    Args:
-        i (int): iteration index
-
-    Returns:
-        int: action index
-    """
-    nb_iter_per_action = math.ceil(NB_ITER / NB_KEYPOINTS)
-    action_index = i // nb_iter_per_action
-    return action_index
 
 
 def list_l2_norm(list1, list2):
@@ -71,13 +72,10 @@ def evaluate_individual(individual):
     Returns:
         tuple: tuple of behavior (list) and fitness(tuple)
     """
-    print("Evaluation's process id is: ", os.getpid())
     env = gym.make('gym_baxter_grabbing:baxter_grabbing-v0', display=DISPLAY)
-    env.reset()
-
     actions = []
     for i in range(NB_KEYPOINTS):
-        actions.append(individual[3 * i:3 * (i + 1)])
+        actions.append(individual[4 * i:4 * (i + 1)])
 
     action = actions[0]
 
@@ -89,36 +87,61 @@ def evaluate_individual(individual):
         if i == 0:
             initial_object_position = o[0]
 
-        action = actions[choose_action(i)]
+        action = controllers_dict[CONTROLLER](i, actions, NB_ITER, NB_KEYPOINTS)
 
         if eo:
             break
     # use last info to compute behavior and fitness
-    behavior = o[0]  # last position of object
-    fitness = list_l2_norm(behavior, initial_object_position)
+    behavior = [o[0][0] - initial_object_position[0], o[0][1] - initial_object_position[1]]  # last position of object
+
+    # bound behavior descriptor on table
+    utils.bound(behavior, BD_BOUNDS)
+
+    # compute fitness
+    fitness = list_l2_norm(behavior, [0, 0])
+
     env.close()
     return (behavior, (fitness,))
 
 
 if __name__ == "__main__":
-    plot = True
-    initial_genotype_size = NB_KEYPOINTS * 3
-    algo = 'classic_ea'
 
-    pop, archive, hof = noveltysearch.novelty_algo(evaluate_individual, initial_genotype_size, min=True,
-                                                   plot=plot, algo_type=algo, nb_gen=5, bound_genotype=1,
-                                                   parallelize=PARALLELIZE)
+    initial_genotype_size = NB_KEYPOINTS * 4
 
-    if plot:
+    pop, archive, hof = noveltysearch.novelty_algo(evaluate_individual, initial_genotype_size, BD_BOUNDS,
+                                                   mini=MINI,
+                                                   plot=PLOT, algo_type=ALGO, nb_gen=10, bound_genotype=1,
+                                                   pop_size=100, parallelize=PARALLELIZE, measures=True)
+
+    hof_fit = np.array([ind.fitness.values for ind in hof])
+    archive_fit = np.array([ind.fitness.values for ind in archive])
+
+    if PLOT:
         # plot final states
         archive_behavior = np.array([ind.behavior_descriptor.values for ind in archive])
         pop_behavior = np.array([ind.behavior_descriptor.values for ind in pop])
         hof_behavior = np.array([ind.behavior_descriptor.values for ind in hof])
         fig, ax = plt.subplots(figsize=(5, 5))
         ax.set(title='Final Archive', xlabel='x1', ylabel='x2')
-        ax.scatter(archive_behavior[:, 0] / 3, archive_behavior[:, 1] / 3, color='red', label='Archive')
-        ax.scatter(pop_behavior[:, 0] / 3, pop_behavior[:, 1] / 3, color='blue', label='Population')
-        ax.scatter(hof_behavior[:, 0] / 3, hof_behavior[:, 1] / 3, color='green', label='Hall of Fame')
+        ax.scatter(archive_behavior[:, 0], archive_behavior[:, 1], color='red', label='Archive')
+        ax.scatter(pop_behavior[:, 0], pop_behavior[:, 1], color='blue', label='Population')
+        ax.scatter(hof_behavior[:, 0], hof_behavior[:, 1], color='green', label='Hall of Fame')
         plt.legend()
 
     plt.show()
+    
+    if DISPLAY_HOF:
+        DISPLAY = True
+        for ind in hof:
+            evaluate_individual(ind)
+    
+    if DISPLAY_RAND:
+        DISPLAY = True
+        nb_show = 10
+        i = 0
+        for ind in pop:
+            if i <= nb_show:
+                evaluate_individual(ind)
+            else:
+                break
+            i += 1

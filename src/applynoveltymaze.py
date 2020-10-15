@@ -91,9 +91,11 @@ def evaluate_individual(individual):
 if __name__ == "__main__":
     plot = True
     initial_genotype_size = 12
-    algo = 'classic_ea'
-    pop, archive, hof = noveltysearch.novelty_algo(evaluate_individual, initial_genotype_size, min=True,
-                                                   plot=plot, algo_type=algo, nb_gen=3, parallelize=PARALLELIZE)
+    algo = 'ns_rand'
+    bd_bounds = [[0, 600], [0, 600]]
+    pop, archive, hof = noveltysearch.novelty_algo(evaluate_individual, initial_genotype_size, bd_bounds, mini=True,
+                                                   plot=plot, algo_type=algo, nb_gen=100, parallelize=PARALLELIZE,
+                                                   measures=True, pop_size=100)
 
     if plot:
         # plot final states

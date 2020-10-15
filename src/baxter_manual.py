@@ -97,7 +97,7 @@ def setUpWorld(initialSimSteps=100):
     for _ in range(initialSimSteps):
         p.stepSimulation()
 
-    return baxterId, endEffectorId
+    return baxterId, endEffectorId, obj_to_grab_id
 
 
 def getJointRanges(bodyId, includeFixed=False):
@@ -199,7 +199,7 @@ if __name__ == "__main__":
     target_gripper_pos_ID = p.addUserDebugParameter("target gripper pos", 0, 0.020833, 0.0)
 
     # set up the world, endEffector is the tip of the left finger
-    baxterId, endEffectorId = setUpWorld()
+    baxterId, endEffectorId, obj_id = setUpWorld()
 
     lowerLimits, upperLimits, jointRanges, restPoses = getJointRanges(baxterId, includeFixed=False)
     targetPosition = [0.2, 0.0, -0.1]
@@ -211,7 +211,7 @@ if __name__ == "__main__":
     p.getCameraImage(320, 200, renderer=p.ER_BULLET_HARDWARE_OPENGL)
 
     # start simu iteration
-    for _ in range(maxIters):
+    for i in range(maxIters):
         p.stepSimulation()
         targetPosX = p.readUserDebugParameter(targetPosXId)
         targetPosY = p.readUserDebugParameter(targetPosYId)

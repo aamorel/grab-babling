@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 from deap import tools, base
 from scipy.spatial import cKDTree as KDTree
 from scoop import futures
+import utils
 
 creator = None
 
@@ -13,23 +14,23 @@ def set_creator(cr):
     creator = cr
 
 
-POP_SIZE = 100
-HOF_SIZE = 10
+HOF_SIZE = 10  # number of individuals in hall of fame
+NB_CELLS = 1000  # number of cells in measuring grid
 K = 15  # number of nearest neighbours for novelty computation
 ARCHIVE = 'random'  # random or novelty_based
 ARCHIVE_PB = 0.2  # if ARCHIVE is random, probability to add individual to archive
-ARCHIVE_NB = int(0.2 * POP_SIZE)  # if ARCHIVE is novelty_based, number of individuals added per generation
-
+# if ARCHIVE is novelty_based, proportion of individuals added per gen
 CXPB = 0.5  # probability with which two individuals are crossed
 MUTPB = 0.2  # probability for mutating an individual
 
 
-def initialize_tool(initial_gen_size, min, parallelize):
+def initialize_tool(initial_gen_size, mini, pop_size, parallelize):
     """Initialize the toolbox
 
     Args:
         initial_gen_size (int): initial size of genotype
         min (bool): True if fitness to minimize, False if fitness to maximize
+        pop_size (int): size of population
         parallelize (bool): True if evaluation of individuals must be parallelized
 
     Returns:
@@ -46,7 +47,7 @@ def initialize_tool(initial_gen_size, min, parallelize):
         # container for novelty
         creator.create('Novelty', base.Fitness, weights=(1.0,))
         # container for fitness
-        if min:
+        if mini:
             creator.create('Fit', base.Fitness, weights=(-1.0,))
         else:
             creator.create('Fit', base.Fitness, weights=(1.0,))
@@ -69,7 +70,7 @@ def initialize_tool(initial_gen_size, min, parallelize):
                      toolbox.init_ind, initial_gen_size)
 
     # create function for population creation
-    toolbox.register('population', tools.initRepeat, list, toolbox.individual, POP_SIZE)
+    toolbox.register('population', tools.initRepeat, list, toolbox.individual, pop_size)
 
     # create operators
     toolbox.register('mate', tools.cxTwoPoint)
@@ -116,7 +117,7 @@ def assess_novelties(pop, archive):
     b_descriptors = [ind.behavior_descriptor.values for ind in reference_pop]
     k_tree = KDTree(b_descriptors)
     # compute novelty for current individuals
-    for i in range(POP_SIZE):
+    for i in range(len(pop)):
         novelties.append(compute_average_distance(b_descriptors[i], k_tree))
     return novelties
 
@@ -163,7 +164,7 @@ def operate_offsprings(offsprings, toolbox, bound_genotype):
         bound(offsprings, bound_genotype)
 
 
-def gen_plot(mean_hist, min_hist, max_hist, arch_size_hist):
+def gen_plot(mean_hist, min_hist, max_hist, arch_size_hist, coverage_hist):
     """Plotting
 
     Args:
@@ -171,13 +172,14 @@ def gen_plot(mean_hist, min_hist, max_hist, arch_size_hist):
         min_hist (list): history of min fitness
         max_hist (list): history of max fitness
         arch_size_hist (list): history of archive size
+        coverage_hist (list): history of coverage
     """
     mean_hist = np.array(mean_hist)
     min_hist = np.array(min_hist)
 
     # plot evolution
     fig, ax = plt.subplots(figsize=(5, 5))
-    ax.set(title='Test with Rastrigin function', xlabel='Generations', ylabel='Fitness')
+    ax.set(title='Evolution of fitness', xlabel='Generations', ylabel='Fitness')
     ax.plot(mean_hist, label='Mean')
     ax.plot(min_hist, label='Min')
     ax.plot(max_hist, label='Max')
@@ -189,34 +191,47 @@ def gen_plot(mean_hist, min_hist, max_hist, arch_size_hist):
     ax.set(title='Evolution of archive size', xlabel='Generations', ylabel='Archive size')
     ax.plot(arch_size_hist)
 
+    # plot evolution
+    fig, ax = plt.subplots(figsize=(5, 5))
+    ax.set(title='Evolution of coverage', xlabel='Generations', ylabel='Coverage')
+    ax.plot(coverage_hist)
 
-def novelty_algo(evaluate_individual, initial_gen_size, min=True, plot=False, nb_gen=100,
-                 algo_type='ns_nov', bound_genotype=5, parallelize=False):
 
-    creator, toolbox = initialize_tool(initial_gen_size, min, parallelize)
+def add_to_grid(member, grid, cvt, measures):
+    if measures:
+        member_bd = member.behavior_descriptor.values
+        grid_index = cvt.get_grid_index(member_bd)
+        grid[grid_index] += 1
+
+
+def novelty_algo(evaluate_individual, initial_gen_size, bd_bounds, mini=True, plot=False, nb_gen=100,
+                 algo_type='ns_nov', bound_genotype=5, pop_size=30, parallelize=False,
+                 measures=False):
+
+    creator, toolbox = initialize_tool(initial_gen_size, mini, pop_size, parallelize)
     pop = toolbox.population()
 
     if algo_type == 'ns_nov':
         archive_type = 'novelty_based'
     if algo_type == 'ns_rand' or algo_type == 'classic_ea':
         archive_type = 'random'
-    # plot initial population
-    if plot:
-        pop_n = np.array(pop)
-        fig, ax = plt.subplots(figsize=(5, 5))
-        ax.set(title='Initial Population', xlabel='x1', ylabel='x2')
-        ax.scatter(pop_n[:, 0], pop_n[:, 1])
-        for i in range(len(pop)):
-            ax.annotate(i, (pop_n[i, 0], pop_n[i, 1]))
 
     # initialize the archive
     archive = []
+    archive_nb = int(ARCHIVE_PB * pop_size)
 
     # initialize the HOF
     hall_of_fame = tools.HallOfFame(HOF_SIZE)
 
     # initialize generation counter
     gen = 0
+
+    grid = None
+    cvt = None
+    if measures:
+        # initialize the CVT grid
+        grid = np.zeros(NB_CELLS)
+        cvt = utils.CVT(num_centroids=NB_CELLS, bounds=bd_bounds)
 
     # evaluate initial population
     evaluation_pop = list(toolbox.map(evaluate_individual, pop))
@@ -238,19 +253,23 @@ def novelty_algo(evaluate_individual, initial_gen_size, min=True, plot=False, nb
             if random.random() < ARCHIVE_PB:
                 member = toolbox.clone(ind)
                 archive.append(member)
+                add_to_grid(member, grid, cvt, measures)
     if archive_type == 'novelty_based':
         # fill archive with the most novel individuals
         novel_n = np.array([nov[0] for nov in novelties])
-        max_novelties_idx = np.argsort(-novel_n)[:ARCHIVE_NB]
+        max_novelties_idx = np.argsort(-novel_n)[:archive_nb]
         for i in max_novelties_idx:
             member = toolbox.clone(pop[i])
             archive.append(member)
+            add_to_grid(member, grid, cvt, measures)
 
     # keep track of stats
     mean_hist = []
     min_hist = []
     max_hist = []
     arch_size_hist = []
+    if measures:
+        coverage_hist = []
 
     # begin evolution
     while gen < nb_gen:
@@ -294,13 +313,16 @@ def novelty_algo(evaluate_individual, initial_gen_size, min=True, plot=False, nb
                 if random.random() < ARCHIVE_PB:
                     member = toolbox.clone(ind)
                     archive.append(member)
+                    add_to_grid(member, grid, cvt, measures)
+
         if archive_type == 'novelty_based':
             # fill archive with the most novel individuals
             novel_n = np.array([nov[0] for nov in novelties])
-            max_novelties_idx = np.argsort(-novel_n)[:ARCHIVE_NB]
+            max_novelties_idx = np.argsort(-novel_n)[:archive_nb]
             for i in max_novelties_idx:
                 member = toolbox.clone(pop[i])
                 archive.append(member)
+                add_to_grid(member, grid, cvt, measures)
 
         # update Hall of fame
         hall_of_fame.update(pop)
@@ -308,6 +330,9 @@ def novelty_algo(evaluate_individual, initial_gen_size, min=True, plot=False, nb
         # gather all the fitnesses in one list and compute stats
         fits = np.array([ind.fitness.values[0] for ind in pop])
         mean = np.mean(fits)
+        if measures:
+            coverage = np.count_nonzero(grid) / NB_CELLS
+            coverage_hist.append(coverage)
         # std = np.std(fits)
         # print("  Min %s" % np.min(fits))
         # print("  Max %s" % np.max(fits))
@@ -319,7 +344,7 @@ def novelty_algo(evaluate_individual, initial_gen_size, min=True, plot=False, nb
         max_hist.append(np.max(fits))
 
     if plot:
-        gen_plot(mean_hist, min_hist, max_hist, arch_size_hist)
+        gen_plot(mean_hist, min_hist, max_hist, arch_size_hist, coverage_hist)
 
     # show all plots
     plt.show()

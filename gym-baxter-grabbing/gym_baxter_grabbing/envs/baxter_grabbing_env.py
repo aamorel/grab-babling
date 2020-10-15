@@ -2,6 +2,7 @@ from time import sleep
 import pybullet as p
 import numpy as np
 import gym
+from scipy.interpolate import interp1d
 
 MAX_FORCE = 100
 
@@ -84,7 +85,7 @@ def setUpWorld(initialSimSteps=100):
     col_id = p.createCollisionShape(p.GEOM_BOX, halfExtents=[square_base, square_base, height])
     viz_id = p.createVisualShape(p.GEOM_BOX, halfExtents=[square_base, square_base, 0.1], rgbaColor=[1, 0, 0, 1])
     obj_to_grab_id = p.createMultiBody(baseMass=1, baseCollisionShapeIndex=col_id, baseVisualShapeIndex=viz_id)
-    p.resetBasePositionAndOrientation(obj_to_grab_id, [0, 0.2, 3], [0, 0, 0, 1])
+    p.resetBasePositionAndOrientation(obj_to_grab_id, [0, 0.2, 0.73], [0, 0, 0, 1])
 
     # grab relevant joint IDs
     endEffectorId = 48  # (left gripper left finger)
@@ -206,6 +207,8 @@ class Baxter_grabbingEnv(gym.Env):
             p.resetDebugVisualizerCamera(2., 180, 0., [0.52, 0.2, np.pi / 4.])
             p.getCameraImage(320, 200, renderer=p.ER_BULLET_HARDWARE_OPENGL)
             sleep(1.)
+        
+        self.interp_grip = interp1d([-1, 1], [0, 0.020833])
             
     def step(self, action):
         """Executes one step of the simulation
@@ -222,9 +225,16 @@ class Baxter_grabbingEnv(gym.Env):
         targetPosition = action
         p.stepSimulation()
 
-        jointPoses = accurateIK(self.baxterId, self.endEffectorId, targetPosition, self.lowerLimits,
+        jointPoses = accurateIK(self.baxterId, self.endEffectorId, targetPosition[0:3], self.lowerLimits,
                                 self.upperLimits, self.jointRanges, self.restPoses, useNullSpace=True)
         setMotors(self.baxterId, jointPoses)
+
+        # explicitly control the gripper
+        target_gripper_pos = float(self.interp_grip(targetPosition[3]))
+        p.setJointMotorControl2(bodyIndex=self.baxterId, jointIndex=49, controlMode=p.POSITION_CONTROL,
+                                targetPosition=target_gripper_pos, force=MAX_FORCE)
+        p.setJointMotorControl2(bodyIndex=self.baxterId, jointIndex=51, controlMode=p.POSITION_CONTROL,
+                                targetPosition=-target_gripper_pos, force=MAX_FORCE)
 
         # get information on target object
         obj = p.getBasePositionAndOrientation(self.objectId)
