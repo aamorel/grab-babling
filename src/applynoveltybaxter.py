@@ -99,7 +99,11 @@ def analyze_triumphants(triumphant_archive):
 
     clustered_triumphants = []
     for i in range(number_of_clusters):
-        clustered_triumphants.append(triumphant_archive[labels[i]])
+        members_of_cluster = []
+        for j, triumphant in enumerate(triumphant_archive):
+            if labels[j] == i:
+                members_of_cluster.append(triumphant)
+        clustered_triumphants.append(members_of_cluster)
 
     print(number_of_clusters, 'types of grasping were found.')
 
@@ -252,8 +256,8 @@ if __name__ == "__main__":
 
     pop, archive, hof, info = noveltysearch.novelty_algo(evaluation_function, initial_genotype_size, BD_BOUNDS,
                                                          mini=MINI,
-                                                         plot=PLOT, algo_type=ALGO, nb_gen=2, bound_genotype=1,
-                                                         pop_size=20, parallelize=PARALLELIZE, measures=True)
+                                                         plot=PLOT, algo_type=ALGO, nb_gen=600, bound_genotype=1,
+                                                         pop_size=100, parallelize=PARALLELIZE, measures=True)
     
     # create triumphant archive
     triumphant_archive = []
