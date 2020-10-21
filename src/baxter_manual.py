@@ -228,7 +228,13 @@ if __name__ == "__main__":
 
         setMotors(baxterId, jointPoses)
 
-        # print(p.getBasePositionAndOrientation(obj_id))
+        if i % 2000 == 0:
+            o = list(p.getBasePositionAndOrientation(obj_id)[0])
+            g = list(p.getLinkState(baxterId, endEffectorId)[0])
+            dist = ((o[0] - g[0])**2 + (o[1] - g[1])**2 + (o[2] - g[2])**2)**(1 / 2)
+            print('Object position:', o)
+            print('Gripper position:', g)
+            print('Distance:', dist)
 
         # explicitly control the gripper
         p.setJointMotorControl2(bodyIndex=baxterId, jointIndex=49, controlMode=p.POSITION_CONTROL,

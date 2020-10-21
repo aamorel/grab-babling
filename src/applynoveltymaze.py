@@ -15,6 +15,8 @@ PARALLELIZE = False
 if PARALLELIZE:
     # container for behavior descriptor
     creator.create('BehaviorDescriptor', list)
+    # container for info
+    creator.create('Info', dict)
     # container for novelty
     creator.create('Novelty', base.Fitness, weights=(1.0,))
     # container for fitness
@@ -25,7 +27,7 @@ if PARALLELIZE:
 
     # container for individual
     creator.create('Individual', list, behavior_descriptor=creator.BehaviorDescriptor,
-                   novelty=creator.Novelty, fitness=creator.Fit)
+                   novelty=creator.Novelty, fitness=creator.Fit, info=creator.Info)
 
     # set creator
     noveltysearch.set_creator(creator)
@@ -41,6 +43,7 @@ def evaluate_individual(individual):
     Returns:
         tuple: tuple of behavior (list) and fitness(tuple)
     """
+    info = {}
     if EXAMPLE:
         # example: behavior is juste genotype
         behavior = individual.copy()
@@ -51,7 +54,7 @@ def evaluate_individual(individual):
         for i in range(dim):
             fitness += individual[i]**2 - A * math.cos(2 * math.pi * individual[i])
         fitness += A * dim
-        return (behavior, (fitness,))
+        return (behavior, (fitness,), info)
     else:
         env = gym.make('FastsimSimpleNavigation-v0')
         env.reset()
@@ -85,7 +88,7 @@ def evaluate_individual(individual):
         # use last info to compute behavior and fitness
         behavior = [info["robot_pos"][0], info["robot_pos"][1]]
         fitness = info["dist_obj"]
-        return (behavior, (fitness,))
+        return (behavior, (fitness,), info)
 
 
 if __name__ == "__main__":
@@ -93,9 +96,10 @@ if __name__ == "__main__":
     initial_genotype_size = 12
     algo = 'ns_rand'
     bd_bounds = [[0, 600], [0, 600]]
-    pop, archive, hof = noveltysearch.novelty_algo(evaluate_individual, initial_genotype_size, bd_bounds, mini=True,
-                                                   plot=plot, algo_type=algo, nb_gen=100, parallelize=PARALLELIZE,
-                                                   measures=True, pop_size=100)
+    pop, archive, hof, info = noveltysearch.novelty_algo(evaluate_individual, initial_genotype_size, bd_bounds,
+                                                         mini=True,
+                                                         plot=plot, algo_type=algo, nb_gen=30, parallelize=PARALLELIZE,
+                                                         measures=True, pop_size=100)
 
     if plot:
         # plot final states

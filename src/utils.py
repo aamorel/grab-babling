@@ -44,3 +44,14 @@ def bound(behavior, bound_behavior):
             behavior[i] = bound_behavior[i][0]
         if behavior[i] > bound_behavior[i][1]:
             behavior[i] = bound_behavior[i][1]
+
+
+def list_l2_norm(list1, list2):
+    if len(list1) != len(list2):
+        raise NameError('The two lists have different length')
+    else:
+        dist = 0
+        for i in range(len(list1)):
+            dist += (list1[i] - list2[i]) ** 2
+        dist = dist ** (1 / 2)
+        return dist

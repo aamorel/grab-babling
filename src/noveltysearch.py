@@ -3,6 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from deap import tools, base
 from scipy.spatial import cKDTree as KDTree
+from scipy.spatial import distance
 from scoop import futures
 import utils
 
@@ -23,6 +24,7 @@ ARCHIVE_PB = 0.2  # if ARCHIVE is random, probability to add individual to archi
 CXPB = 0.5  # probability with which two individuals are crossed
 MUTPB = 0.2  # probability for mutating an individual
 TOURNSIZE = 10  # drives towards selective pressure
+OFFSPRING_NB_COEFF = 0.5  # number of offsprings generated (coeff of pop length)
 
 
 def initialize_tool(initial_gen_size, mini, pop_size, parallelize):
@@ -45,6 +47,8 @@ def initialize_tool(initial_gen_size, mini, pop_size, parallelize):
         from deap import creator
         # container for behavior descriptor
         creator.create('BehaviorDescriptor', list)
+        # container for info
+        creator.create('Info', dict)
         # container for novelty
         creator.create('Novelty', base.Fitness, weights=(1.0,))
         # container for fitness
@@ -55,7 +59,7 @@ def initialize_tool(initial_gen_size, mini, pop_size, parallelize):
 
         # container for individual
         creator.create('Individual', list, behavior_descriptor=creator.BehaviorDescriptor,
-                       novelty=creator.Novelty, fitness=creator.Fit)
+                       novelty=creator.Novelty, fitness=creator.Fit, info=creator.Info)
 
         # overwrite map function with normal map
         toolbox.register('map', map)
@@ -77,6 +81,7 @@ def initialize_tool(initial_gen_size, mini, pop_size, parallelize):
     toolbox.register('mate', tools.cxTwoPoint)
     toolbox.register('mutate', tools.mutGaussian, mu=0, sigma=0.1, indpb=0.3)
     toolbox.register('select', tools.selTournament, tournsize=TOURNSIZE)
+    toolbox.register('replace', tools.selBest)
     return creator, toolbox
 
 
@@ -165,7 +170,7 @@ def operate_offsprings(offsprings, toolbox, bound_genotype):
         bound(offsprings, bound_genotype)
 
 
-def gen_plot(mean_hist, min_hist, max_hist, arch_size_hist, coverage_hist):
+def gen_plot(mean_hist, min_hist, max_hist, arch_size_hist, coverage_hist, uniformity_hist):
     """Plotting
 
     Args:
@@ -173,8 +178,9 @@ def gen_plot(mean_hist, min_hist, max_hist, arch_size_hist, coverage_hist):
         min_hist (list): history of min fitness
         max_hist (list): history of max fitness
         arch_size_hist (list): history of archive size
-        coverage_hist (list): history of coverage
-    """
+        coverage_hist (list): history of coverage of archive
+        uniformity_hist (list): history of uniformity of archive
+   """
     mean_hist = np.array(mean_hist)
     min_hist = np.array(min_hist)
 
@@ -184,7 +190,6 @@ def gen_plot(mean_hist, min_hist, max_hist, arch_size_hist, coverage_hist):
     ax.plot(mean_hist, label='Mean')
     ax.plot(min_hist, label='Min')
     ax.plot(max_hist, label='Max')
-
     plt.legend()
 
     # plot evolution
@@ -194,8 +199,10 @@ def gen_plot(mean_hist, min_hist, max_hist, arch_size_hist, coverage_hist):
 
     # plot evolution
     fig, ax = plt.subplots(figsize=(5, 5))
-    ax.set(title='Evolution of coverage', xlabel='Generations', ylabel='Coverage')
-    ax.plot(coverage_hist)
+    ax.set(title='Evolution of selected metrics in archive', xlabel='Generations')
+    ax.plot(coverage_hist, label='Coverage')
+    ax.plot(uniformity_hist, label='Uniformity')
+    plt.legend()
 
 
 def add_to_grid(member, grid, cvt, measures):
@@ -214,15 +221,18 @@ def novelty_algo(evaluate_individual, initial_gen_size, bd_bounds, mini=True, pl
 
     if algo_type == 'ns_nov':
         archive_type = 'novelty_based'
-    if algo_type == 'ns_rand' or algo_type == 'classic_ea':
+    if (algo_type == 'ns_rand' or algo_type == 'classic_ea') or algo_type == 'ns_rand_binary_removal':
         archive_type = 'random'
 
     # initialize the archive
     archive = []
-    archive_nb = int(ARCHIVE_PB * pop_size)
+    archive_nb = int(ARCHIVE_PB * OFFSPRING_NB_COEFF)
 
     # initialize the HOF
     hall_of_fame = tools.HallOfFame(HOF_SIZE)
+
+    # initialize info dictionnary
+    info = {}
 
     # initialize generation counter
     gen = 0
@@ -236,11 +246,12 @@ def novelty_algo(evaluate_individual, initial_gen_size, bd_bounds, mini=True, pl
 
     # evaluate initial population
     evaluation_pop = list(toolbox.map(evaluate_individual, pop))
-    b_descriptors, fitnesses = map(list, zip(*evaluation_pop))
+    b_descriptors, fitnesses, infos = map(list, zip(*evaluation_pop))
 
     # attribute fitness and behavior descriptors to individuals
-    for ind, fit, bd in zip(pop, fitnesses, b_descriptors):
+    for ind, fit, bd, inf in zip(pop, fitnesses, b_descriptors, infos):
         ind.behavior_descriptor.values = bd
+        ind.info.values = inf
         ind.fitness.values = fit
 
     novelties = assess_novelties(pop, archive)
@@ -271,6 +282,7 @@ def novelty_algo(evaluate_individual, initial_gen_size, bd_bounds, mini=True, pl
     arch_size_hist = []
     if measures:
         coverage_hist = []
+        uniformity_hist = []
 
     # begin evolution
     while gen < nb_gen:
@@ -278,39 +290,42 @@ def novelty_algo(evaluate_individual, initial_gen_size, bd_bounds, mini=True, pl
         gen += 1
         print('--Generation %i --' % gen)
 
-        if algo_type == 'ns_nov' or algo_type == 'ns_rand':
+        if (algo_type == 'ns_nov' or algo_type == 'ns_rand') or algo_type == 'ns_rand_binary_removal':
             # novelty search: selection on novelty
-            offsprings = toolbox.select(pop, len(pop), fit_attr='novelty')  # references to selected individuals
+            # references to selected individuals
+            offsprings = toolbox.select(pop, int(pop_size * OFFSPRING_NB_COEFF), fit_attr='novelty')
 
         if algo_type == 'classic_ea':
             # classical EA: selection on fitness
-            offsprings = toolbox.select(pop, len(pop), fit_attr='fitness')  # references to selected individuals
+            # references to selected individuals
+            offsprings = toolbox.select(pop, int(pop_size * OFFSPRING_NB_COEFF), fit_attr='fitness')
         
         offsprings = list(map(toolbox.clone, offsprings))  # clone selected indivduals
         operate_offsprings(offsprings, toolbox, bound_genotype)  # crossover and mutation
 
-        # evaluate the indivduals with an invalid fitness
+        # evaluate the individuals with an invalid fitness
         invalid_ind = [ind for ind in offsprings if not ind.fitness.valid]
         evaluation_pop = list(toolbox.map(evaluate_individual, invalid_ind))
-        inv_b_descriptors, inv_fitnesses = map(list, zip(*evaluation_pop))
+        inv_b_descriptors, inv_fitnesses, inv_infos = map(list, zip(*evaluation_pop))
 
         # attribute fitness and behavior descriptors to new individuals
-        for ind, fit, bd in zip(invalid_ind, inv_fitnesses, inv_b_descriptors):
+        for ind, fit, bd, inf in zip(invalid_ind, inv_fitnesses, inv_b_descriptors, inv_infos):
             ind.behavior_descriptor.values = bd
+            ind.info.values = inf
             ind.fitness.values = fit
 
-        # full replacement of population
-        pop[:] = offsprings
+        # current pool is old population + generated offsprings
+        current_pool = pop + offsprings
 
         # compute novelty for all current individuals (also old ones)
-        novelties = assess_novelties(pop, archive)
-        for ind, nov in zip(pop, novelties):
+        novelties = assess_novelties(current_pool, archive)
+        for ind, nov in zip(current_pool, novelties):
             ind.novelty.values = nov
 
         # fill archive
         if archive_type == 'random':
             # fill archive randomly
-            for ind in pop:
+            for ind in offsprings:
                 if random.random() < ARCHIVE_PB:
                     member = toolbox.clone(ind)
                     archive.append(member)
@@ -318,12 +333,22 @@ def novelty_algo(evaluate_individual, initial_gen_size, bd_bounds, mini=True, pl
 
         if archive_type == 'novelty_based':
             # fill archive with the most novel individuals
-            novel_n = np.array([nov[0] for nov in novelties])
+            offsprings_novelties = novelties[pop_size:]
+            novel_n = np.array([nov[0] for nov in offsprings_novelties])
             max_novelties_idx = np.argsort(-novel_n)[:archive_nb]
             for i in max_novelties_idx:
-                member = toolbox.clone(pop[i])
+                member = toolbox.clone(offsprings[i])
                 archive.append(member)
                 add_to_grid(member, grid, cvt, measures)
+
+        # replacement: keep the most novel individuals
+        pop[:] = toolbox.replace(current_pool, pop_size, fit_attr='novelty')
+
+        if algo_type == 'ns_rand_binary_removal':
+            # remove individuals that satisfy the binary goal
+            for i, ind in enumerate(pop):
+                if ind.info.values['binary goal']:
+                    pop.pop(i)
 
         # update Hall of fame
         hall_of_fame.update(pop)
@@ -332,8 +357,17 @@ def novelty_algo(evaluate_individual, initial_gen_size, bd_bounds, mini=True, pl
         fits = np.array([ind.fitness.values[0] for ind in pop])
         mean = np.mean(fits)
         if measures:
+            # compute coverage
             coverage = np.count_nonzero(grid) / NB_CELLS
             coverage_hist.append(coverage)
+
+            # compute uniformity
+            P = grid[np.nonzero(grid)]
+            P = P / np.sum(P)
+            Q = np.ones(len(P)) / len(P)
+            uniformity = distance.jensenshannon(P, Q)
+            uniformity_hist.append(uniformity)
+
         # std = np.std(fits)
         # print("  Min %s" % np.min(fits))
         # print("  Max %s" % np.max(fits))
@@ -345,9 +379,9 @@ def novelty_algo(evaluate_individual, initial_gen_size, bd_bounds, mini=True, pl
         max_hist.append(np.max(fits))
 
     if plot:
-        gen_plot(mean_hist, min_hist, max_hist, arch_size_hist, coverage_hist)
+        gen_plot(mean_hist, min_hist, max_hist, arch_size_hist, coverage_hist, uniformity_hist)
 
     # show all plots
     plt.show()
 
-    return pop, archive, hall_of_fame
+    return pop, archive, hall_of_fame, info
