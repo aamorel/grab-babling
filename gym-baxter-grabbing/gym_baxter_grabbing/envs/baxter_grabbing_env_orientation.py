@@ -2,6 +2,7 @@ from time import sleep
 import pybullet as p
 import numpy as np
 import gym
+import pyquaternion as pyq
 from scipy.interpolate import interp1d
 
 MAX_FORCE = 100
@@ -138,7 +139,8 @@ def getJointRanges(bodyId, includeFixed=False):
     return lowerLimits, upperLimits, jointRanges, restPoses
 
 
-def accurateIK(bodyId, endEffectorId, targetPosition, lowerLimits, upperLimits, jointRanges, restPoses,
+def accurateIK(bodyId, endEffectorId, targetPosition, targetOrientation, lowerLimits, upperLimits, jointRanges,
+               restPoses,
                useNullSpace=False, maxIter=10, threshold=1e-4):
     """
     Parameters
@@ -146,6 +148,7 @@ def accurateIK(bodyId, endEffectorId, targetPosition, lowerLimits, upperLimits, 
     bodyId : int
     endEffectorId : int
     targetPosition : [float, float, float]
+    targetOrientation: Quaternion
     lowerLimits : [float]
     upperLimits : [float]
     jointRanges : [float]
@@ -161,11 +164,13 @@ def accurateIK(bodyId, endEffectorId, targetPosition, lowerLimits, upperLimits, 
 
     if useNullSpace:
         jointPoses = p.calculateInverseKinematics(bodyId, endEffectorId, targetPosition,
+                                                  targetOrientation=targetOrientation,
                                                   lowerLimits=lowerLimits, upperLimits=upperLimits,
                                                   jointRanges=jointRanges,
                                                   restPoses=restPoses)
     else:
-        jointPoses = p.calculateInverseKinematics(bodyId, endEffectorId, targetPosition)
+        jointPoses = p.calculateInverseKinematics(bodyId, endEffectorId, targetPosition,
+                                                  targetOrientation=targetOrientation)
 
     return jointPoses
 
@@ -187,7 +192,7 @@ def setMotors(bodyId, jointPoses):
                                     targetPosition=jointPoses[qIndex - 7], force=MAX_FORCE)
 
 
-class Baxter_grabbingEnv(gym.Env):
+class Baxter_grabbingEnvOrientation(gym.Env):
 
     def __init__(self, display=False):
 
@@ -214,8 +219,8 @@ class Baxter_grabbingEnv(gym.Env):
         """Executes one step of the simulation
 
         Args:
-            action (list): size 4, target position of end effector in Cartesian coordinate
-                           and target position of gripper
+            action (list): size 8, target position of end effector in Cartesian coordinate
+                           target orientation of end effector (quaternion) and target gripper position
 
         Returns:
             list: observation
@@ -223,15 +228,20 @@ class Baxter_grabbingEnv(gym.Env):
             bool: done
             dict: info
         """
-        targetPosition = action
+        target_position = action[0:3]
+        target_orientation = action[3:7]
+        quat_orientation = pyq.Quaternion(target_orientation)
+        quat_orientation = quat_orientation.normalised
+        target_gripper = action[7]
         p.stepSimulation()
 
-        jointPoses = accurateIK(self.baxterId, self.endEffectorId, targetPosition[0:3], self.lowerLimits,
+        jointPoses = accurateIK(self.baxterId, self.endEffectorId, target_position, target_orientation,
+                                self.lowerLimits,
                                 self.upperLimits, self.jointRanges, self.restPoses, useNullSpace=True)
         setMotors(self.baxterId, jointPoses)
 
         # explicitly control the gripper
-        target_gripper_pos = float(self.interp_grip(targetPosition[3]))
+        target_gripper_pos = float(self.interp_grip(target_gripper))
         p.setJointMotorControl2(bodyIndex=self.baxterId, jointIndex=49, controlMode=p.POSITION_CONTROL,
                                 targetPosition=target_gripper_pos, force=MAX_FORCE)
         p.setJointMotorControl2(bodyIndex=self.baxterId, jointIndex=51, controlMode=p.POSITION_CONTROL,

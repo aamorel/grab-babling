@@ -1,7 +1,6 @@
 import gym
 import gym_fastsim  # must still be imported
 import mapelites
-import math
 import time
 import numpy as np
 import matplotlib.pyplot as plt

@@ -16,6 +16,7 @@ DISPLAY_HOF = False
 DISPLAY_RAND = False
 DISPLAY_TRIUMPHANTS = True
 CLASSIFY = False
+EVAL_INDIVIDUAL = False
 
 # choose parameters
 NB_KEYPOINTS = 3
@@ -71,10 +72,14 @@ def analyze_triumphants(triumphant_archive):
         triumphant_archive.pop(random.randint(0, len(triumphant_archive)))
     
     nb_of_triumphants = len(triumphant_archive)
+    
+    # saving the triumphants for debugging
+    for i, ind in enumerate(triumphant_archive):
+        np.save('triumphant_' + str(i), np.array(ind))
 
     # cluster the triumphants with respect to grasping descriptor
     clustering = AgglomerativeClustering(n_clusters=None, affinity='precomputed', compute_full_tree=True,
-                                         distance_threshold=0.1)
+                                         distance_threshold=0.1, linkage='average')
     # compute distance matrix
     X = np.zeros((nb_of_triumphants, nb_of_triumphants))
     for x in range(nb_of_triumphants):
@@ -238,6 +243,13 @@ if __name__ == "__main__":
 
     initial_genotype_size = NB_KEYPOINTS * 4
     evaluation_function = bd_dict[BD]
+
+    if EVAL_INDIVIDUAL:
+        for i in range(4):
+            DISPLAY = True
+            evaluation_function(np.load('triumphant_' + str(i) + '.npy', allow_pickle=True))
+        exit()
+
     pop, archive, hof, info = noveltysearch.novelty_algo(evaluation_function, initial_genotype_size, BD_BOUNDS,
                                                          mini=MINI,
                                                          plot=PLOT, algo_type=ALGO, nb_gen=100, bound_genotype=1,
