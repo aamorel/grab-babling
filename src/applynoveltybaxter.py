@@ -12,7 +12,7 @@ import controllers
 DISPLAY = False
 PARALLELIZE = True
 PLOT = True
-DISPLAY_HOF = False
+DISPLAY_HOF = True
 DISPLAY_RAND = False
 DISPLAY_TRIUMPHANTS = True
 CLASSIFY = False
@@ -252,8 +252,8 @@ if __name__ == "__main__":
 
     pop, archive, hof, info = noveltysearch.novelty_algo(evaluation_function, initial_genotype_size, BD_BOUNDS,
                                                          mini=MINI,
-                                                         plot=PLOT, algo_type=ALGO, nb_gen=100, bound_genotype=1,
-                                                         pop_size=100, parallelize=PARALLELIZE, measures=True)
+                                                         plot=PLOT, algo_type=ALGO, nb_gen=2, bound_genotype=1,
+                                                         pop_size=20, parallelize=PARALLELIZE, measures=True)
     
     # create triumphant archive
     triumphant_archive = []
