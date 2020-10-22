@@ -21,6 +21,7 @@ EVAL_INDIVIDUAL = False
 
 # choose parameters
 NB_KEYPOINTS = 3
+GENE_PER_KEYPOINTS = 8
 NB_ITER = 6000
 MINI = False  # maximization problem
 HEIGHT_THRESH = -0.08  # binary goal parameter
@@ -66,7 +67,7 @@ if PARALLELIZE:
 def analyze_triumphants(triumphant_archive):
     if len(triumphant_archive) < 2:
         print('No individual completed the binary goal.')
-        return None
+        return None, None
 
     # sample the triumphant archive to reduce computational cost
     while len(triumphant_archive) >= 500:
@@ -122,9 +123,6 @@ def two_d_behavioral_descriptor(individual):
     and its fitness value.
     In this case, we consider the behavior space as the end position of the object in
     the 2D plane (no grasping needed, only pushing).
-    The genotype represents NB_KEYPOINTS keypoints that are a triplet representing the position
-    of the gripper.
-    Then, each keypoint is given as goal sequentially for the same amount of time.
 
     Args:
         individual (Individual): an individual
@@ -132,10 +130,10 @@ def two_d_behavioral_descriptor(individual):
     Returns:
         tuple: tuple of behavior (list) and fitness(tuple)
     """
-    env = gym.make('gym_baxter_grabbing:baxter_grabbing-v0', display=DISPLAY)
+    env = gym.make('gym_baxter_grabbing:baxter_grabbing-v1', display=DISPLAY)
     actions = []
     for i in range(NB_KEYPOINTS):
-        actions.append(individual[4 * i:4 * (i + 1)])
+        actions.append(individual[GENE_PER_KEYPOINTS * i:GENE_PER_KEYPOINTS * (i + 1)])
 
     action = actions[0]
 
@@ -174,9 +172,6 @@ def three_d_behavioral_descriptor(individual):
     and its fitness value.
     In this case, we consider the behavior space as the end position of the object in
     the 3D volume.
-    The genotype represents NB_KEYPOINTS keypoints that are a triplet representing the position
-    of the gripper.
-    Then, each keypoint is given as goal sequentially for the same amount of time.
 
     Args:
         individual (Individual): an individual
@@ -184,10 +179,10 @@ def three_d_behavioral_descriptor(individual):
     Returns:
         tuple: tuple of behavior (list) and fitness(tuple)
     """
-    env = gym.make('gym_baxter_grabbing:baxter_grabbing-v0', display=DISPLAY)
+    env = gym.make('gym_baxter_grabbing:baxter_grabbing-v1', display=DISPLAY)
     actions = []
     for i in range(NB_KEYPOINTS):
-        actions.append(individual[4 * i:4 * (i + 1)])
+        actions.append(individual[GENE_PER_KEYPOINTS * i:GENE_PER_KEYPOINTS * (i + 1)])
 
     action = actions[0]
 
@@ -253,7 +248,7 @@ bd_dict = {'2D': two_d_behavioral_descriptor,
 
 if __name__ == "__main__":
 
-    initial_genotype_size = NB_KEYPOINTS * 4
+    initial_genotype_size = NB_KEYPOINTS * GENE_PER_KEYPOINTS
     evaluation_function = bd_dict[BD]
 
     if EVAL_INDIVIDUAL:
@@ -265,8 +260,8 @@ if __name__ == "__main__":
 
     pop, archive, hof, info = noveltysearch.novelty_algo(evaluation_function, initial_genotype_size, BD_BOUNDS,
                                                          mini=MINI,
-                                                         plot=PLOT, algo_type=ALGO, nb_gen=600, bound_genotype=1,
-                                                         pop_size=100, parallelize=PARALLELIZE, measures=True)
+                                                         plot=PLOT, algo_type=ALGO, nb_gen=2, bound_genotype=1,
+                                                         pop_size=20, parallelize=PARALLELIZE, measures=True)
     
     # create triumphant archive
     triumphant_archive = []
