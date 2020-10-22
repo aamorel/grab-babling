@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 from deap import base, creator
 from sklearn.cluster import AgglomerativeClustering
 import controllers
+import os
 
 DISPLAY = False
 PARALLELIZE = True
@@ -20,7 +21,7 @@ EVAL_INDIVIDUAL = False
 
 # choose parameters
 NB_KEYPOINTS = 3
-NB_ITER = 5000
+NB_ITER = 6000
 MINI = False  # maximization problem
 HEIGHT_THRESH = -0.08  # binary goal parameter
 DISTANCE_THRESH = 0.20  # binary goal parameter
@@ -35,7 +36,7 @@ if BD == '3D':
     BD_BOUNDS = [[-0.35, 0.35], [-0.15, 0.2], [-0.12, 0.5]]
 
 # choose controller type
-CONTROLLER = 'interpolate keypoints'
+CONTROLLER = 'interpolate keypoints end pause'
 
 # choose algorithm type
 ALGO = 'ns_rand'
@@ -74,8 +75,14 @@ def analyze_triumphants(triumphant_archive):
     nb_of_triumphants = len(triumphant_archive)
     
     # saving the triumphants for debugging
+    i = 0
+    while os.path.exists('runs/run%i/' % i):
+        i += 1
+    run_name = 'runs/run%i/' % i
+    os.mkdir(run_name)
+
     for i, ind in enumerate(triumphant_archive):
-        np.save('triumphant_' + str(i), np.array(ind))
+        np.save(run_name + 'triumphant_' + str(i), np.array(ind))
 
     # cluster the triumphants with respect to grasping descriptor
     clustering = AgglomerativeClustering(n_clusters=None, affinity='precomputed', compute_full_tree=True,
@@ -107,7 +114,7 @@ def analyze_triumphants(triumphant_archive):
 
     print(number_of_clusters, 'types of grasping were found.')
 
-    return clustered_triumphants
+    return clustered_triumphants, run_name
     
 
 def two_d_behavioral_descriptor(individual):
@@ -237,8 +244,9 @@ def three_d_behavioral_descriptor(individual):
     return (behavior, (fitness,), info)
 
 
-controllers_dict = {'discrete keypoints': controllers.ControllerDiscreteKeyPoints,
-                    'interpolate keypoints': controllers.ControllerInterpolateKeyPoints}
+controllers_dict = {'discrete keypoints': controllers.DiscreteKeyPoints,
+                    'interpolate keypoints': controllers.InterpolateKeyPoints,
+                    'interpolate keypoints end pause': controllers.InterpolateKeyPointsEndPause}
 
 bd_dict = {'2D': two_d_behavioral_descriptor,
            '3D': three_d_behavioral_descriptor}
@@ -249,9 +257,10 @@ if __name__ == "__main__":
     evaluation_function = bd_dict[BD]
 
     if EVAL_INDIVIDUAL:
-        for i in range(4):
-            DISPLAY = True
-            evaluation_function(np.load('triumphant_' + str(i) + '.npy', allow_pickle=True))
+        for j in range(5):
+            for i in range(3):
+                DISPLAY = True
+                evaluation_function(np.load('runs/run1/type' + str(j) + '_' + str(i) + '.npy', allow_pickle=True))
         exit()
 
     pop, archive, hof, info = noveltysearch.novelty_algo(evaluation_function, initial_genotype_size, BD_BOUNDS,
@@ -266,7 +275,7 @@ if __name__ == "__main__":
             triumphant_archive.append(ind)
     
     # analyze triumphant archive diversity
-    clustered_triumphants = analyze_triumphants(triumphant_archive)
+    clustered_triumphants, run_name = analyze_triumphants(triumphant_archive)
 
     if PLOT:
         # plot final states
@@ -317,5 +326,5 @@ if __name__ == "__main__":
                 for j in range(3):
                     if len(clustered_triumphants[i]) > j:
                         evaluation_function(clustered_triumphants[i][j])
-                        np.save('grasping_type' + str(i) + '_' + str(j), np.array(clustered_triumphants[i][j]),
+                        np.save(run_name + 'type' + str(i) + '_' + str(j), np.array(clustered_triumphants[i][j]),
                                 allow_pickle=True)

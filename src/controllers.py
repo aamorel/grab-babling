@@ -2,7 +2,7 @@ import math
 from scipy import interpolate
 
 
-class ControllerDiscreteKeyPoints():
+class DiscreteKeyPoints():
 
     def __init__(self, actions, n_iter):
         """Share the time equally between keypoints
@@ -20,7 +20,7 @@ class ControllerDiscreteKeyPoints():
         return action
         
 
-class ControllerInterpolateKeyPoints():
+class InterpolateKeyPoints():
 
     def __init__(self, actions, n_iter):
         """Interpolate actions between keypoints
@@ -37,4 +37,31 @@ class ControllerInterpolateKeyPoints():
 
     def get_action(self, i):
         action = self.action_polynome(i)
+        return action
+
+
+class InterpolateKeyPointsEndPause():
+
+    def __init__(self, actions, n_iter, pause_frac=0.66):
+        """Interpolate actions between keypoints
+           Stops the movement at the end in order to make sure that the object was correctly grasped at the end.
+
+        Args:
+            actions (list): list of actions
+            n_iter (int): max number of iterations
+        """
+        n_keypoints = len(actions)
+        self.pause_time = pause_frac * n_iter
+        interval_size = int(self.pause_time / n_keypoints)
+        interp_x = [int(interval_size / 2 + i * interval_size) for i in range(n_keypoints)]
+        self.action_polynome = interpolate.interp1d(interp_x, actions, kind='quadratic', axis=0,
+                                                    bounds_error=False, fill_value='extrapolate')
+        self.last_action = 0
+
+    def get_action(self, i):
+        if i <= self.pause_time:
+            action = self.action_polynome(i)
+            self.last_action = action
+        else:
+            action = self.last_action
         return action
