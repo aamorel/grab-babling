@@ -1,5 +1,6 @@
 import math
 from scipy import interpolate
+import numpy as np
 
 
 class DiscreteKeyPoints():
@@ -91,9 +92,9 @@ class InterpolateKeyPointsEndPauseGripAssumption():
         if i <= self.pause_time:
             action = self.action_polynome(i)
             if i < self.grip_time:
-                action.append(1)  # gripper is open
+                np.append(action, 1)  # gripper is open
             else:
-                action.append(-1)  # gripper is closed
+                np.append(action, -1)  # gripper is closed
             self.last_action = action
         else:
             # gripper is closed
