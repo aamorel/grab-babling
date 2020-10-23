@@ -92,9 +92,9 @@ class InterpolateKeyPointsEndPauseGripAssumption():
         if i <= self.pause_time:
             action = self.action_polynome(i)
             if i < self.grip_time:
-                np.append(action, 1)  # gripper is open
+                action = np.append(action, 1)  # gripper is open
             else:
-                np.append(action, -1)  # gripper is closed
+                action = np.append(action, -1)  # gripper is closed
             self.last_action = action
         else:
             # gripper is closed
