@@ -2,6 +2,7 @@ from time import sleep
 import pybullet as p
 import numpy as np
 
+
 MAX_FORCE = 100
 
 

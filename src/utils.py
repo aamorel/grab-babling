@@ -1,6 +1,7 @@
 import numpy as np
 from sklearn.cluster import KMeans
 from scipy.spatial import cKDTree as KDTree
+from scipy.spatial import distance
 
 
 class CVT():
@@ -55,3 +56,11 @@ def list_l2_norm(list1, list2):
             dist += (list1[i] - list2[i]) ** 2
         dist = dist ** (1 / 2)
         return dist
+
+
+def compute_uniformity(grid):
+    P = grid[np.nonzero(grid)]
+    P = P / np.sum(P)
+    Q = np.ones(len(P)) / len(P)
+    uniformity = distance.jensenshannon(P, Q)
+    return uniformity

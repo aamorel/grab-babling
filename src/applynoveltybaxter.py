@@ -21,7 +21,8 @@ EVAL_INDIVIDUAL = False
 
 # choose parameters
 NB_KEYPOINTS = 3
-GENE_PER_KEYPOINTS = 8
+GENE_PER_KEYPOINTS = 7
+ADDITIONAL_GENES = 1
 NB_ITER = 6000
 MINI = False  # maximization problem
 HEIGHT_THRESH = -0.08  # binary goal parameter
@@ -37,7 +38,7 @@ if BD == '3D':
     BD_BOUNDS = [[-0.35, 0.35], [-0.15, 0.2], [-0.12, 0.5]]
 
 # choose controller type
-CONTROLLER = 'interpolate keypoints end pause'
+CONTROLLER = 'interpolate keypoints end pause grip'
 
 # choose algorithm type
 ALGO = 'ns_rand'
@@ -70,11 +71,22 @@ def analyze_triumphants(triumphant_archive):
         return None, None
 
     # sample the triumphant archive to reduce computational cost
-    while len(triumphant_archive) >= 500:
+    while len(triumphant_archive) >= 1000:
         triumphant_archive.pop(random.randint(0, len(triumphant_archive)))
     
     nb_of_triumphants = len(triumphant_archive)
-    
+
+    # compute coverage and uniformity metrics: easy approach, use CVT cells in quaternion space
+    bounds = [[-1, 1], [-1, 1], [-1, 1], [-1, 1]]
+    nb_cells = 100
+    cvt = utils.CVT(nb_cells, bounds)
+    grid = np.zeros((nb_cells,))
+    for ind in triumphant_archive:
+        grid_index = cvt.get_grid_index(ind.info.values['orientation difference'])
+        grid[grid_index] += 1
+    coverage = np.count_nonzero(grid) / nb_cells
+    uniformity = utils.compute_uniformity(grid)
+ 
     # saving the triumphants for debugging
     i = 0
     while os.path.exists('runs/run%i/' % i):
@@ -114,8 +126,9 @@ def analyze_triumphants(triumphant_archive):
         clustered_triumphants.append(members_of_cluster)
 
     print(number_of_clusters, 'types of grasping were found.')
+    print('Coverage of', coverage, 'and uniformity of', uniformity)
 
-    return clustered_triumphants, run_name
+    return coverage, uniformity, clustered_triumphants, run_name
     
 
 def two_d_behavioral_descriptor(individual):
@@ -184,20 +197,25 @@ def three_d_behavioral_descriptor(individual):
     for i in range(NB_KEYPOINTS):
         actions.append(individual[GENE_PER_KEYPOINTS * i:GENE_PER_KEYPOINTS * (i + 1)])
 
-    action = actions[0]
+    if ADDITIONAL_GENES != 0:
+        additional_genes = individual[-ADDITIONAL_GENES:]
+    else:
+        additional_genes = None
 
     # initialize controller
-    controller = controllers_dict[CONTROLLER](actions, NB_ITER)
+    controller = controllers_dict[CONTROLLER](actions, NB_ITER, additional_genes)
 
     for i in range(NB_ITER):
         env.render()
+
+        # choose action
+        action = controller.get_action(i)
+
         # apply previously chosen action
         o, r, eo, info = env.step(action)
 
         if i == 0:
             initial_object_position = o[0]
-
-        action = controller.get_action(i)
 
         if eo:
             break
@@ -241,14 +259,16 @@ def three_d_behavioral_descriptor(individual):
 
 controllers_dict = {'discrete keypoints': controllers.DiscreteKeyPoints,
                     'interpolate keypoints': controllers.InterpolateKeyPoints,
-                    'interpolate keypoints end pause': controllers.InterpolateKeyPointsEndPause}
+                    'interpolate keypoints end pause': controllers.InterpolateKeyPointsEndPause,
+                    'interpolate keypoints end pause grip': controllers.InterpolateKeyPointsEndPauseGripAssumption}
+
 
 bd_dict = {'2D': two_d_behavioral_descriptor,
            '3D': three_d_behavioral_descriptor}
 
 if __name__ == "__main__":
 
-    initial_genotype_size = NB_KEYPOINTS * GENE_PER_KEYPOINTS
+    initial_genotype_size = NB_KEYPOINTS * GENE_PER_KEYPOINTS + ADDITIONAL_GENES
     evaluation_function = bd_dict[BD]
 
     if EVAL_INDIVIDUAL:
@@ -260,8 +280,8 @@ if __name__ == "__main__":
 
     pop, archive, hof, info = noveltysearch.novelty_algo(evaluation_function, initial_genotype_size, BD_BOUNDS,
                                                          mini=MINI,
-                                                         plot=PLOT, algo_type=ALGO, nb_gen=2, bound_genotype=1,
-                                                         pop_size=20, parallelize=PARALLELIZE, measures=True)
+                                                         plot=PLOT, algo_type=ALGO, nb_gen=2000, bound_genotype=1,
+                                                         pop_size=100, parallelize=PARALLELIZE, measures=True)
     
     # create triumphant archive
     triumphant_archive = []
@@ -270,7 +290,7 @@ if __name__ == "__main__":
             triumphant_archive.append(ind)
     
     # analyze triumphant archive diversity
-    clustered_triumphants, run_name = analyze_triumphants(triumphant_archive)
+    coverage, uniformity, clustered_triumphants, run_name = analyze_triumphants(triumphant_archive)
 
     if PLOT:
         # plot final states

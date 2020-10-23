@@ -3,7 +3,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 from deap import tools, base
 from scipy.spatial import cKDTree as KDTree
-from scipy.spatial import distance
 from scoop import futures
 import utils
 
@@ -362,10 +361,7 @@ def novelty_algo(evaluate_individual, initial_gen_size, bd_bounds, mini=True, pl
             coverage_hist.append(coverage)
 
             # compute uniformity
-            P = grid[np.nonzero(grid)]
-            P = P / np.sum(P)
-            Q = np.ones(len(P)) / len(P)
-            uniformity = distance.jensenshannon(P, Q)
+            uniformity = utils.compute_uniformity(grid)
             uniformity_hist.append(uniformity)
 
         # std = np.std(fits)
