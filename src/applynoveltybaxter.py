@@ -82,7 +82,9 @@ def analyze_triumphants(triumphant_archive):
     cvt = utils.CVT(nb_cells, bounds)
     grid = np.zeros((nb_cells,))
     for ind in triumphant_archive:
-        grid_index = cvt.get_grid_index(ind.info.values['orientation difference'])
+        or_diff = ind.info.values['orientation difference']
+        or_diff_arr = [or_diff[0], or_diff[1], or_diff[2], or_diff[3]]
+        grid_index = cvt.get_grid_index(or_diff_arr)
         grid[grid_index] += 1
     coverage = np.count_nonzero(grid) / nb_cells
     uniformity = utils.compute_uniformity(grid)
@@ -280,7 +282,7 @@ if __name__ == "__main__":
 
     pop, archive, hof, info = noveltysearch.novelty_algo(evaluation_function, initial_genotype_size, BD_BOUNDS,
                                                          mini=MINI,
-                                                         plot=PLOT, algo_type=ALGO, nb_gen=2000, bound_genotype=1,
+                                                         plot=PLOT, algo_type=ALGO, nb_gen=100, bound_genotype=1,
                                                          pop_size=100, parallelize=PARALLELIZE, measures=True)
     
     # create triumphant archive
