@@ -68,11 +68,11 @@ if PARALLELIZE:
 def analyze_triumphants(triumphant_archive):
     if len(triumphant_archive) < 2:
         print('No individual completed the binary goal.')
-        return None, None
+        return None, None, None, None
 
     # sample the triumphant archive to reduce computational cost
     while len(triumphant_archive) >= 1000:
-        triumphant_archive.pop(random.randint(0, len(triumphant_archive)))
+        triumphant_archive.pop(random.randint(0, len(triumphant_archive) - 1))
     
     nb_of_triumphants = len(triumphant_archive)
 
