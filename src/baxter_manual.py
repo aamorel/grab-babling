@@ -209,6 +209,9 @@ if __name__ == "__main__":
 
     sleep(1.)
 
+    d_inf = p.getDynamicsInfo(obj_id, -1)
+    print('mass:', d_inf[0], ', lateral friction:', d_inf[1])
+
     p.getCameraImage(320, 200, renderer=p.ER_BULLET_HARDWARE_OPENGL)
 
     # start simu iteration

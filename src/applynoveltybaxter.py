@@ -13,7 +13,7 @@ import os
 DISPLAY = False
 PARALLELIZE = True
 PLOT = True
-DISPLAY_HOF = True
+DISPLAY_HOF = False
 DISPLAY_RAND = False
 DISPLAY_TRIUMPHANTS = True
 CLASSIFY = False
@@ -277,12 +277,12 @@ if __name__ == "__main__":
         for j in range(5):
             for i in range(3):
                 DISPLAY = True
-                evaluation_function(np.load('runs/run1/type' + str(j) + '_' + str(i) + '.npy', allow_pickle=True))
+                evaluation_function(np.load('runs/run2/type' + str(j) + '_' + str(i) + '.npy', allow_pickle=True))
         exit()
 
     pop, archive, hof, info = noveltysearch.novelty_algo(evaluation_function, initial_genotype_size, BD_BOUNDS,
                                                          mini=MINI,
-                                                         plot=PLOT, algo_type=ALGO, nb_gen=100, bound_genotype=1,
+                                                         plot=PLOT, algo_type=ALGO, nb_gen=600, bound_genotype=1,
                                                          pop_size=100, parallelize=PARALLELIZE, measures=True)
     
     # create triumphant archive
