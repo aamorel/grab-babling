@@ -345,6 +345,7 @@ def novelty_algo(evaluate_individual, initial_gen_size, bd_bounds, mini=True, pl
 
         if algo_type == 'ns_rand_binary_removal':
             # remove individuals that satisfy the binary goal
+            # they can still be in the archive
             for i, ind in enumerate(pop):
                 if ind.info.values['binary goal']:
                     pop.pop(i)

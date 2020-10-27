@@ -16,7 +16,6 @@ PLOT = True
 DISPLAY_HOF = False
 DISPLAY_RAND = False
 DISPLAY_TRIUMPHANTS = True
-CLASSIFY = False
 EVAL_INDIVIDUAL = False
 
 # choose parameters
@@ -41,7 +40,7 @@ if BD == '3D':
 CONTROLLER = 'interpolate keypoints end pause grip'
 
 # choose algorithm type
-ALGO = 'ns_rand'
+ALGO = 'ns_rand_binary_removal'
     
 
 if PARALLELIZE:
@@ -69,6 +68,13 @@ def analyze_triumphants(triumphant_archive):
     if len(triumphant_archive) < 2:
         print('No individual completed the binary goal.')
         return None, None, None, None
+    
+    if CONTROLLER == 'interpolate keypoints end pause grip':
+        # use the precise measure of orientation for computing grabbing diversity
+        measure = 'orientation difference at grab'
+    else:
+        # use the measure of orientation at the end of the simulation
+        measure = 'orientation difference'
 
     # sample the triumphant archive to reduce computational cost
     while len(triumphant_archive) >= 1000:
@@ -82,7 +88,7 @@ def analyze_triumphants(triumphant_archive):
     cvt = utils.CVT(nb_cells, bounds)
     grid = np.zeros((nb_cells,))
     for ind in triumphant_archive:
-        or_diff = ind.info.values['orientation difference']
+        or_diff = ind.info.values[measure]
         or_diff_arr = [or_diff[0], or_diff[1], or_diff[2], or_diff[3]]
         grid_index = cvt.get_grid_index(or_diff_arr)
         grid[grid_index] += 1
@@ -109,8 +115,8 @@ def analyze_triumphants(triumphant_archive):
             if x == y:
                 X[x, y] = 0
             else:
-                triumphant_a = triumphant_archive[x].info.values['orientation difference']
-                triumphant_b = triumphant_archive[y].info.values['orientation difference']
+                triumphant_a = triumphant_archive[x].info.values[measure]
+                triumphant_b = triumphant_archive[y].info.values[measure]
                 X[x, y] = pyq.Quaternion.absolute_distance(triumphant_a, triumphant_b)
 
     # fit distance matrix
@@ -207,6 +213,11 @@ def three_d_behavioral_descriptor(individual):
     # initialize controller
     controller = controllers_dict[CONTROLLER](actions, NB_ITER, additional_genes)
 
+    # for precise measure when we have the gripper assumption
+    grabbed = False
+
+    info = {}
+
     for i in range(NB_ITER):
         env.render()
 
@@ -214,13 +225,34 @@ def three_d_behavioral_descriptor(individual):
         action = controller.get_action(i)
 
         # apply previously chosen action
-        o, r, eo, info = env.step(action)
+        o, r, eo, inf = env.step(action)
 
         if i == 0:
             initial_object_position = o[0]
 
         if eo:
             break
+        
+        if CONTROLLER == 'interpolate keypoints end pause grip':
+            # we are in the case where the gripping time is given
+            # in consequence, we can do the precise measure of the grabbing orientation
+            if action[-1] == -1 and not grabbed:
+                # first action that orders the grabbing
+
+                # object orientation at grab (quaternion)
+                obj_or = o[1]
+
+                # gripper orientation at grab (quaternion)
+                grip_or = o[3]
+
+                # pybullet is x, y, z, w whereas pyquaternion is w, x, y, z
+                obj_or = pyq.Quaternion(obj_or[3], obj_or[0], obj_or[1], obj_or[2])
+                grip_or = pyq.Quaternion(grip_or[3], grip_or[0], grip_or[1], grip_or[2])
+
+                # difference:
+                diff_or_at_grab = obj_or.conjugate * grip_or
+                grabbed = True
+
     # use last info to compute behavior and fitness
     behavior = [o[0][0] - initial_object_position[0], o[0][1] - initial_object_position[1],
                 o[0][2]]  # last position of object
@@ -230,8 +262,6 @@ def three_d_behavioral_descriptor(individual):
 
     # compute fitness
     fitness = behavior[2]
-
-    info = {}
 
     # choose if individual satisfied the binary goal
     dist = utils.list_l2_norm(o[0], o[2])
@@ -254,6 +284,9 @@ def three_d_behavioral_descriptor(individual):
         # difference:
         diff_or = obj_or.conjugate * grip_or
         info['orientation difference'] = diff_or
+
+        if CONTROLLER == 'interpolate keypoints end pause grip':
+            info['orientation difference at grab'] = diff_or_at_grab
 
     env.close()
     return (behavior, (fitness,), info)
