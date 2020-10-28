@@ -40,12 +40,14 @@ if BD == '3D':
 CONTROLLER = 'interpolate keypoints end pause grip'
 
 # choose algorithm type
-ALGO = 'ns_rand_binary_removal'
+ALGO = 'ns_rand_keep_diversity'
     
 
 if PARALLELIZE:
     # container for behavior descriptor
     creator.create('BehaviorDescriptor', list)
+    # container for genetic info
+    creator.create('GenInfo', dict)
     # container for info
     creator.create('Info', dict)
     # container for novelty
@@ -58,7 +60,8 @@ if PARALLELIZE:
 
     # container for individual
     creator.create('Individual', list, behavior_descriptor=creator.BehaviorDescriptor,
-                   novelty=creator.Novelty, fitness=creator.Fit, info=creator.Info)
+                   novelty=creator.Novelty, fitness=creator.Fit, info=creator.Info,
+                   gen_info=creator.GenInfo)
 
     # set creator
     noveltysearch.set_creator(creator)
@@ -315,7 +318,7 @@ if __name__ == "__main__":
 
     pop, archive, hof, info = noveltysearch.novelty_algo(evaluation_function, initial_genotype_size, BD_BOUNDS,
                                                          mini=MINI,
-                                                         plot=PLOT, algo_type=ALGO, nb_gen=600, bound_genotype=1,
+                                                         plot=PLOT, algo_type=ALGO, nb_gen=50, bound_genotype=1,
                                                          pop_size=100, parallelize=PARALLELIZE, measures=True)
     
     # create triumphant archive

@@ -20,10 +20,15 @@ K = 15  # number of nearest neighbours for novelty computation
 ARCHIVE = 'random'  # random or novelty_based
 ARCHIVE_PB = 0.2  # if ARCHIVE is random, probability to add individual to archive
 # if ARCHIVE is novelty_based, proportion of individuals added per gen
-CXPB = 0.5  # probability with which two individuals are crossed
-MUTPB = 0.2  # probability for mutating an individual
+CXPB = 0.2  # probability with which two individuals are crossed
+MUTPB = 0.8  # probability for mutating an individual
+SIGMA = 0.1  # std of the mutation of one gene
+# CXPB and MUTPB should sum up to 1
 TOURNSIZE = 10  # drives towards selective pressure
 OFFSPRING_NB_COEFF = 0.5  # number of offsprings generated (coeff of pop length)
+MAX_MUT_PROB = 0.5  # if algo is ns_rand_keep_diversity, probability for the less diverse gene to be mutated
+
+id_counter = 0  # each individual will have a unique id
 
 
 def initialize_tool(initial_gen_size, mini, pop_size, parallelize):
@@ -48,6 +53,8 @@ def initialize_tool(initial_gen_size, mini, pop_size, parallelize):
         creator.create('BehaviorDescriptor', list)
         # container for info
         creator.create('Info', dict)
+        # container for genetic info
+        creator.create('GenInfo', dict)
         # container for novelty
         creator.create('Novelty', base.Fitness, weights=(1.0,))
         # container for fitness
@@ -58,7 +65,8 @@ def initialize_tool(initial_gen_size, mini, pop_size, parallelize):
 
         # container for individual
         creator.create('Individual', list, behavior_descriptor=creator.BehaviorDescriptor,
-                       novelty=creator.Novelty, fitness=creator.Fit, info=creator.Info)
+                       novelty=creator.Novelty, fitness=creator.Fit, info=creator.Info,
+                       gen_info=creator.GenInfo)
 
         # overwrite map function with normal map
         toolbox.register('map', map)
@@ -78,7 +86,7 @@ def initialize_tool(initial_gen_size, mini, pop_size, parallelize):
 
     # create operators
     toolbox.register('mate', tools.cxTwoPoint)
-    toolbox.register('mutate', tools.mutGaussian, mu=0, sigma=0.1, indpb=0.3)
+    toolbox.register('mutate', tools.mutGaussian, mu=0, sigma=SIGMA, indpb=0.3)
     toolbox.register('select', tools.selTournament, tournsize=TOURNSIZE)
     toolbox.register('replace', tools.selBest)
     return creator, toolbox
@@ -149,58 +157,122 @@ def operate_offsprings(offsprings, toolbox, bound_genotype):
         toolbox (Toolbox): DEAP's toolbox
         bound_genotype (float): absolute value bound of genotype values
     """
-    # crossover
-    for child1, child2 in zip(offsprings[::2], offsprings[1::2]):
-        # child 1 has even index, child 2 has odd index
-        if random.random() < CXPB:
-            toolbox.mate(child1, child2)
-            # both child1 and child2 are modified in place
-            # del invalidates their fitness (new indivduals so unknown fitness)
-            del child1.fitness.values
-            del child2.fitness.values
-    # mutation
-    for mutant in offsprings:
-        if random.random() < MUTPB:
-            toolbox.mutate(mutant)
-            del mutant.fitness.values
+    global id_counter
+    for i, ind in enumerate(offsprings):
+
+        if random.random() < CXPB and i < (len(offsprings) - 1):
+            # crossover
+            other_parent = toolbox.clone(offsprings[i + 1])  # in order to not modify the other parent
+            parents_id = [ind.gen_info.values['id'], other_parent.gen_info.values['id']]
+            toolbox.mate(ind, other_parent)
+            # ind is modified in place
+            del ind.fitness.values
+            ind.gen_info.values['parent id'] = parents_id
+        else:
+            # mutation
+            toolbox.mutate(ind)
+            del ind.fitness.values
+            ind.gen_info.values['parent id'] = ind.gen_info.values['id']
+
+        # update new individual's genetic info
+        ind.gen_info.values['id'] = id_counter
+        id_counter += 1
+        ind.gen_info.values['age'] = 0
 
     # bound genotype to given constraints
     if bound_genotype is not None:
         bound(offsprings, bound_genotype)
 
 
-def gen_plot(mean_hist, min_hist, max_hist, arch_size_hist, coverage_hist, uniformity_hist):
+def operate_offsprings_diversity(offsprings, toolbox, bound_genotype, pop):
+    """Applies crossover and mutation to the offsprings
+    Aims at keeping the population diversified by mutating the different genes based on their diversity
+    inside the population: the less a gene is diverse in the population, the more it will be mutated.
+    Args:
+        offsprings (list): list of offsprings
+        toolbox (Toolbox): DEAP's toolbox
+        bound_genotype (float): absolute value bound of genotype values
+        pop (list): current population
+    """
+    global id_counter
+    # compute genetic statistics
+    gen_stats = [[] for _ in range(len(offsprings[0]))]
+    for ind in offsprings:
+        for i, gene in enumerate(ind):
+            gen_stats[i].append(gene)
+    gen_stats = np.array(gen_stats)
+    std_genes = np.std(gen_stats, axis=1)  # contains the std of each gene on the population
+    # we want the probability of one gene to be mutated proportional to the inverse of the std
+    mut_prob = np.reciprocal(std_genes)
+    mut_max = np.max(mut_prob)
+    mut_prob = mut_prob / mut_max * MAX_MUT_PROB  # highest probability to be mutated is MAX_MUT_PROB
+
+    for i, ind in enumerate(offsprings):
+
+        if random.random() < CXPB and i < (len(offsprings) - 1):
+            # crossover
+            other_parent = toolbox.clone(offsprings[i + 1])  # in order to not modify the other parent
+            parents_id = [ind.gen_info.values['id'], other_parent.gen_info.values['id']]
+            toolbox.mate(ind, other_parent)
+            # ind is modified in place
+            del ind.fitness.values
+            ind.gen_info.values['parent id'] = parents_id
+        else:
+            # custom mutation
+            for i, gene in enumerate(ind):
+                if random.random() < mut_prob[i]:
+                    # mutate the gene
+                    ind[i] = gene + random.gauss(0, SIGMA)
+            del ind.fitness.values
+            ind.gen_info.values['parent id'] = ind.gen_info.values['id']
+
+        # update new individual's genetic info
+        ind.gen_info.values['id'] = id_counter
+        id_counter += 1
+        ind.gen_info.values['age'] = 0
+
+    # bound genotype to given constraints
+    if bound_genotype is not None:
+        bound(offsprings, bound_genotype)
+
+
+def gen_plot(mean_hist, min_hist, max_hist, arch_size_hist, coverage_hist, uniformity_hist,
+             mean_age_hist, max_age_hist):
     """Plotting
 
     Args:
-        mean_hist (list): history of mean fitness
-        min_hist (list): history of min fitness
-        max_hist (list): history of max fitness
+        mean_hist (list): history of mean population fitness
+        min_hist (list): history of min population fitness
+        max_hist (list): history of max population fitness
         arch_size_hist (list): history of archive size
         coverage_hist (list): history of coverage of archive
         uniformity_hist (list): history of uniformity of archive
+        mean_age_hist (list): history of mean age of population
+        max_age_hist (list): history of max age of population
    """
     mean_hist = np.array(mean_hist)
     min_hist = np.array(min_hist)
 
     # plot evolution
-    fig, ax = plt.subplots(figsize=(5, 5))
-    ax.set(title='Evolution of fitness', xlabel='Generations', ylabel='Fitness')
-    ax.plot(mean_hist, label='Mean')
-    ax.plot(min_hist, label='Min')
-    ax.plot(max_hist, label='Max')
-    plt.legend()
+    fig, ax = plt.subplots(nrows=2, ncols=2, figsize=(10, 10))
+    ax[0][0].set(title='Evolution of fitness in population', xlabel='Generations', ylabel='Fitness')
+    ax[0][0].plot(mean_hist, label='Mean')
+    ax[0][0].plot(min_hist, label='Min')
+    ax[0][0].plot(max_hist, label='Max')
 
     # plot evolution
-    fig, ax = plt.subplots(figsize=(5, 5))
-    ax.set(title='Evolution of archive size', xlabel='Generations', ylabel='Archive size')
-    ax.plot(arch_size_hist)
+    ax[1][0].set(title='Evolution of age in population', xlabel='Generations', ylabel='Age')
+    ax[1][0].plot(mean_age_hist, label='Mean')
+    ax[1][0].plot(max_age_hist, label='Max')
 
     # plot evolution
-    fig, ax = plt.subplots(figsize=(5, 5))
-    ax.set(title='Evolution of selected metrics in archive', xlabel='Generations')
-    ax.plot(coverage_hist, label='Coverage')
-    ax.plot(uniformity_hist, label='Uniformity')
+    ax[0][1].set(title='Evolution of archive size', xlabel='Generations', ylabel='Archive size')
+    ax[0][1].plot(arch_size_hist)
+
+    # plot evolution
+    ax[1][1].set(title='Evolution of selected metrics in archive', xlabel='Generations')
+    ax[1][1].plot(coverage_hist, label='Coverage')
+    ax[1][1].plot(uniformity_hist, label='Uniformity')
     plt.legend()
 
 
@@ -215,12 +287,25 @@ def novelty_algo(evaluate_individual, initial_gen_size, bd_bounds, mini=True, pl
                  algo_type='ns_nov', bound_genotype=5, pop_size=30, parallelize=False,
                  measures=False):
 
+    global id_counter
+
     creator, toolbox = initialize_tool(initial_gen_size, mini, pop_size, parallelize)
+
+    # initialize population
     pop = toolbox.population()
+    for ind in pop:
+        ind.gen_info.values = {}
+        # attribute id to all individuals
+        ind.gen_info.values['id'] = id_counter
+        id_counter += 1
+        # attribute -1 to parent id (convention for initial individuals)
+        ind.gen_info.values['parent id'] = -1
+        # attribute age of 0
+        ind.gen_info.values['age'] = 0
 
     if algo_type == 'ns_nov':
         archive_type = 'novelty_based'
-    if (algo_type == 'ns_rand' or algo_type == 'classic_ea') or algo_type == 'ns_rand_binary_removal':
+    else:
         archive_type = 'random'
 
     # initialize the archive
@@ -231,7 +316,7 @@ def novelty_algo(evaluate_individual, initial_gen_size, bd_bounds, mini=True, pl
     hall_of_fame = tools.HallOfFame(HOF_SIZE)
 
     # initialize info dictionnary
-    info = {}
+    details = {}
 
     # initialize generation counter
     gen = 0
@@ -257,7 +342,7 @@ def novelty_algo(evaluate_individual, initial_gen_size, bd_bounds, mini=True, pl
     for ind, nov in zip(pop, novelties):
         ind.novelty.values = nov
 
-    # fill archive
+    # fill archive with clones of population
     if archive_type == 'random':
         # fill archive randomly
         for ind in pop:
@@ -279,6 +364,8 @@ def novelty_algo(evaluate_individual, initial_gen_size, bd_bounds, mini=True, pl
     min_hist = []
     max_hist = []
     arch_size_hist = []
+    mean_age_hist = []
+    max_age_hist = []
     if measures:
         coverage_hist = []
         uniformity_hist = []
@@ -289,18 +376,24 @@ def novelty_algo(evaluate_individual, initial_gen_size, bd_bounds, mini=True, pl
         gen += 1
         print('--Generation %i --' % gen)
 
-        if (algo_type == 'ns_nov' or algo_type == 'ns_rand') or algo_type == 'ns_rand_binary_removal':
-            # novelty search: selection on novelty
-            # references to selected individuals
-            offsprings = toolbox.select(pop, int(pop_size * OFFSPRING_NB_COEFF), fit_attr='novelty')
-
         if algo_type == 'classic_ea':
             # classical EA: selection on fitness
             # references to selected individuals
             offsprings = toolbox.select(pop, int(pop_size * OFFSPRING_NB_COEFF), fit_attr='fitness')
+
+        else:
+            # novelty search: selection on novelty
+            # references to selected individuals
+            offsprings = toolbox.select(pop, int(pop_size * OFFSPRING_NB_COEFF), fit_attr='novelty')
         
         offsprings = list(map(toolbox.clone, offsprings))  # clone selected indivduals
-        operate_offsprings(offsprings, toolbox, bound_genotype)  # crossover and mutation
+        # for now, offsprings are parents --> they keep the genetic information
+        if algo_type == 'ns_rand_keep_diversity':
+            operate_offsprings_diversity(offsprings, toolbox, bound_genotype,
+                                         pop)  # crossover and mutation
+        else:
+            operate_offsprings(offsprings, toolbox, bound_genotype)  # crossover and mutation
+        # now, offsprings have their correct genetic information
 
         # evaluate the individuals with an invalid fitness
         invalid_ind = [ind for ind in offsprings if not ind.fitness.valid]
@@ -350,12 +443,20 @@ def novelty_algo(evaluate_individual, initial_gen_size, bd_bounds, mini=True, pl
                 if ind.info.values['binary goal']:
                     pop.pop(i)
 
+        # increment age of the individuals in the population
+        for ind in pop:
+            ind.gen_info.values['age'] += 1
+
         # update Hall of fame
         hall_of_fame.update(pop)
 
         # gather all the fitnesses in one list and compute stats
         fits = np.array([ind.fitness.values[0] for ind in pop])
-        mean = np.mean(fits)
+        mean_fit = np.mean(fits)
+
+        # gather all the ages in one list and compute stats
+        ages = np.array([ind.gen_info.values['age'] for ind in pop])
+        mean_age = np.mean(ages)
         if measures:
             # compute coverage
             coverage = np.count_nonzero(grid) / NB_CELLS
@@ -365,20 +466,18 @@ def novelty_algo(evaluate_individual, initial_gen_size, bd_bounds, mini=True, pl
             uniformity = utils.compute_uniformity(grid)
             uniformity_hist.append(uniformity)
 
-        # std = np.std(fits)
-        # print("  Min %s" % np.min(fits))
-        # print("  Max %s" % np.max(fits))
-        # print("  Avg %s" % mean)
-        # print("  Std %s" % std)
         arch_size_hist.append(len(archive))
-        mean_hist.append(mean)
+        mean_hist.append(mean_fit)
         min_hist.append(np.min(fits))
         max_hist.append(np.max(fits))
+        max_age_hist.append(np.max(ages))
+        mean_age_hist.append(mean_age)
 
     if plot:
-        gen_plot(mean_hist, min_hist, max_hist, arch_size_hist, coverage_hist, uniformity_hist)
+        gen_plot(mean_hist, min_hist, max_hist, arch_size_hist, coverage_hist, uniformity_hist,
+                 mean_age_hist, max_age_hist)
 
     # show all plots
     plt.show()
 
-    return pop, archive, hall_of_fame, info
+    return pop, archive, hall_of_fame, details

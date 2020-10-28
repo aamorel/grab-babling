@@ -17,6 +17,8 @@ if PARALLELIZE:
     creator.create('BehaviorDescriptor', list)
     # container for info
     creator.create('Info', dict)
+    # container for genetic info
+    creator.create('GenInfo', dict)
     # container for novelty
     creator.create('Novelty', base.Fitness, weights=(1.0,))
     # container for fitness
@@ -27,7 +29,8 @@ if PARALLELIZE:
 
     # container for individual
     creator.create('Individual', list, behavior_descriptor=creator.BehaviorDescriptor,
-                   novelty=creator.Novelty, fitness=creator.Fit, info=creator.Info)
+                   novelty=creator.Novelty, fitness=creator.Fit, info=creator.Info,
+                   gen_info=creator.GenInfo)
 
     # set creator
     noveltysearch.set_creator(creator)
