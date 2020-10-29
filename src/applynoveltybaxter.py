@@ -9,6 +9,7 @@ from deap import base, creator
 from sklearn.cluster import AgglomerativeClustering
 import controllers
 import os
+import json
 
 DISPLAY = False
 PARALLELIZE = True
@@ -19,6 +20,8 @@ DISPLAY_TRIUMPHANTS = True
 EVAL_INDIVIDUAL = False
 
 # choose parameters
+POP_SIZE = 10
+NB_GEN = 5
 NB_KEYPOINTS = 3
 GENE_PER_KEYPOINTS = 7
 ADDITIONAL_GENES = 1
@@ -67,10 +70,10 @@ if PARALLELIZE:
     noveltysearch.set_creator(creator)
 
 
-def analyze_triumphants(triumphant_archive):
+def analyze_triumphants(triumphant_archive, run_name):
     if len(triumphant_archive) < 2:
         print('No individual completed the binary goal.')
-        return None, None, None, None
+        return None, None, None
     
     if CONTROLLER == 'interpolate keypoints end pause grip':
         # use the precise measure of orientation for computing grabbing diversity
@@ -99,11 +102,6 @@ def analyze_triumphants(triumphant_archive):
     uniformity = utils.compute_uniformity(grid)
  
     # saving the triumphants for debugging
-    i = 0
-    while os.path.exists('runs/run%i/' % i):
-        i += 1
-    run_name = 'runs/run%i/' % i
-    os.mkdir(run_name)
 
     for i, ind in enumerate(triumphant_archive):
         np.save(run_name + 'triumphant_' + str(i), np.array(ind))
@@ -139,7 +137,7 @@ def analyze_triumphants(triumphant_archive):
     print(number_of_clusters, 'types of grasping were found.')
     print('Coverage of', coverage, 'and uniformity of', uniformity)
 
-    return coverage, uniformity, clustered_triumphants, run_name
+    return coverage, uniformity, clustered_triumphants
     
 
 def two_d_behavioral_descriptor(individual):
@@ -306,6 +304,20 @@ bd_dict = {'2D': two_d_behavioral_descriptor,
 
 if __name__ == "__main__":
 
+    i = 0
+    while os.path.exists('runs/run%i/' % i):
+        i += 1
+    run_name = 'runs/run%i/' % i
+    os.mkdir(run_name)
+
+    # initialize run dict
+    run = {}
+    run['algo'] = ALGO
+    run['behaviour descriptor'] = BD
+    run['controler'] = CONTROLLER
+    run['pop size'] = POP_SIZE
+    run['nb gen'] = NB_GEN
+
     initial_genotype_size = NB_KEYPOINTS * GENE_PER_KEYPOINTS + ADDITIONAL_GENES
     evaluation_function = bd_dict[BD]
 
@@ -316,10 +328,10 @@ if __name__ == "__main__":
                 evaluation_function(np.load('runs/run2/type' + str(j) + '_' + str(i) + '.npy', allow_pickle=True))
         exit()
 
-    pop, archive, hof, info = noveltysearch.novelty_algo(evaluation_function, initial_genotype_size, BD_BOUNDS,
-                                                         mini=MINI,
-                                                         plot=PLOT, algo_type=ALGO, nb_gen=50, bound_genotype=1,
-                                                         pop_size=100, parallelize=PARALLELIZE, measures=True)
+    pop, archive, hof, infs = noveltysearch.novelty_algo(evaluation_function, initial_genotype_size, BD_BOUNDS,
+                                                         mini=MINI, run_name=run_name,
+                                                         plot=PLOT, algo_type=ALGO, nb_gen=NB_GEN, bound_genotype=1,
+                                                         pop_size=POP_SIZE, parallelize=PARALLELIZE, measures=True)
     
     # create triumphant archive
     triumphant_archive = []
@@ -328,7 +340,14 @@ if __name__ == "__main__":
             triumphant_archive.append(ind)
     
     # analyze triumphant archive diversity
-    coverage, uniformity, clustered_triumphants, run_name = analyze_triumphants(triumphant_archive)
+    coverage, uniformity, clustered_triumphants = analyze_triumphants(triumphant_archive, run_name)
+
+    if coverage is not None:
+        run['successful'] = True
+        run['grabbing coverage'] = coverage
+        run['grabbing uniformity'] = uniformity
+    else:
+        run['successful'] = False
 
     if PLOT:
         # plot final states
@@ -351,6 +370,25 @@ if __name__ == "__main__":
             ax.scatter(pop_behavior[:, 0], pop_behavior[:, 1], pop_behavior[:, 2], color='blue', label='Population')
             ax.scatter(hof_behavior[:, 0], hof_behavior[:, 1], hof_behavior[:, 2], color='green', label='Hall of Fame')
         plt.legend()
+        plt.savefig(run_name + 'bd_plot.png')
+
+        # plot genetic diversity
+        gen_div = np.array(infs['genetic statistics'])
+        fig, ax = plt.subplots(figsize=(10, 10))
+        ax.set(title='Evolution of genetic diversity', xlabel='Generations', ylabel='Std of gene')
+        for i in range(len(gen_div[0])):
+            if i < NB_KEYPOINTS * GENE_PER_KEYPOINTS:
+                color_index = i // GENE_PER_KEYPOINTS
+                rest = i % GENE_PER_KEYPOINTS
+                if rest == 0:
+                    plt.plot(gen_div[:, i], color=utils.color_list[color_index], label='keypoint ' + str(color_index))
+                else:
+                    plt.plot(gen_div[:, i], color=utils.color_list[color_index])
+            else:
+                color_index += 1
+                plt.plot(gen_div[:, i], color=utils.color_list[color_index])
+        plt.legend()
+        plt.savefig(run_name + 'genetic_diversity_plot.png')
 
     plt.show()
     
@@ -381,3 +419,6 @@ if __name__ == "__main__":
                         evaluation_function(clustered_triumphants[i][j])
                         np.save(run_name + 'type' + str(i) + '_' + str(j), np.array(clustered_triumphants[i][j]),
                                 allow_pickle=True)
+    
+    with open(run_name + 'run.json', 'w') as fp:
+        json.dump(run, fp)
