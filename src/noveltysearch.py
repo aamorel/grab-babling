@@ -233,7 +233,7 @@ def operate_offsprings_diversity(offsprings, toolbox, bound_genotype, pop):
         else:
             # custom mutation
             for j, gene in enumerate(ind):
-                if random.random() < mut_prob[i]:
+                if random.random() < mut_prob[j]:
                     # mutate the gene
                     ind[j] = gene + random.gauss(0, SIGMA)
             del ind.fitness.values
