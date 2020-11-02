@@ -373,22 +373,42 @@ if __name__ == "__main__":
         plt.savefig(run_name + 'bd_plot.png')
 
         # plot genetic diversity
-        gen_div = np.array(infs['genetic statistics'])
-        fig, ax = plt.subplots(figsize=(10, 10))
-        ax.set(title='Evolution of genetic diversity', xlabel='Generations', ylabel='Std of gene')
-        for i in range(len(gen_div[0])):
+        gen_div_pop = np.array(infs['population genetic statistics'])
+        gen_div_off = np.array(infs['offsprings genetic statistics'])
+
+        fig, ax = plt.subplots(nrows=1, ncols=2, figsize=(10, 10))
+        ax[0].set(title='Evolution of population genetic diversity', xlabel='Generations', ylabel='Std of gene')
+        for i in range(len(gen_div_pop[0])):
             if i < NB_KEYPOINTS * GENE_PER_KEYPOINTS:
                 color_index = i // GENE_PER_KEYPOINTS
                 rest = i % GENE_PER_KEYPOINTS
                 if rest == 0:
-                    plt.plot(gen_div[:, i], color=utils.color_list[color_index], label='keypoint ' + str(color_index))
+                    ax[0].plot(gen_div_pop[:, i], color=utils.color_list[color_index],
+                               label='keypoint ' + str(color_index))
                 else:
-                    plt.plot(gen_div[:, i], color=utils.color_list[color_index])
+                    ax[0].plot(gen_div_pop[:, i], color=utils.color_list[color_index])
             else:
                 color_index += 1
-                plt.plot(gen_div[:, i], color=utils.color_list[color_index])
-        plt.legend()
+                ax[0].plot(gen_div_pop[:, i], color=utils.color_list[color_index])
+        ax[0].legend()
+        ax[1].set(title='Evolution of offsprings genetic diversity', xlabel='Generations', ylabel='Std of gene')
+        for i in range(len(gen_div_off[0])):
+            if i < NB_KEYPOINTS * GENE_PER_KEYPOINTS:
+                color_index = i // GENE_PER_KEYPOINTS
+                rest = i % GENE_PER_KEYPOINTS
+                if rest == 0:
+                    ax[1].plot(gen_div_off[:, i], color=utils.color_list[color_index],
+                               label='keypoint ' + str(color_index))
+                else:
+                    ax[1].plot(gen_div_off[:, i], color=utils.color_list[color_index])
+            else:
+                color_index += 1
+                ax[1].plot(gen_div_off[:, i], color=utils.color_list[color_index])
+        ax[1].legend()
         plt.savefig(run_name + 'genetic_diversity_plot.png')
+    
+    with open(run_name + 'run.json', 'w') as fp:
+        json.dump(run, fp)
 
     plt.show()
     
@@ -419,6 +439,3 @@ if __name__ == "__main__":
                         evaluation_function(clustered_triumphants[i][j])
                         np.save(run_name + 'type' + str(i) + '_' + str(j), np.array(clustered_triumphants[i][j]),
                                 allow_pickle=True)
-    
-    with open(run_name + 'run.json', 'w') as fp:
-        json.dump(run, fp)

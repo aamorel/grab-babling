@@ -232,10 +232,10 @@ def operate_offsprings_diversity(offsprings, toolbox, bound_genotype, pop):
             ind.gen_info.values['parent id'] = parents_id
         else:
             # custom mutation
-            for i, gene in enumerate(ind):
+            for j, gene in enumerate(ind):
                 if random.random() < mut_prob[i]:
                     # mutate the gene
-                    ind[i] = gene + random.gauss(0, SIGMA)
+                    ind[j] = gene + random.gauss(0, SIGMA)
             del ind.fitness.values
             ind.gen_info.values['parent id'] = ind.gen_info.values['id']
 
@@ -273,11 +273,13 @@ def gen_plot(mean_hist, min_hist, max_hist, arch_size_hist, coverage_hist, unifo
     ax[0][0].plot(mean_hist, label='Mean')
     ax[0][0].plot(min_hist, label='Min')
     ax[0][0].plot(max_hist, label='Max')
+    ax[0][0].legend()
 
     # plot evolution
     ax[1][0].set(title='Evolution of age in population', xlabel='Generations', ylabel='Age')
     ax[1][0].plot(mean_age_hist, label='Mean')
     ax[1][0].plot(max_age_hist, label='Max')
+    ax[1][0].legend()
 
     # plot evolution
     ax[0][1].set(title='Evolution of archive size', xlabel='Generations', ylabel='Archive size')
@@ -287,7 +289,7 @@ def gen_plot(mean_hist, min_hist, max_hist, arch_size_hist, coverage_hist, unifo
     ax[1][1].set(title='Evolution of selected metrics in archive', xlabel='Generations')
     ax[1][1].plot(coverage_hist, label='Coverage')
     ax[1][1].plot(uniformity_hist, label='Uniformity')
-    plt.legend()
+    ax[1][1].legend()
 
     if run_name is not None:
         plt.savefig(run_name + 'novelty_search_plots.png')
@@ -384,6 +386,7 @@ def novelty_algo(evaluate_individual, initial_gen_size, bd_bounds, mini=True, pl
     mean_age_hist = []
     max_age_hist = []
     gen_stat_hist = []
+    gen_stat_hist_off = []
     if measures:
         coverage_hist = []
         uniformity_hist = []
@@ -472,6 +475,10 @@ def novelty_algo(evaluate_individual, initial_gen_size, bd_bounds, mini=True, pl
         genes_std = genetic_stats(pop)
         gen_stat_hist.append(genes_std)
 
+        # compute genetic statistics of the offsprings
+        genes_std = genetic_stats(offsprings)
+        gen_stat_hist_off.append(genes_std)
+
         # gather all the fitnesses in one list and compute stats
         fits = np.array([ind.fitness.values[0] for ind in pop])
         mean_fit = np.mean(fits)
@@ -495,7 +502,8 @@ def novelty_algo(evaluate_individual, initial_gen_size, bd_bounds, mini=True, pl
         max_age_hist.append(np.max(ages))
         mean_age_hist.append(mean_age)
     
-    details['genetic statistics'] = gen_stat_hist
+    details['population genetic statistics'] = gen_stat_hist
+    details['offsprings genetic statistics'] = gen_stat_hist_off
 
     if plot:
         gen_plot(mean_hist, min_hist, max_hist, arch_size_hist, coverage_hist, uniformity_hist,
