@@ -380,7 +380,7 @@ if __name__ == "__main__":
         gen_div_pop = np.array(infs['population genetic statistics'])
         gen_div_off = np.array(infs['offsprings genetic statistics'])
 
-        fig, ax = plt.subplots(nrows=1, ncols=2, figsize=(10, 10))
+        fig, ax = plt.subplots(nrows=1, ncols=2, figsize=(15, 10))
         ax[0].set(title='Evolution of population genetic diversity', xlabel='Generations', ylabel='Std of gene')
         for i in range(len(gen_div_pop[0])):
             if i < NB_KEYPOINTS * GENE_PER_KEYPOINTS:
