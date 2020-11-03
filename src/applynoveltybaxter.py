@@ -100,11 +100,6 @@ def analyze_triumphants(triumphant_archive, run_name):
         grid[grid_index] += 1
     coverage = np.count_nonzero(grid) / nb_cells
     uniformity = utils.compute_uniformity(grid)
- 
-    # saving the triumphants for debugging
-
-    for i, ind in enumerate(triumphant_archive):
-        np.save(run_name + 'triumphant_' + str(i), np.array(ind))
 
     # cluster the triumphants with respect to grasping descriptor
     clustering = AgglomerativeClustering(n_clusters=None, affinity='precomputed', compute_full_tree=True,
@@ -136,6 +131,14 @@ def analyze_triumphants(triumphant_archive, run_name):
 
     print(number_of_clusters, 'types of grasping were found.')
     print('Coverage of', coverage, 'and uniformity of', uniformity)
+
+    # saving the triumphants
+    for i in range(len(clustered_triumphants)):
+        # save first 3 grasping of each types
+        for j in range(3):
+            if len(clustered_triumphants[i]) > j:
+                np.save(run_name + 'type' + str(i) + '_' + str(j), np.array(clustered_triumphants[i][j]),
+                        allow_pickle=True)
 
     return coverage, uniformity, clustered_triumphants
     
@@ -312,6 +315,7 @@ if __name__ == "__main__":
 
     # initialize run dict
     run = {}
+    run['run id'] = i
     run['algo'] = ALGO
     run['behaviour descriptor'] = BD
     run['controler'] = CONTROLLER
@@ -437,5 +441,3 @@ if __name__ == "__main__":
                 for j in range(3):
                     if len(clustered_triumphants[i]) > j:
                         evaluation_function(clustered_triumphants[i][j])
-                        np.save(run_name + 'type' + str(i) + '_' + str(j), np.array(clustered_triumphants[i][j]),
-                                allow_pickle=True)
