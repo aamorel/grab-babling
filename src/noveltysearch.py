@@ -131,7 +131,10 @@ def assess_novelties(pop, archive):
     k_tree = KDTree(b_descriptors)
     # compute novelty for current individuals
     for i in range(len(pop)):
-        novelties.append(compute_average_distance(b_descriptors[i], k_tree))
+        if b_descriptors[i] is not None:
+            novelties.append(compute_average_distance(b_descriptors[i], k_tree))
+        else:
+            novelties.append(0)
     return novelties
 
 
@@ -302,13 +305,25 @@ def add_to_grid(member, grid, cvt, measures):
         grid[grid_index] += 1
 
 
-def novelty_algo(evaluate_individual, initial_gen_size, bd_bounds, mini=True, plot=False, nb_gen=100,
+def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, mini=True, plot=False, nb_gen=100,
                  algo_type='ns_nov', bound_genotype=5, pop_size=30, parallelize=False,
-                 measures=False, run_name=None):
+                 measures=False, run_name=None, choose_evaluate=None):
 
     global id_counter
 
     creator, toolbox = initialize_tool(initial_gen_size, mini, pop_size, parallelize)
+
+    # initialize evaluate_individual function
+    if algo_type == 'ns_rand_multi_bd':
+        evaluate_individual = evaluate_individual_list[0]
+        bd_bounds = bd_bounds_list[0]
+        eval_index = 0
+        info_multi_bd = {}
+        info_multi_bd['changed'] = False
+
+    else:
+        evaluate_individual = evaluate_individual_list
+        bd_bounds = bd_bounds_list
 
     # initialize population
     pop = toolbox.population()
@@ -416,30 +431,33 @@ def novelty_algo(evaluate_individual, initial_gen_size, bd_bounds, mini=True, pl
             operate_offsprings(offsprings, toolbox, bound_genotype)  # crossover and mutation
         # now, offsprings have their correct genetic information
 
+        # current pool is old population + generated offsprings
+        current_pool = pop + offsprings
+
         # evaluate the individuals with an invalid fitness
-        invalid_ind = [ind for ind in offsprings if not ind.fitness.valid]
+        # done for the whole current pool and not just the offsprings in case the evaluation
+        # function has changed
+        invalid_ind = [ind for ind in current_pool if not ind.fitness.valid]
         evaluation_pop = list(toolbox.map(evaluate_individual, invalid_ind))
         inv_b_descriptors, inv_fitnesses, inv_infos = map(list, zip(*evaluation_pop))
 
         # attribute fitness and behavior descriptors to new individuals
         for ind, fit, bd, inf in zip(invalid_ind, inv_fitnesses, inv_b_descriptors, inv_infos):
-            ind.behavior_descriptor.values = bd
+            ind.behavior_descriptor.values = bd  # can be None in the multi_bd case
             ind.info.values = inf
             ind.fitness.values = fit
-
-        # current pool is old population + generated offsprings
-        current_pool = pop + offsprings
 
         # compute novelty for all current individuals (also old ones)
         novelties = assess_novelties(current_pool, archive)
         for ind, nov in zip(current_pool, novelties):
             ind.novelty.values = nov
+        # an individual with bd = None will have 0 novelty
 
         # fill archive
         if archive_type == 'random':
             # fill archive randomly
             for ind in offsprings:
-                if random.random() < ARCHIVE_PB:
+                if random.random() < ARCHIVE_PB and ind.behavior_descriptor.values is not None:
                     member = toolbox.clone(ind)
                     archive.append(member)
                     add_to_grid(member, grid, cvt, measures)
@@ -450,9 +468,10 @@ def novelty_algo(evaluate_individual, initial_gen_size, bd_bounds, mini=True, pl
             novel_n = np.array([nov[0] for nov in offsprings_novelties])
             max_novelties_idx = np.argsort(-novel_n)[:archive_nb]
             for i in max_novelties_idx:
-                member = toolbox.clone(offsprings[i])
-                archive.append(member)
-                add_to_grid(member, grid, cvt, measures)
+                if offsprings[i].behavior_descriptor.values is not None:
+                    member = toolbox.clone(offsprings[i])
+                    archive.append(member)
+                    add_to_grid(member, grid, cvt, measures)
 
         # replacement: keep the most novel individuals
         pop[:] = toolbox.replace(current_pool, pop_size, fit_attr='novelty')
@@ -501,6 +520,33 @@ def novelty_algo(evaluate_individual, initial_gen_size, bd_bounds, mini=True, pl
         max_hist.append(np.max(fits))
         max_age_hist.append(np.max(ages))
         mean_age_hist.append(mean_age)
+
+        if algo_type == 'ns_rand_multi_bd':
+            # novelty search expects a list of evaluation functions and a list of bd_bounds
+            # and a choose_evaluate functions which chooses which evaluation function to use
+            # based on the info_multi_bd dictionnary (returns an index)
+            info_multi_bd['coverage'] = coverage
+            
+            old_eval_index = eval_index
+            eval_index = choose_evaluate(info_multi_bd)
+            evaluate_individual = evaluate_individual_list[eval_index]
+            bd_bounds = bd_bounds_list[eval_index]
+            if old_eval_index != eval_index:
+                # behavior descriptor has changed
+                # add info
+                info_multi_bd['changed'] = True
+                
+                # empty the archive
+                archive = []
+
+                # set the current population to be re-evaluated
+                for ind in pop:
+                    del ind.fitness.values
+
+                if measures:
+                    # re-initialize the CVT grid
+                    grid = np.zeros(NB_CELLS)
+                    cvt = utils.CVT(num_centroids=NB_CELLS, bounds=bd_bounds)
     
     details['population genetic statistics'] = gen_stat_hist
     details['offsprings genetic statistics'] = gen_stat_hist_off
