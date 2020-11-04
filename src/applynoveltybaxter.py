@@ -16,12 +16,12 @@ PARALLELIZE = True
 PLOT = True
 DISPLAY_HOF = False
 DISPLAY_RAND = False
-DISPLAY_TRIUMPHANTS = True
+DISPLAY_TRIUMPHANTS = False
 EVAL_INDIVIDUAL = False
 
 # choose parameters
-POP_SIZE = 10
-NB_GEN = 3
+POP_SIZE = 100
+NB_GEN = 500
 NB_KEYPOINTS = 3
 GENE_PER_KEYPOINTS = 7
 ADDITIONAL_GENES = 1
@@ -431,6 +431,8 @@ def choose_evaluation_function(info_multi_bd):
         # bd has not been changed yet
         if info_multi_bd['coverage'] >= COV_LIMIT:
             index = 1
+    else:
+        index = 1
 
     return index
 
