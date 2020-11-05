@@ -126,10 +126,12 @@ def assess_novelties(pop, archive):
         reference_pop = pop + archive
     # empty list for novelties
     novelties = []
-    # extract all the behavior descriptors
+    # extract all the behavior descriptors ( [pop[0], ..., pop[n], archive[0], ..., archive[n]] )
     b_descriptors = [ind.behavior_descriptor.values for ind in reference_pop]
-    k_tree = KDTree(b_descriptors)
-    # compute novelty for current individuals
+    # extract all the behavior descriptors that are not None to create the tree
+    b_ds = [ind.behavior_descriptor.values for ind in reference_pop if ind.behavior_descriptor.values is not None]
+    k_tree = KDTree(b_ds)
+    # compute novelty for current individuals (loop only on the pop)
     for i in range(len(pop)):
         if b_descriptors[i] is not None:
             novelties.append(compute_average_distance(b_descriptors[i], k_tree))
