@@ -403,11 +403,12 @@ def orientation_behavioral_descriptor(individual):
         # difference:
         diff_or = obj_or.conjugate * grip_or
         info['orientation difference'] = diff_or
-        behavior = diff_or
+        behavior = [diff_or[0], diff_or[1], diff_or[2], diff_or[3]]  # Quat to array
 
         if CONTROLLER == 'interpolate keypoints end pause grip':
             info['orientation difference at grab'] = diff_or_at_grab
-            behavior = diff_or_at_grab
+            # Quat to array
+            behavior = [diff_or_at_grab[0], diff_or_at_grab[1], diff_or_at_grab[2], diff_or_at_grab[3]]
     else:
         # set behavior as None and deal with in novelty search
         behavior = None
