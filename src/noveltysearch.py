@@ -136,7 +136,7 @@ def assess_novelties(pop, archive):
         if b_descriptors[i] is not None:
             novelties.append(compute_average_distance(b_descriptors[i], k_tree))
         else:
-            novelties.append(0)
+            novelties.append((0.0,))
     return novelties
 
 
