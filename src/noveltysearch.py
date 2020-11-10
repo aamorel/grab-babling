@@ -17,6 +17,7 @@ def set_creator(cr):
 HOF_SIZE = 10  # number of individuals in hall of fame
 NB_CELLS = 1000  # number of cells in measuring grid
 K = 15  # number of nearest neighbours for novelty computation
+INF = 1000000000  # for security against infinite distances in KDtree queries
 ARCHIVE = 'random'  # random or novelty_based
 ARCHIVE_PB = 0.2  # if ARCHIVE is random, probability to add individual to archive
 # if ARCHIVE is novelty_based, proportion of individuals added per gen
@@ -96,20 +97,23 @@ def compute_average_distance(query, k_tree):
     """Finds K nearest neighbours and distances
 
     Args:
-        query (int): index of the individual
+        query (List): behavioral descriptor of individual
         k_tree (KDTree): tree in the behavior descriptor space
 
     Returns:
         float: average distance to the K nearest neighbours
     """
     # find K nearest neighbours and distances
-    neighbours = k_tree.query(query, range(2, K + 2))
+    neighbours = k_tree.query(query, range(2, K + 2))[0]
+    # beware: if K > number of points in tree, missing neighbors are associated with infinite distances
+    # workaround:
+    real_neighbours = neighbours[neighbours < INF]
     # compute mean distance
-    avg_distance = np.mean(neighbours[0])
+    avg_distance = np.mean(real_neighbours)
     return avg_distance,
 
 
-def assess_novelties(pop, archive):
+def assess_novelties(pop, archive, algo_type, bd_bounds, bd_indexes, bd_filters):
     """Compute novelties of current population
 
     Args:
@@ -128,15 +132,64 @@ def assess_novelties(pop, archive):
     novelties = []
     # extract all the behavior descriptors ( [pop[0], ..., pop[n], archive[0], ..., archive[n]] )
     b_descriptors = [ind.behavior_descriptor.values for ind in reference_pop]
-    # extract all the behavior descriptors that are not None to create the tree
-    b_ds = [ind.behavior_descriptor.values for ind in reference_pop if ind.behavior_descriptor.values is not None]
-    k_tree = KDTree(b_ds)
-    # compute novelty for current individuals (loop only on the pop)
-    for i in range(len(pop)):
-        if b_descriptors[i] is not None:
-            novelties.append(compute_average_distance(b_descriptors[i], k_tree))
-        else:
-            novelties.append((0.0,))
+
+    if algo_type == 'ns_rand_multi_bd':
+
+        # create the different trees
+        b_descriptors = np.array(b_descriptors)
+        bd_indexes = np.array(bd_indexes)
+        nb_bd = len(np.unique(bd_indexes))
+        k_trees = []  # will contain the kd trees for the different bds
+        bd_lists = [[] for _ in range(nb_bd)]  # will contain the lists of different bds values
+        for bd in b_descriptors:
+            for idx, bd_filter in enumerate(bd_filters):
+                bd_value = bd[bd_filter]
+                if not(None in bd_value):  # if the bd has a value
+                    bd_lists[idx].append(bd[bd_filter])
+        for idx in range(nb_bd):
+            if len(bd_lists[idx]) > 0:
+                kd_tree = KDTree(bd_lists[idx])
+                k_trees.append(kd_tree)
+
+        # compute novelties for the pop bds
+        for i in range(len(pop)):
+            bd = b_descriptors[i]
+
+            # compute possible descriptors
+            eligible_bds_idxs = []
+            eligible_bds_values = []
+            for idx, bd_filter in enumerate(bd_filters):
+                bd_value = bd[bd_filter]
+                if not(None in bd_value):
+                    eligible_bds_idxs.append(idx)
+                    eligible_bds_values.append(bd_value)
+            
+            # choose descriptor
+            # hypothesis: uniform probability
+            idx_tree = np.random.choice(eligible_bds_idxs)
+            filter_of_choice = eligible_bds_idxs == idx_tree
+            eligible_bds_values = np.array(eligible_bds_values)
+            bd_value = eligible_bds_values[filter_of_choice][0]
+
+            # compute novelty
+            novelty = compute_average_distance(bd_value, k_trees[idx_tree])
+
+            # normalize novelty
+            # TODO: normalize novelty based on size of chosen bd
+            # beware: keep novelty as a tuple
+
+            novelties.append(novelty)
+            
+    else:
+        # extract all the behavior descriptors that are not None to create the tree
+        b_ds = [ind.behavior_descriptor.values for ind in reference_pop if ind.behavior_descriptor.values is not None]
+        k_tree = KDTree(b_ds)
+        # compute novelty for current individuals (loop only on the pop)
+        for i in range(len(pop)):
+            if b_descriptors[i] is not None:
+                novelties.append(compute_average_distance(b_descriptors[i], k_tree))
+            else:
+                novelties.append((0.0,))
     return novelties
 
 
@@ -255,7 +308,7 @@ def operate_offsprings_diversity(offsprings, toolbox, bound_genotype, pop):
 
 
 def gen_plot(mean_hist, min_hist, max_hist, arch_size_hist, coverage_hist, uniformity_hist,
-             mean_age_hist, max_age_hist, run_name):
+             mean_age_hist, max_age_hist, run_name, algo_type):
     """Plotting
 
     Args:
@@ -268,6 +321,8 @@ def gen_plot(mean_hist, min_hist, max_hist, arch_size_hist, coverage_hist, unifo
         mean_age_hist (list): history of mean age of population
         max_age_hist (list): history of max age of population
         run_name (String): path of the run folder to save the figure
+        algo_type (String): name of the algo
+
    """
     mean_hist = np.array(mean_hist)
     min_hist = np.array(min_hist)
@@ -292,40 +347,56 @@ def gen_plot(mean_hist, min_hist, max_hist, arch_size_hist, coverage_hist, unifo
 
     # plot evolution
     ax[1][1].set(title='Evolution of selected metrics in archive', xlabel='Generations')
-    ax[1][1].plot(coverage_hist, label='Coverage')
-    ax[1][1].plot(uniformity_hist, label='Uniformity')
+    if algo_type == 'ns_rand_multi_bd':
+        coverage_hist = np.array(coverage_hist)
+        uniformity_hist = np.array(uniformity_hist)
+        for i in range(np.size(coverage_hist, 1)):
+            ax[1][1].plot(coverage_hist[:, i], label='Coverage ' + str(i))
+            ax[1][1].plot(uniformity_hist[:, i], label='Uniformity ' + str(i))
+
+    else:
+        ax[1][1].plot(coverage_hist, label='Coverage')
+        ax[1][1].plot(uniformity_hist, label='Uniformity')
     ax[1][1].legend()
 
     if run_name is not None:
         plt.savefig(run_name + 'novelty_search_plots.png')
 
 
-def add_to_grid(member, grid, cvt, measures):
+def add_to_grid(member, grid, cvt, measures, algo_type, bd_filters):
     if measures:
-        member_bd = member.behavior_descriptor.values
-        grid_index = cvt.get_grid_index(member_bd)
-        grid[grid_index] += 1
+        member_bd = np.array(member.behavior_descriptor.values)
+        if algo_type == 'ns_rand_multi_bd':
+            # grid and cvt are a list of grids and cvts
+            for idx, bd_filter in enumerate(bd_filters):
+                bd_value = member_bd[bd_filter]
+                if not(None in bd_value):  # if the bd has a value
+                    grid_index = cvt[idx].get_grid_index(bd_value)
+                    grid[idx][grid_index] += 1
+        else:
+            grid_index = cvt.get_grid_index(member_bd)
+            grid[grid_index] += 1
 
 
 def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, mini=True, plot=False, nb_gen=100,
                  algo_type='ns_nov', bound_genotype=5, pop_size=30, parallelize=False,
-                 measures=False, run_name=None, choose_evaluate=None):
+                 measures=False, run_name=None, choose_evaluate=None, bd_indexes=None):
 
     global id_counter
 
     creator, toolbox = initialize_tool(initial_gen_size, mini, pop_size, parallelize)
 
     # initialize evaluate_individual function
-    if algo_type == 'ns_rand_multi_bd':
+    if algo_type == 'ns_rand_change_bd':
         evaluate_individual = evaluate_individual_list[0]
         bd_bounds = bd_bounds_list[0]
         eval_index = 0
-        info_multi_bd = {}
-        info_multi_bd['changed'] = False
+        info_change_bd = {}
+        info_change_bd['changed'] = False
 
     else:
         evaluate_individual = evaluate_individual_list
-        bd_bounds = bd_bounds_list
+        bd_bounds = np.array(bd_bounds_list)
 
     # initialize population
     pop = toolbox.population()
@@ -359,10 +430,26 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
 
     grid = None
     cvt = None
+    bd_filters = None
     if measures:
         # initialize the CVT grid
-        grid = np.zeros(NB_CELLS)
-        cvt = utils.CVT(num_centroids=NB_CELLS, bounds=bd_bounds)
+        if algo_type == 'ns_rand_multi_bd':
+            # grid and cvt will be lists for each BD
+            bd_indexes = np.array(bd_indexes)
+            nb_bd = len(np.unique(bd_indexes))
+            bd_filters = []  # will contain the boolean filters for the different bds
+            for idx in range(nb_bd):
+                bd_filters.append(bd_indexes == idx)
+            grid = []
+            cvt = []
+            for bd_filter in bd_filters:
+                grid.append(np.zeros(NB_CELLS))
+                cvt_member = utils.CVT(num_centroids=NB_CELLS, bounds=bd_bounds[bd_filter])
+                cvt.append(cvt_member)
+                
+        else:
+            grid = np.zeros(NB_CELLS)
+            cvt = utils.CVT(num_centroids=NB_CELLS, bounds=bd_bounds)
 
     # evaluate initial population
     evaluation_pop = list(toolbox.map(evaluate_individual, pop))
@@ -374,7 +461,7 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
         ind.info.values = inf
         ind.fitness.values = fit
 
-    novelties = assess_novelties(pop, archive)
+    novelties = assess_novelties(pop, archive, algo_type, bd_bounds, bd_indexes, bd_filters)
     for ind, nov in zip(pop, novelties):
         ind.novelty.values = nov
 
@@ -385,7 +472,7 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
             if random.random() < ARCHIVE_PB:
                 member = toolbox.clone(ind)
                 archive.append(member)
-                add_to_grid(member, grid, cvt, measures)
+                add_to_grid(member, grid, cvt, measures, algo_type, bd_filters)
     if archive_type == 'novelty_based':
         # fill archive with the most novel individuals
         novel_n = np.array([nov[0] for nov in novelties])
@@ -393,7 +480,7 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
         for i in max_novelties_idx:
             member = toolbox.clone(pop[i])
             archive.append(member)
-            add_to_grid(member, grid, cvt, measures)
+            add_to_grid(member, grid, cvt, measures, algo_type, bd_filters)
 
     # keep track of stats
     mean_hist = []
@@ -445,12 +532,12 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
 
         # attribute fitness and behavior descriptors to new individuals
         for ind, fit, bd, inf in zip(invalid_ind, inv_fitnesses, inv_b_descriptors, inv_infos):
-            ind.behavior_descriptor.values = bd  # can be None in the multi_bd case
+            ind.behavior_descriptor.values = bd  # can be None in the change_bd case
             ind.info.values = inf
             ind.fitness.values = fit
 
         # compute novelty for all current individuals (also old ones)
-        novelties = assess_novelties(current_pool, archive)
+        novelties = assess_novelties(current_pool, archive, algo_type, bd_bounds, bd_indexes, bd_filters)
         for ind, nov in zip(current_pool, novelties):
             ind.novelty.values = nov
         # an individual with bd = None will have 0 novelty
@@ -462,7 +549,7 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
                 if random.random() < ARCHIVE_PB and ind.behavior_descriptor.values is not None:
                     member = toolbox.clone(ind)
                     archive.append(member)
-                    add_to_grid(member, grid, cvt, measures)
+                    add_to_grid(member, grid, cvt, measures, algo_type, bd_filters)
 
         if archive_type == 'novelty_based':
             # fill archive with the most novel individuals
@@ -473,7 +560,7 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
                 if offsprings[i].behavior_descriptor.values is not None:
                     member = toolbox.clone(offsprings[i])
                     archive.append(member)
-                    add_to_grid(member, grid, cvt, measures)
+                    add_to_grid(member, grid, cvt, measures, algo_type, bd_filters)
 
         # replacement: keep the most novel individuals
         pop[:] = toolbox.replace(current_pool, pop_size, fit_attr='novelty')
@@ -508,13 +595,24 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
         ages = np.array([ind.gen_info.values['age'] for ind in pop])
         mean_age = np.mean(ages)
         if measures:
-            # compute coverage
-            coverage = np.count_nonzero(grid) / NB_CELLS
-            coverage_hist.append(coverage)
+            if algo_type == 'ns_rand_multi_bd':
+                coverages = []
+                uniformities = []
+                # loop through all grids and compute measures for each grid
+                for gr in grid:
+                    coverages.append(np.count_nonzero(gr) / NB_CELLS)
+                    uniformities.append(utils.compute_uniformity(gr))
+                uniformity_hist.append(uniformities)
+                coverage_hist.append(coverages)
 
-            # compute uniformity
-            uniformity = utils.compute_uniformity(grid)
-            uniformity_hist.append(uniformity)
+            else:
+                # compute coverage
+                coverage = np.count_nonzero(grid) / NB_CELLS
+                coverage_hist.append(coverage)
+
+                # compute uniformity
+                uniformity = utils.compute_uniformity(grid)
+                uniformity_hist.append(uniformity)
 
         arch_size_hist.append(len(archive))
         mean_hist.append(mean_fit)
@@ -523,20 +621,20 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
         max_age_hist.append(np.max(ages))
         mean_age_hist.append(mean_age)
 
-        if algo_type == 'ns_rand_multi_bd':
+        if algo_type == 'ns_rand_change_bd':
             # novelty search expects a list of evaluation functions and a list of bd_bounds
             # and a choose_evaluate functions which chooses which evaluation function to use
-            # based on the info_multi_bd dictionnary (returns an index)
-            info_multi_bd['coverage'] = coverage
+            # based on the info_change_bd dictionnary (returns an index)
+            info_change_bd['coverage'] = coverage
             
             old_eval_index = eval_index
-            eval_index = choose_evaluate(info_multi_bd)
+            eval_index = choose_evaluate(info_change_bd)
             evaluate_individual = evaluate_individual_list[eval_index]
             bd_bounds = bd_bounds_list[eval_index]
             if old_eval_index != eval_index:
                 # behavior descriptor has changed
                 # add info
-                info_multi_bd['changed'] = True
+                info_change_bd['changed'] = True
                 
                 # empty the archive
                 archive = []
@@ -555,7 +653,7 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
 
     if plot:
         gen_plot(mean_hist, min_hist, max_hist, arch_size_hist, coverage_hist, uniformity_hist,
-                 mean_age_hist, max_age_hist, run_name)
+                 mean_age_hist, max_age_hist, run_name, algo_type)
 
     # show all plots
     plt.show()

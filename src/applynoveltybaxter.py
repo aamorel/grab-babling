@@ -30,7 +30,7 @@ MINI = False  # maximization problem
 HEIGHT_THRESH = -0.08  # binary goal parameter
 DISTANCE_THRESH = 0.20  # binary goal parameter
 DIFF_OR_THRESH = 0.1  # threshold for clustering grasping orientations
-COV_LIMIT = 0.1  # threshold for changing behavior descriptor in multi_bd ns
+COV_LIMIT = 0.1  # threshold for changing behavior descriptor in change_bd ns
 
 # choose controller type
 CONTROLLER = 'interpolate keypoints end pause grip'
@@ -39,17 +39,22 @@ CONTROLLER = 'interpolate keypoints end pause grip'
 ALGO = 'ns_rand_multi_bd'
 
 # choose behavior descriptor type
-BD = '3D'
+BD = 'multi'
 
 if BD == '2D':
     BD_BOUNDS = [[-0.35, 0.35], [-0.15, 0.2]]
 if BD == '3D':
     BD_BOUNDS = [[-0.35, 0.35], [-0.15, 0.2], [-0.12, 0.5]]
-if ALGO == 'ns_rand_multi_bd':
-    BD = 'multi_bd'
+if BD == 'multi':
+    BD_BOUNDS = [[-0.35, 0.35], [-0.15, 0.2], [-0.12, 0.5], [-1, 1], [-1, 1], [-1, 1], [-1, 1]]
+if ALGO == 'ns_rand_change_bd':
+    BD = 'change_bd'
     # list of 3D bd and orientation bd
     BD_BOUNDS = [[[-0.35, 0.35], [-0.15, 0.2], [-0.12, 0.5]], [[-1, 1], [-1, 1], [-1, 1], [-1, 1]]]
-    
+
+BD_INDEXES = None
+if ALGO == 'ns_rand_multi_bd':
+    BD_INDEXES = [0, 0, 0, 1, 1, 1, 1]
 
 if PARALLELIZE:
     # container for behavior descriptor
@@ -267,7 +272,7 @@ def three_d_behavioral_descriptor(individual):
                 o[0][2]]  # last position of object
 
     # bound behavior descriptor on table
-    if ALGO == 'ns_rand_multi_bd':
+    if ALGO == 'ns_rand_change_bd':
         utils.bound(behavior, BD_BOUNDS[0])
     else:
         utils.bound(behavior, BD_BOUNDS)
@@ -299,6 +304,123 @@ def three_d_behavioral_descriptor(individual):
 
         if CONTROLLER == 'interpolate keypoints end pause grip':
             info['orientation difference at grab'] = diff_or_at_grab
+
+    env.close()
+    return (behavior, (fitness,), info)
+
+
+def multi_behavioral_descriptor(individual):
+    """Evaluates an individual: computes its value in the behavior descriptor space,
+    and its fitness value.
+    In this case, we consider the behavior space as the end position of the object in
+    the 3D volume and the difference of orientation between the gripper and the object at gripping time. 
+
+    Args:
+        individual (Individual): an individual
+
+    Returns:
+        tuple: tuple of behavior (list) and fitness(tuple)
+    """
+    env = gym.make('gym_baxter_grabbing:baxter_grabbing-v1', display=DISPLAY)
+    actions = []
+    for i in range(NB_KEYPOINTS):
+        actions.append(individual[GENE_PER_KEYPOINTS * i:GENE_PER_KEYPOINTS * (i + 1)])
+
+    if ADDITIONAL_GENES != 0:
+        additional_genes = individual[-ADDITIONAL_GENES:]
+    else:
+        additional_genes = None
+
+    # initialize controller
+    controller = controllers_dict[CONTROLLER](actions, NB_ITER, additional_genes)
+
+    # for precise measure when we have the gripper assumption
+    grabbed = False
+
+    info = {}
+
+    for i in range(NB_ITER):
+        env.render()
+
+        # choose action
+        action = controller.get_action(i)
+
+        # apply previously chosen action
+        o, r, eo, inf = env.step(action)
+
+        if i == 0:
+            initial_object_position = o[0]
+
+        if eo:
+            break
+        
+        if CONTROLLER == 'interpolate keypoints end pause grip':
+            # we are in the case where the gripping time is given
+            # in consequence, we can do the precise measure of the grabbing orientation
+            if action[-1] == -1 and not grabbed:
+                # first action that orders the grabbing
+
+                # object orientation at grab (quaternion)
+                obj_or = o[1]
+
+                # gripper orientation at grab (quaternion)
+                grip_or = o[3]
+
+                # pybullet is x, y, z, w whereas pyquaternion is w, x, y, z
+                obj_or = pyq.Quaternion(obj_or[3], obj_or[0], obj_or[1], obj_or[2])
+                grip_or = pyq.Quaternion(grip_or[3], grip_or[0], grip_or[1], grip_or[2])
+
+                # difference:
+                diff_or_at_grab = obj_or.conjugate * grip_or
+                grabbed = True
+
+    # use last info to compute behavior and fitness
+    behavior = [o[0][0] - initial_object_position[0], o[0][1] - initial_object_position[1],
+                o[0][2]]  # last position of object
+
+    utils.bound(behavior, BD_BOUNDS[0:3])
+    # set bd values between -1 and 1
+    utils.normalize(behavior, BD_BOUNDS[0:3])
+
+    # append 4 times None to behavior in case no grabbing
+    for _ in range(4):
+        behavior.append(None)
+
+    # compute fitness
+    fitness = behavior[2]
+
+    # choose if individual satisfied the binary goal
+    dist = utils.list_l2_norm(o[0], o[2])
+    binary_goal = False
+    if o[0][2] > HEIGHT_THRESH and dist < DISTANCE_THRESH:
+        binary_goal = True
+    info['binary goal'] = binary_goal
+
+    if binary_goal:
+        # last object orientation (quaternion)
+        obj_or = o[1]
+
+        # last gripper orientation (quaternion)
+        grip_or = o[3]
+
+        # pybullet is x, y, z, w whereas pyquaternion is w, x, y, z
+        obj_or = pyq.Quaternion(obj_or[3], obj_or[0], obj_or[1], obj_or[2])
+        grip_or = pyq.Quaternion(grip_or[3], grip_or[0], grip_or[1], grip_or[2])
+
+        # difference:
+        diff_or = obj_or.conjugate * grip_or
+        info['orientation difference'] = diff_or
+        behavior[3] = diff_or[0]  # Quat to array
+        behavior[4] = diff_or[1]
+        behavior[5] = diff_or[2]
+        behavior[6] = diff_or[3]
+
+        if CONTROLLER == 'interpolate keypoints end pause grip':
+            info['orientation difference at grab'] = diff_or_at_grab
+            behavior[3] = diff_or_at_grab[0]  # Quat to array
+            behavior[4] = diff_or_at_grab[1]
+            behavior[5] = diff_or_at_grab[2]
+            behavior[6] = diff_or_at_grab[3]
 
     env.close()
     return (behavior, (fitness,), info)
@@ -373,7 +495,7 @@ def orientation_behavioral_descriptor(individual):
                 o[0][2]]  # last position of object
     
     # bound behavior descriptor on table because we want to keep the same computation of fitness
-    if ALGO == 'ns_rand_multi_bd':
+    if ALGO == 'ns_rand_change_bd':
         utils.bound(behavior, BD_BOUNDS[0])
     else:
         utils.bound(behavior, BD_BOUNDS)
@@ -417,20 +539,20 @@ def orientation_behavioral_descriptor(individual):
     return (behavior, (fitness,), info)
 
 
-def choose_evaluation_function(info_multi_bd):
+def choose_evaluation_function(info_change_bd):
     """In case of multi_ns bd, choose the evaluation function based on the dict sent by the ns algorithm.
 
     Args:
-        info_multi_bd (dict): dictionnary containing the info relevant to choose the bd
+        info_change_bd (dict): dictionnary containing the info relevant to choose the bd
 
     Returns:
         int : index of the evaluation function and bd_bounds
     """
     index = 0
 
-    if not info_multi_bd['changed']:
+    if not info_change_bd['changed']:
         # bd has not been changed yet
-        if info_multi_bd['coverage'] >= COV_LIMIT:
+        if info_change_bd['coverage'] >= COV_LIMIT:
             index = 1
     else:
         index = 1
@@ -446,7 +568,8 @@ controllers_dict = {'discrete keypoints': controllers.DiscreteKeyPoints,
 
 bd_dict = {'2D': two_d_behavioral_descriptor,
            '3D': three_d_behavioral_descriptor,
-           'multi_bd': [three_d_behavioral_descriptor, orientation_behavioral_descriptor]}
+           'change_bd': [three_d_behavioral_descriptor, orientation_behavioral_descriptor],
+           'multi': multi_behavioral_descriptor}
 
 if __name__ == "__main__":
 
@@ -469,7 +592,7 @@ if __name__ == "__main__":
     evaluation_function = bd_dict[BD]
 
     choose = None
-    if ALGO == 'ns_rand_multi_bd':
+    if ALGO == 'ns_rand_change_bd':
         choose = choose_evaluation_function
 
     if EVAL_INDIVIDUAL:
@@ -484,7 +607,7 @@ if __name__ == "__main__":
                                                          mini=MINI, run_name=run_name,
                                                          plot=PLOT, algo_type=ALGO, nb_gen=NB_GEN, bound_genotype=1,
                                                          pop_size=POP_SIZE, parallelize=PARALLELIZE, measures=True,
-                                                         choose_evaluate=choose)
+                                                         choose_evaluate=choose, bd_indexes=BD_INDEXES)
     
     # create triumphant archive
     triumphant_archive = []
@@ -503,10 +626,11 @@ if __name__ == "__main__":
         run['successful'] = False
 
     if PLOT:
-        # plot final states
-        archive_behavior = np.array([ind.behavior_descriptor.values for ind in archive])
-        pop_behavior = np.array([ind.behavior_descriptor.values for ind in pop])
-        hof_behavior = np.array([ind.behavior_descriptor.values for ind in hof])
+        if BD != 'change_bd':
+            # plot final states
+            archive_behavior = np.array([ind.behavior_descriptor.values for ind in archive])
+            pop_behavior = np.array([ind.behavior_descriptor.values for ind in pop])
+            hof_behavior = np.array([ind.behavior_descriptor.values for ind in hof])
 
         if BD == '2D':
             fig, ax = plt.subplots(figsize=(5, 5))

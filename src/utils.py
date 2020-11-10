@@ -64,6 +64,13 @@ def bound(behavior, bound_behavior):
             behavior[i] = bound_behavior[i][1]
 
 
+def normalize(behavior, bound_behavior):
+    for i in range(len(behavior)):
+        range_of_interval = bound_behavior[i][1] - bound_behavior[i][0]
+        mean_of_interval = (bound_behavior[i][0] + bound_behavior[i][1]) / 2
+        behavior[i] = (behavior[i] - mean_of_interval) / (range_of_interval / 2)
+
+
 def list_l2_norm(list1, list2):
     if len(list1) != len(list2):
         raise NameError('The two lists have different length')
