@@ -100,7 +100,7 @@ def analyze_triumphants(triumphant_archive, run_name):
 
     # compute coverage and uniformity metrics: easy approach, use CVT cells in quaternion space
     bounds = [[-1, 1], [-1, 1], [-1, 1], [-1, 1]]
-    nb_cells = 100
+    nb_cells = 1000
     cvt = utils.CVT(nb_cells, bounds)
     grid = np.zeros((nb_cells,))
     for ind in triumphant_archive:

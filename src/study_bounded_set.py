@@ -35,14 +35,18 @@ def eval(set_bounds):
 
 
 fig, ax = plt.subplots()
-for n_dim in [2, 3, 4, 5, 6, 7, 8]:
+dims = list(range(2, 30))
+for n_dim in dims:
     possibles = []
     means_dist = []
-    for n_exp in range(100):
+    n = 5
+    for n_exp in range(n):
         set_bounds = []
         for i in range(n_dim):
-            a = random.uniform(-10, 10)
-            b = random.uniform(-10, 10)
+            # a = random.uniform(-10, 10)
+            a = 0.5
+            # b = random.uniform(-10, 10)
+            b = -0.5
             if a >= b:
                 set_bounds.append([b, a])
             else:
@@ -54,7 +58,7 @@ for n_dim in [2, 3, 4, 5, 6, 7, 8]:
     possibles = np.array(possibles)
     means_dist = np.array(means_dist)
 
-    ax.scatter(possibles, means_dist, label=n_dim)
+    ax.scatter([n_dim] * n, means_dist, label=n_dim)
 
 plt.legend()
 plt.show()

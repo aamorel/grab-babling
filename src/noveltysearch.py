@@ -153,8 +153,9 @@ def assess_novelties(pop, archive, algo_type, bd_bounds, bd_indexes, bd_filters)
 
         # compute novelties for the pop bds
         for i in range(len(pop)):
+            # in that case, novelty will be a tupple of novelties for each bd
             bd = b_descriptors[i]
-
+            """ Doesn't make sense but kept in case it's useful at one point
             # compute possible descriptors
             eligible_bds_idxs = []
             eligible_bds_values = []
@@ -177,7 +178,17 @@ def assess_novelties(pop, archive, algo_type, bd_bounds, bd_indexes, bd_filters)
             # normalize novelty
             # TODO: normalize novelty based on size of chosen bd
             # beware: keep novelty as a tuple
-
+            """
+            # loop through the bds
+            novelty = []
+            for idx, bd_filter in enumerate(bd_filters):
+                bd_value = bd[bd_filter]
+                if not(None in bd_value):
+                    nov_bd = compute_average_distance(bd_value, k_trees[idx])[0]  # float
+                    novelty.append(nov_bd)
+                else:
+                    novelty.append(None)
+            novelty = tuple(novelty)
             novelties.append(novelty)
             
     else:
@@ -378,6 +389,55 @@ def add_to_grid(member, grid, cvt, measures, algo_type, bd_filters):
             grid[grid_index] += 1
 
 
+def select_n_multi_bd(pop, n, putback=True):
+    selected = []
+    pop_size = len(pop)
+    for i in range(n):
+        unwanted_list = []  # in case of no putback
+        # make sure two selected individuals are different
+        condition = True
+        while condition:
+            idx1 = random.randint(0, pop_size - 1)
+            idx2 = random.randint(0, pop_size - 1)
+            if putback:
+                condition = idx1 == idx2
+            else:
+                condition = ((idx1 == idx2) or (idx1 in unwanted_list)) or (idx2 in unwanted_list)
+        ind1_nov = list(pop[idx1].novelty.values)
+        ind2_nov = list(pop[idx2].novelty.values)
+
+        # find common bds between the two individuals
+        common_bds = []
+        for i in range(len(ind1_nov)):
+            if (ind1_nov[i] is not None) and (ind2_nov[i] is not None):
+                common_bds.append(i)
+        nb_common_bds = len(common_bds)
+        if nb_common_bds == 0:
+            # no common bds
+            # hypothesis: choose one of the two individuals randomly
+            dice = random.randint(0, 1)
+            if dice:
+                selected.append(pop[idx1])
+                unwanted_list.append(idx1)
+            else:
+                selected.append(pop[idx2])
+                unwanted_list.append(idx2)
+        else:
+            # choose a random common bd
+            common_bd_idx = random.randint(0, nb_common_bds - 1)
+            bd_idx = common_bds[common_bd_idx]
+            ind1_nov_val = ind1_nov[bd_idx]
+            ind2_nov_val = ind2_nov[bd_idx]
+            if ind1_nov_val >= ind2_nov_val:
+                selected.append(pop[idx1])
+                unwanted_list.append(idx1)
+            else:
+                selected.append(pop[idx2])
+                unwanted_list.append(idx2)
+            
+    return selected
+
+
 def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, mini=True, plot=False, nb_gen=100,
                  algo_type='ns_nov', bound_genotype=5, pop_size=30, parallelize=False,
                  measures=False, run_name=None, choose_evaluate=None, bd_indexes=None):
@@ -474,6 +534,7 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
                 archive.append(member)
                 add_to_grid(member, grid, cvt, measures, algo_type, bd_filters)
     if archive_type == 'novelty_based':
+        # TODO: deal with multi-bd case
         # fill archive with the most novel individuals
         novel_n = np.array([nov[0] for nov in novelties])
         max_novelties_idx = np.argsort(-novel_n)[:archive_nb]
@@ -505,7 +566,10 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
             # classical EA: selection on fitness
             # references to selected individuals
             offsprings = toolbox.select(pop, int(pop_size * OFFSPRING_NB_COEFF), fit_attr='fitness')
-
+        elif algo_type == 'ns_rand_multi_bd':
+            # use special selection for multi novelties
+            # references to selected individuals
+            offsprings = select_n_multi_bd(pop, int(pop_size * OFFSPRING_NB_COEFF))
         else:
             # novelty search: selection on novelty
             # references to selected individuals
@@ -552,6 +616,7 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
                     add_to_grid(member, grid, cvt, measures, algo_type, bd_filters)
 
         if archive_type == 'novelty_based':
+            #  TODO: deal with multi-bd case
             # fill archive with the most novel individuals
             offsprings_novelties = novelties[pop_size:]
             novel_n = np.array([nov[0] for nov in offsprings_novelties])
@@ -561,9 +626,16 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
                     member = toolbox.clone(offsprings[i])
                     archive.append(member)
                     add_to_grid(member, grid, cvt, measures, algo_type, bd_filters)
-
-        # replacement: keep the most novel individuals
-        pop[:] = toolbox.replace(current_pool, pop_size, fit_attr='novelty')
+        
+        if algo_type == 'classic_ea':
+            # replacement: keep the most fit individuals
+            pop[:] = toolbox.replace(current_pool, pop_size, fit_attr='fitness')
+        elif algo_type == 'ns_rand_multi_bd':
+            # replacement: keep the most novel individuals in case of multi novelties
+            pop[:] = select_n_multi_bd(pop, pop_size, putback=False)
+        else:
+            # replacement: keep the most novel individuals
+            pop[:] = toolbox.replace(current_pool, pop_size, fit_attr='novelty')
 
         if algo_type == 'ns_rand_binary_removal':
             # remove individuals that satisfy the binary goal
