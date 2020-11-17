@@ -632,7 +632,7 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
             pop[:] = toolbox.replace(current_pool, pop_size, fit_attr='fitness')
         elif algo_type == 'ns_rand_multi_bd':
             # replacement: keep the most novel individuals in case of multi novelties
-            pop[:] = select_n_multi_bd(pop, pop_size, putback=False)
+            pop[:] = select_n_multi_bd(current_pool, pop_size, putback=False)
         else:
             # replacement: keep the most novel individuals
             pop[:] = toolbox.replace(current_pool, pop_size, fit_attr='novelty')
