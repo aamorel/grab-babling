@@ -21,6 +21,7 @@ INF = 1000000000  # for security against infinite distances in KDtree queries
 ARCHIVE = 'random'  # random or novelty_based
 ARCHIVE_PB = 0.2  # if ARCHIVE is random, probability to add individual to archive
 # if ARCHIVE is novelty_based, proportion of individuals added per gen
+ARCHIVE_DECREMENTAL_RATIO = 0.9  # if archive size is bigger than thresh, cut down archive by this ratio
 CXPB = 0.2  # probability with which two individuals are crossed
 MUTPB = 0.8  # probability for mutating an individual
 SIGMA = 0.1  # std of the mutation of one gene
@@ -440,7 +441,7 @@ def select_n_multi_bd(pop, n, putback=True):
 
 def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, mini=True, plot=False, nb_gen=100,
                  algo_type='ns_nov', bound_genotype=5, pop_size=30, parallelize=False,
-                 measures=False, run_name=None, choose_evaluate=None, bd_indexes=None):
+                 measures=False, run_name=None, choose_evaluate=None, bd_indexes=None, archive_limit_size=None):
 
     global id_counter
 
@@ -719,6 +720,17 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
                     # re-initialize the CVT grid
                     grid = np.zeros(NB_CELLS)
                     cvt = utils.CVT(num_centroids=NB_CELLS, bounds=bd_bounds)
+        
+        if archive_limit_size is not None:
+            # implement archive size limitation strategy
+            if len(archive) >= archive_limit_size:
+                nb_ind_to_remove = int(len(archive) * ARCHIVE_DECREMENTAL_RATIO)
+                nb_ind_to_keep = len(archive) - nb_ind_to_remove
+
+                # removal strategy
+                # strategy 1: remove random individuals
+                random.shuffle(archive)
+                archive = archive[:nb_ind_to_keep]
     
     details['population genetic statistics'] = gen_stat_hist
     details['offsprings genetic statistics'] = gen_stat_hist_off

@@ -20,8 +20,8 @@ DISPLAY_TRIUMPHANTS = False
 EVAL_INDIVIDUAL = False
 
 # choose parameters
-POP_SIZE = 10
-NB_GEN = 5
+POP_SIZE = 100
+NB_GEN = 5000
 NB_KEYPOINTS = 3
 GENE_PER_KEYPOINTS = 7
 ADDITIONAL_GENES = 1
@@ -313,7 +313,7 @@ def multi_behavioral_descriptor(individual):
     """Evaluates an individual: computes its value in the behavior descriptor space,
     and its fitness value.
     In this case, we consider the behavior space as the end position of the object in
-    the 3D volume and the difference of orientation between the gripper and the object at gripping time. 
+    the 3D volume and the difference of orientation between the gripper and the object at gripping time.
 
     Args:
         individual (Individual): an individual
@@ -578,6 +578,7 @@ if __name__ == "__main__":
         i += 1
     run_name = 'runs/run%i/' % i
     os.mkdir(run_name)
+    archive_limit = 4000
 
     # initialize run dict
     run = {}
@@ -587,6 +588,7 @@ if __name__ == "__main__":
     run['controler'] = CONTROLLER
     run['pop size'] = POP_SIZE
     run['nb gen'] = NB_GEN
+    run['archive size limit'] = archive_limit
 
     initial_genotype_size = NB_KEYPOINTS * GENE_PER_KEYPOINTS + ADDITIONAL_GENES
     evaluation_function = bd_dict[BD]
@@ -607,7 +609,8 @@ if __name__ == "__main__":
                                                          mini=MINI, run_name=run_name,
                                                          plot=PLOT, algo_type=ALGO, nb_gen=NB_GEN, bound_genotype=1,
                                                          pop_size=POP_SIZE, parallelize=PARALLELIZE, measures=True,
-                                                         choose_evaluate=choose, bd_indexes=BD_INDEXES)
+                                                         choose_evaluate=choose, bd_indexes=BD_INDEXES,
+                                                         archive_limit_size=archive_limit)
     
     # create triumphant archive
     triumphant_archive = []
