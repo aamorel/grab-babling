@@ -13,7 +13,7 @@ import json
 
 DISPLAY = False
 PARALLELIZE = True
-PLOT = False
+PLOT = True
 DISPLAY_HOF = False
 DISPLAY_RAND = False
 DISPLAY_TRIUMPHANTS = False
@@ -23,8 +23,8 @@ EVAL_INDIVIDUAL = False
 ENV = gym.make('gym_baxter_grabbing:baxter_grabbing-v1', display=DISPLAY)
 
 # choose parameters
-POP_SIZE = 13
-NB_GEN = 3
+POP_SIZE = 100
+NB_GEN = 50
 NB_KEYPOINTS = 3
 GENE_PER_KEYPOINTS = 7
 ADDITIONAL_GENES = 1
@@ -331,8 +331,7 @@ def multi_behavioral_descriptor(individual):
     """
     global ENV
     ENV.reset()
-    print(os.getpid())
-    # ENV = gym.make('gym_baxter_grabbing:baxter_grabbing-v1', display=DISPLAY)
+
     actions = []
     for i in range(NB_KEYPOINTS):
         actions.append(individual[GENE_PER_KEYPOINTS * i:GENE_PER_KEYPOINTS * (i + 1)])
@@ -433,7 +432,6 @@ def multi_behavioral_descriptor(individual):
             behavior[5] = diff_or_at_grab[2]
             behavior[6] = diff_or_at_grab[3]
 
-    ENV.close()
     return (behavior, (fitness,), info)
 
 
