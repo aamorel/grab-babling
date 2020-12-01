@@ -24,7 +24,7 @@ ENV = gym.make('gym_baxter_grabbing:baxter_grabbing-v1', display=DISPLAY)
 
 # choose parameters
 POP_SIZE = 100
-NB_GEN = 50
+NB_GEN = 3000
 NB_KEYPOINTS = 3
 GENE_PER_KEYPOINTS = 7
 ADDITIONAL_GENES = 1
