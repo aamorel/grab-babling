@@ -13,15 +13,18 @@ import json
 
 DISPLAY = False
 PARALLELIZE = True
-PLOT = True
+PLOT = False
 DISPLAY_HOF = False
 DISPLAY_RAND = False
 DISPLAY_TRIUMPHANTS = False
 EVAL_INDIVIDUAL = False
 
+# global variable for the environment
+ENV = gym.make('gym_baxter_grabbing:baxter_grabbing-v1', display=DISPLAY)
+
 # choose parameters
-POP_SIZE = 100
-NB_GEN = 5000
+POP_SIZE = 13
+NB_GEN = 3
 NB_KEYPOINTS = 3
 GENE_PER_KEYPOINTS = 7
 ADDITIONAL_GENES = 1
@@ -64,7 +67,11 @@ if PARALLELIZE:
     # container for info
     creator.create('Info', dict)
     # container for novelty
-    creator.create('Novelty', base.Fitness, weights=(1.0,))
+    if ALGO == 'ns_rand_multi_bd':
+        # novelty must be a list, and selection is not used directly with DEAP
+        creator.create('Novelty', list)
+    else:
+        creator.create('Novelty', base.Fitness, weights=(1.0,))
     # container for fitness
     if MINI:
         creator.create('Fit', base.Fitness, weights=(-1.0,))
@@ -165,7 +172,8 @@ def two_d_behavioral_descriptor(individual):
     Returns:
         tuple: tuple of behavior (list) and fitness(tuple)
     """
-    env = gym.make('gym_baxter_grabbing:baxter_grabbing-v1', display=DISPLAY)
+    global ENV
+    ENV.reset()
     actions = []
     for i in range(NB_KEYPOINTS):
         actions.append(individual[GENE_PER_KEYPOINTS * i:GENE_PER_KEYPOINTS * (i + 1)])
@@ -176,9 +184,9 @@ def two_d_behavioral_descriptor(individual):
     controller = controllers_dict[CONTROLLER](actions, NB_ITER)
 
     for i in range(NB_ITER):
-        env.render()
+        ENV.render()
         # apply previously chosen action
-        o, r, eo, info = env.step(action)
+        o, r, eo, info = ENV.step(action)
 
         if i == 0:
             initial_object_position = o[0]
@@ -198,7 +206,6 @@ def two_d_behavioral_descriptor(individual):
 
     info = {}
 
-    env.close()
     return (behavior, (fitness,), info)
 
 
@@ -214,7 +221,9 @@ def three_d_behavioral_descriptor(individual):
     Returns:
         tuple: tuple of behavior (list) and fitness(tuple)
     """
-    env = gym.make('gym_baxter_grabbing:baxter_grabbing-v1', display=DISPLAY)
+    global ENV
+    ENV.reset()
+    
     actions = []
     for i in range(NB_KEYPOINTS):
         actions.append(individual[GENE_PER_KEYPOINTS * i:GENE_PER_KEYPOINTS * (i + 1)])
@@ -233,13 +242,13 @@ def three_d_behavioral_descriptor(individual):
     info = {}
 
     for i in range(NB_ITER):
-        env.render()
+        ENV.render()
 
         # choose action
         action = controller.get_action(i)
 
         # apply previously chosen action
-        o, r, eo, inf = env.step(action)
+        o, r, eo, inf = ENV.step(action)
 
         if i == 0:
             initial_object_position = o[0]
@@ -305,7 +314,6 @@ def three_d_behavioral_descriptor(individual):
         if CONTROLLER == 'interpolate keypoints end pause grip':
             info['orientation difference at grab'] = diff_or_at_grab
 
-    env.close()
     return (behavior, (fitness,), info)
 
 
@@ -321,7 +329,10 @@ def multi_behavioral_descriptor(individual):
     Returns:
         tuple: tuple of behavior (list) and fitness(tuple)
     """
-    env = gym.make('gym_baxter_grabbing:baxter_grabbing-v1', display=DISPLAY)
+    global ENV
+    ENV.reset()
+    print(os.getpid())
+    # ENV = gym.make('gym_baxter_grabbing:baxter_grabbing-v1', display=DISPLAY)
     actions = []
     for i in range(NB_KEYPOINTS):
         actions.append(individual[GENE_PER_KEYPOINTS * i:GENE_PER_KEYPOINTS * (i + 1)])
@@ -340,13 +351,13 @@ def multi_behavioral_descriptor(individual):
     info = {}
 
     for i in range(NB_ITER):
-        env.render()
+        ENV.render()
 
         # choose action
         action = controller.get_action(i)
 
         # apply previously chosen action
-        o, r, eo, inf = env.step(action)
+        o, r, eo, inf = ENV.step(action)
 
         if i == 0:
             initial_object_position = o[0]
@@ -422,7 +433,7 @@ def multi_behavioral_descriptor(individual):
             behavior[5] = diff_or_at_grab[2]
             behavior[6] = diff_or_at_grab[3]
 
-    env.close()
+    ENV.close()
     return (behavior, (fitness,), info)
 
 
@@ -437,7 +448,8 @@ def orientation_behavioral_descriptor(individual):
     Returns:
         tuple: tuple of behavior (list) and fitness(tuple)
     """
-    env = gym.make('gym_baxter_grabbing:baxter_grabbing-v1', display=DISPLAY)
+    global ENV
+    ENV.reset()
     actions = []
     for i in range(NB_KEYPOINTS):
         actions.append(individual[GENE_PER_KEYPOINTS * i:GENE_PER_KEYPOINTS * (i + 1)])
@@ -456,13 +468,13 @@ def orientation_behavioral_descriptor(individual):
     info = {}
 
     for i in range(NB_ITER):
-        env.render()
+        ENV.render()
 
         # choose action
         action = controller.get_action(i)
 
         # apply previously chosen action
-        o, r, eo, inf = env.step(action)
+        o, r, eo, inf = ENV.step(action)
 
         if i == 0:
             initial_object_position = o[0]
@@ -535,7 +547,6 @@ def orientation_behavioral_descriptor(individual):
         # set behavior as None and deal with in novelty search
         behavior = None
 
-    env.close()
     return (behavior, (fitness,), info)
 
 
@@ -604,7 +615,7 @@ if __name__ == "__main__":
                 evaluation_function(np.load('../exp_results/106/run0/type' + str(j) + '_' + str(i) + '.npy',
                                             allow_pickle=True))
         exit()
-
+    
     pop, archive, hof, infs = noveltysearch.novelty_algo(evaluation_function, initial_genotype_size, BD_BOUNDS,
                                                          mini=MINI, run_name=run_name,
                                                          plot=PLOT, algo_type=ALGO, nb_gen=NB_GEN, bound_genotype=1,

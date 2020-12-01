@@ -33,7 +33,7 @@ MAX_MUT_PROB = 0.5  # if algo is ns_rand_keep_diversity, probability for the les
 id_counter = 0  # each individual will have a unique id
 
 
-def initialize_tool(initial_gen_size, mini, pop_size, parallelize):
+def initialize_tool(initial_gen_size, mini, pop_size, parallelize, algo_type):
     """Initialize the toolbox
 
     Args:
@@ -58,7 +58,11 @@ def initialize_tool(initial_gen_size, mini, pop_size, parallelize):
         # container for genetic info
         creator.create('GenInfo', dict)
         # container for novelty
-        creator.create('Novelty', base.Fitness, weights=(1.0,))
+        if algo_type == 'ns_rand_multi_bd':
+            # novelty must be a list, and selection is not used directly with DEAP
+            creator.create('Novelty', list)
+        else:
+            creator.create('Novelty', base.Fitness, weights=(1.0,))
         # container for fitness
         if mini:
             creator.create('Fit', base.Fitness, weights=(-1.0,))
@@ -392,9 +396,9 @@ def add_to_grid(member, grid, cvt, measures, algo_type, bd_filters):
 
 def select_n_multi_bd(pop, n, putback=True):
     selected = []
+    unwanted_list = []  # in case of no putback
     pop_size = len(pop)
     for i in range(n):
-        unwanted_list = []  # in case of no putback
         # make sure two selected individuals are different
         condition = True
         while condition:
@@ -439,13 +443,85 @@ def select_n_multi_bd(pop, n, putback=True):
     return selected
 
 
+def select_n_multi_bd_tournsize(pop, n, tournsize, bd_filters, putback=True):
+    selected = []
+    unwanted_list = []  # in case of no putback
+    pop_size = len(pop)
+    nb_of_bd = len(bd_filters)
+    for i in range(n):
+        # prepare the tournament
+        # make sure selected individuals are different
+        if putback:
+            tourn_idxs = random.sample(range(pop_size), tournsize)
+        else:
+            list_of_available_idxs = [i for i in list(range(pop_size)) if i not in unwanted_list]
+            random.shuffle(list_of_available_idxs)
+            tourn_idxs = list_of_available_idxs[:tournsize]
+
+        # make the inventory of the bds in the tournament
+        inventory = np.zeros(nb_of_bd)
+        for idx in tourn_idxs:
+            ind = pop[idx]
+            nov_list = list(ind.novelty.values)
+            for i, nov in enumerate(nov_list):
+                if nov is not None:
+                    inventory[i] += 1
+        
+        # choose the bd to use for comparison
+        bd_idx = choose_bd_strategy(inventory)
+
+        # find all the individuals that are evaluated inside the chosen bd and their novelties
+        possible_individuals_idxs = []
+        possible_individuals_novelties = []
+
+        for idx in tourn_idxs:
+            ind = pop[idx]
+            nov_list = list(ind.novelty.values)
+            nov_to_compare = nov_list[bd_idx]
+            if nov_to_compare is not None:
+                possible_individuals_idxs.append(idx)
+                possible_individuals_novelties.append(nov_to_compare)
+        
+        # find most novel individual and select it
+        possible_individuals_novelties = np.array(possible_individuals_novelties)
+        temp_idx = np.argmax(possible_individuals_novelties)
+        ind_idx = possible_individuals_idxs[temp_idx]
+        selected.append(pop[ind_idx])
+        if not putback:
+            unwanted_list.append(ind_idx)
+            
+    return selected
+
+
+def choose_bd_strategy(inventory):
+    """Choose the behavior descriptor to use for comparison of novelties in the case of multi_bd novelty search and
+    a tournament size >= 2.
+
+    Args:
+        inventory (np.array): length of nb_bd, each value counts the number of times the particular bd is evaluated
+                              inside the tournament
+
+    Returns:
+        int: index of the chosen bd
+    """
+
+    # most basic strategy: choose a random behavior descriptor, but make sure inventory(bd_index) > 0
+    cond = False
+    while not cond:
+        bd_idx = random.randint(0, len(inventory) - 1)
+        if inventory[bd_idx] > 0:
+            cond = True
+
+    return bd_idx
+
+
 def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, mini=True, plot=False, nb_gen=100,
                  algo_type='ns_nov', bound_genotype=5, pop_size=30, parallelize=False,
                  measures=False, run_name=None, choose_evaluate=None, bd_indexes=None, archive_limit_size=None):
 
     global id_counter
 
-    creator, toolbox = initialize_tool(initial_gen_size, mini, pop_size, parallelize)
+    creator, toolbox = initialize_tool(initial_gen_size, mini, pop_size, parallelize, algo_type)
 
     # initialize evaluate_individual function
     if algo_type == 'ns_rand_change_bd':
@@ -570,7 +646,7 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
         elif algo_type == 'ns_rand_multi_bd':
             # use special selection for multi novelties
             # references to selected individuals
-            offsprings = select_n_multi_bd(pop, int(pop_size * OFFSPRING_NB_COEFF))
+            offsprings = select_n_multi_bd_tournsize(pop, int(pop_size * OFFSPRING_NB_COEFF), TOURNSIZE, bd_filters)
         else:
             # novelty search: selection on novelty
             # references to selected individuals
@@ -628,12 +704,13 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
                     archive.append(member)
                     add_to_grid(member, grid, cvt, measures, algo_type, bd_filters)
         
+        # replace
         if algo_type == 'classic_ea':
             # replacement: keep the most fit individuals
             pop[:] = toolbox.replace(current_pool, pop_size, fit_attr='fitness')
         elif algo_type == 'ns_rand_multi_bd':
             # replacement: keep the most novel individuals in case of multi novelties
-            pop[:] = select_n_multi_bd(current_pool, pop_size, putback=False)
+            pop[:] = select_n_multi_bd_tournsize(current_pool, pop_size, TOURNSIZE, bd_filters, putback=False)
         else:
             # replacement: keep the most novel individuals
             pop[:] = toolbox.replace(current_pool, pop_size, fit_attr='novelty')
