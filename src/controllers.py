@@ -86,7 +86,7 @@ class InterpolateKeyPointsEndPauseGripAssumption():
         self.action_polynome = interpolate.interp1d(interp_x, actions, kind='quadratic', axis=0,
                                                     bounds_error=False, fill_value='extrapolate')
         self.last_action = 0
-        self.grip_time = math.floor(additional_genes[0] / 2 + 0.5 * self.pause_time)
+        self.grip_time = math.floor((additional_genes[0] / 2 + 0.5) * self.pause_time)
 
     def get_action(self, i):
         if i <= self.pause_time:
@@ -97,6 +97,6 @@ class InterpolateKeyPointsEndPauseGripAssumption():
                 action = np.append(action, -1)  # gripper is closed
             self.last_action = action
         else:
-            # gripper is closed
+            # feed last action
             action = self.last_action
         return action

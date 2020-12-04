@@ -801,8 +801,7 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
         if archive_limit_size is not None:
             # implement archive size limitation strategy
             if len(archive) >= archive_limit_size:
-                nb_ind_to_remove = int(len(archive) * ARCHIVE_DECREMENTAL_RATIO)
-                nb_ind_to_keep = len(archive) - nb_ind_to_remove
+                nb_ind_to_keep = int(len(archive) * ARCHIVE_DECREMENTAL_RATIO)
 
                 # removal strategy
                 # strategy 1: remove random individuals

@@ -6,12 +6,15 @@ import matplotlib.pyplot as plt
 import math
 from sklearn import mixture
 import time
+import copy
 
 K = 15
 INF = 1000000000  # for security against infinite distances in KDtree queries
 N = 3  # number of gaussians
 CREATE_POP = 'gmm_novelty'  # type of population generation
 SIGMA = 0.05  # mutation standard deviation for novelty_based population generation
+LIMIT_DENSITY_ITER = 100  # maximum number of iterations to find an individual in the cell not already chosen
+N_CELLS = 20  # number of cells to try to generate
 
 
 def assess_novelties(reference_pop, pop):
@@ -73,6 +76,32 @@ def remove_ind(reference_pop, removal_size, removal_type):
         # compute novelties of reference_pop inside reference_pop
         novelties = assess_novelties(reference_pop, reference_pop)
         removal_indices = np.argpartition(novelties, removal_size)[:removal_size]
+
+        # # plot the reference pop
+        # fig = plt.figure(figsize=(5, 5))
+        # ax = fig.add_subplot(111)
+        # ax.scatter(reference_pop[:, 0], reference_pop[:, 1], label='reference')
+        # ax.scatter(reference_pop[removal_indices, 0], reference_pop[removal_indices, 1], label='removed',
+        #            marker='x', color='red')
+        # ax.set_facecolor("#ffebb8")
+        # ax.set_title('Least novel removal', fontsize=15)
+        # plt.xlim(0, 1)
+        # plt.ylim(0, 1)
+        # plt.legend()
+        # plt.show()
+
+        reference_pop = np.delete(reference_pop, removal_indices, 0)
+    
+    if removal_type == 'least_novel_iter':
+        removal_indices = []
+        temp_ref_pop = copy.deepcopy(reference_pop)
+        for j in range(removal_size):
+            # compute novelties of reference_pop inside reference_pop
+            novelties = assess_novelties(temp_ref_pop, temp_ref_pop)
+            remov_idx = np.argmin(novelties)
+            remov_ind = temp_ref_pop[remov_idx]
+            removal_indices.append(np.where(reference_pop == remov_ind)[0][0])
+            temp_ref_pop = np.vstack((temp_ref_pop[:remov_idx], temp_ref_pop[remov_idx + 1:]))
 
         # # plot the reference pop
         # fig = plt.figure(figsize=(5, 5))
@@ -187,6 +216,81 @@ def remove_ind(reference_pop, removal_size, removal_type):
         #            marker='x', color='red')
         # ax.set_facecolor("#ffebb8")
         # ax.set_title('Grid removal', fontsize=15)
+        # plt.xlim(0, 1)
+        # plt.ylim(0, 1)
+        # plt.legend()
+        # plt.show()
+
+        reference_pop = np.delete(reference_pop, removal_indices, 0)
+    
+    if removal_type == 'grid_density':
+        n_dim = reference_pop.shape[1]
+        # compute maximums and minimums on each dimension
+        maximums = np.max(reference_pop, 0)
+        minimums = np.min(reference_pop, 0)
+        ranges = maximums - minimums
+        bins_per_dim = math.floor(math.exp(math.log(N_CELLS) / n_dim)) + 1
+        grid_positions = []
+        for i in range(n_dim):
+            # important choice on how we make the grid
+            grid_position = [minimums[i] + (j * ranges[i] / (bins_per_dim - 1)) for j in range(bins_per_dim)]
+            grid_positions.append(grid_position)
+        mesh = np.meshgrid(*grid_positions)
+        nodes = list(zip(*(dim.flat for dim in mesh)))
+        nodes = np.array(nodes)
+
+        removal_indices = []
+        nb_cells = (bins_per_dim - 1) ** n_dim
+        grid_density = np.zeros(nb_cells)
+        cells = [[] for _ in range(nb_cells)]
+
+        for ind_idx, ind in enumerate(reference_pop):
+            dim_indexs = np.zeros(n_dim)
+            for i, dim in enumerate(ind):
+                grid_pos = grid_positions[i]
+                for j in range(bins_per_dim - 1):
+                    if dim >= grid_pos[j] and dim < grid_pos[j + 1]:
+                        dim_indexs[i] = j + 1
+            if 0 not in dim_indexs:
+                # indivudal is inside the grid
+                dim_indexs = dim_indexs - 1
+                cell_idx = 0
+                for k, dim_idx in enumerate(dim_indexs):
+                    cell_idx += int(dim_idx * ((bins_per_dim - 1) ** k))
+                grid_density[cell_idx] += 1
+                cells[cell_idx].append(ind_idx)
+        
+        grid_density = grid_density / np.sum(grid_density)
+
+        # TEST: square the grid_density to biase more towards high density cells
+        grid_density = np.square(grid_density)
+
+        grid_law = np.cumsum(grid_density)
+
+        for _ in range(removal_size):
+            dice = random.random() * grid_law[-1]
+            cell_to_remove_from = np.searchsorted(grid_law, dice)
+            cond = True
+            n = 0
+            while cond:
+                if n < LIMIT_DENSITY_ITER:
+                    removal_idx = random.choice(cells[cell_to_remove_from])
+                else:
+                    removal_idx = random.choice(list(range(len(reference_pop))))
+                if removal_idx not in removal_indices:
+                    removal_indices.append(removal_idx)
+                    cond = False
+                n += 1
+
+        # # plot the reference pop
+        # fig = plt.figure(figsize=(5, 5))
+        # ax = fig.add_subplot(111)
+        # ax.scatter(reference_pop[:, 0], reference_pop[:, 1], label='reference')
+        # ax.scatter(nodes[:, 0], nodes[:, 1], label='grid', marker='+', color='black')
+        # ax.scatter(reference_pop[removal_indices, 0], reference_pop[removal_indices, 1], label='removed',
+        #            marker='x', color='red')
+        # ax.set_facecolor("#ffebb8")
+        # ax.set_title('Grid density removal', fontsize=15)
         # plt.xlim(0, 1)
         # plt.ylim(0, 1)
         # plt.legend()
@@ -456,35 +560,36 @@ ref_pop_size = 800
 pop_size = 30
 pop_dim = 3
 removal_size_base = 0
-removal_size_proportion_list = [0.01, 0.02, 0.05, 0.1, 0.15, 0.2, 0.3]
-n_exp = 200
+removal_size_proportion_list = [0.2, 0.3, 0.4, 0.5, 0.6]
+n_exp = 100
 generation = 'mixture'
 fig, ax = plt.subplots(2, 1, sharex=True, figsize=(20, 10))
 
-# least_novel removal
-ranking_distance_means = []
-ranking_distance_stds = []
-removal_time_means = []
-for removal_size_proportion in removal_size_proportion_list:
-    removal_size = removal_size_base + int(ref_pop_size * removal_size_proportion)
-    print('Removal proportion is', removal_size_proportion, '.')
-    distances = []
-    removal_times = []
-    for _ in range(n_exp):
-        ranking_distance, removal_time = analyze(ref_pop_size, pop_size, pop_dim, removal_size, 'least_novel',
-                                                 generation)
-        distances.append(ranking_distance)
-        removal_times.append(removal_time)
-    distances = np.array(distances)
-    mean = np.mean(distances)
-    ranking_distance_means.append(mean)
-    ranking_distance_stds.append([mean - np.percentile(distances, 25), np.percentile(distances, 75) - mean])
-    removal_time_means.append(np.mean(np.array(removal_times)))
 
-ax[0].errorbar(removal_size_proportion_list, ranking_distance_means, np.transpose(ranking_distance_stds),
-               label='Least novel removal',
-               fmt='-o', color='#6a4b1b', elinewidth=4)
-ax[1].plot(removal_size_proportion_list, removal_time_means, label='Least novel removal', color='#6a4b1b')
+# # least_novel removal
+# ranking_distance_means = []
+# ranking_distance_stds = []
+# removal_time_means = []
+# for removal_size_proportion in removal_size_proportion_list:
+#     removal_size = removal_size_base + int(ref_pop_size * removal_size_proportion)
+#     print('Removal proportion is', removal_size_proportion, '.')
+#     distances = []
+#     removal_times = []
+#     for _ in range(n_exp):
+#         ranking_distance, removal_time = analyze(ref_pop_size, pop_size, pop_dim, removal_size, 'least_novel',
+#                                                  generation)
+#         distances.append(ranking_distance)
+#         removal_times.append(removal_time)
+#     distances = np.array(distances)
+#     mean = np.mean(distances)
+#     ranking_distance_means.append(mean)
+#     ranking_distance_stds.append([mean - np.percentile(distances, 25), np.percentile(distances, 75) - mean])
+#     removal_time_means.append(np.mean(np.array(removal_times)))
+
+# ax[0].errorbar(removal_size_proportion_list, ranking_distance_means, np.transpose(ranking_distance_stds),
+#                label='Least novel removal',
+#                fmt='-o', color='#6a4b1b', elinewidth=4)
+# ax[1].plot(removal_size_proportion_list, removal_time_means, label='Least novel removal', color='#6a4b1b')
 
 # random removal
 ranking_distance_means = []
@@ -511,7 +616,84 @@ ax[0].errorbar(np.array(removal_size_proportion_list) + 0.002, ranking_distance_
                fmt='-o', color='#44bcd8', elinewidth=4)
 ax[1].plot(removal_size_proportion_list, removal_time_means, label='Random removal', color='#44bcd8')
 
-# grid removal
+# # grid removal
+# ranking_distance_means = []
+# ranking_distance_stds = []
+# removal_time_means = []
+# for removal_size_proportion in removal_size_proportion_list:
+#     removal_size = removal_size_base + int(ref_pop_size * removal_size_proportion)
+#     print('Removal proportion is', removal_size_proportion, '.')
+#     distances = []
+#     removal_times = []
+#     for _ in range(n_exp):
+#         ranking_distance, removal_time = analyze(ref_pop_size, pop_size, pop_dim, removal_size, 'grid', generation)
+#         distances.append(ranking_distance)
+#         removal_times.append(removal_time)
+#     distances = np.array(distances)
+#     mean = np.mean(distances)
+#     ranking_distance_means.append(mean)
+#     ranking_distance_stds.append([mean - np.percentile(distances, 25), np.percentile(distances, 75) - mean])
+#     removal_time_means.append(np.mean(np.array(removal_times)))
+
+# ax[0].errorbar(np.array(removal_size_proportion_list) + 0.004, ranking_distance_means,
+#                np.transpose(ranking_distance_stds),
+#                label='Grid removal',
+#                fmt='-o', color='#30ce56', elinewidth=4)
+# ax[1].plot(removal_size_proportion_list, removal_time_means, label='Grid removal', color='#30ce56')
+
+# # gmm_sampling removal
+# ranking_distance_means = []
+# ranking_distance_stds = []
+# removal_time_means = []
+# for removal_size_proportion in removal_size_proportion_list:
+#     removal_size = removal_size_base + int(ref_pop_size * removal_size_proportion)
+#     print('Removal proportion is', removal_size_proportion, '.')
+#     distances = []
+#     removal_times = []
+#     for _ in range(n_exp):
+#         ranking_distance, removal_time = analyze(ref_pop_size, pop_size, pop_dim, removal_size, 'gmm_sampling',
+#                                                  generation)
+#         distances.append(ranking_distance)
+#         removal_times.append(removal_time)
+#     distances = np.array(distances)
+#     mean = np.mean(distances)
+#     ranking_distance_means.append(mean)
+#     ranking_distance_stds.append([mean - np.percentile(distances, 25), np.percentile(distances, 75) - mean])
+#     removal_time_means.append(np.mean(np.array(removal_times)))
+
+# ax[0].errorbar(np.array(removal_size_proportion_list) + 0.006, ranking_distance_means,
+#                np.transpose(ranking_distance_stds),
+#                label='GMM sampling removal',
+#                fmt='-o', color='#09521b', elinewidth=4)
+# ax[1].plot(removal_size_proportion_list, removal_time_means, label='GMM sampling removal', color='#09521b')
+
+# # grid density removal
+# ranking_distance_means = []
+# ranking_distance_stds = []
+# removal_time_means = []
+# for removal_size_proportion in removal_size_proportion_list:
+#     removal_size = removal_size_base + int(ref_pop_size * removal_size_proportion)
+#     print('Removal proportion is', removal_size_proportion, '.')
+#     distances = []
+#     removal_times = []
+#     for _ in range(n_exp):
+#         ranking_distance, removal_time = analyze(ref_pop_size, pop_size, pop_dim, removal_size, 'grid_density',
+#                                                  generation)
+#         distances.append(ranking_distance)
+#         removal_times.append(removal_time)
+#     distances = np.array(distances)
+#     mean = np.mean(distances)
+#     ranking_distance_means.append(mean)
+#     ranking_distance_stds.append([mean - np.percentile(distances, 25), np.percentile(distances, 75) - mean])
+#     removal_time_means.append(np.mean(np.array(removal_times)))
+
+# ax[0].errorbar(np.array(removal_size_proportion_list) + 0.008, ranking_distance_means,
+#                np.transpose(ranking_distance_stds),
+#                label='Grid density removal',
+#                fmt='-o', color='#dc1adf', elinewidth=4)
+# ax[1].plot(removal_size_proportion_list, removal_time_means, label='Grid density removal', color='#dc1adf')
+
+# lest novel iteration removal
 ranking_distance_means = []
 ranking_distance_stds = []
 removal_time_means = []
@@ -521,32 +703,7 @@ for removal_size_proportion in removal_size_proportion_list:
     distances = []
     removal_times = []
     for _ in range(n_exp):
-        ranking_distance, removal_time = analyze(ref_pop_size, pop_size, pop_dim, removal_size, 'grid', generation)
-        distances.append(ranking_distance)
-        removal_times.append(removal_time)
-    distances = np.array(distances)
-    mean = np.mean(distances)
-    ranking_distance_means.append(mean)
-    ranking_distance_stds.append([mean - np.percentile(distances, 25), np.percentile(distances, 75) - mean])
-    removal_time_means.append(np.mean(np.array(removal_times)))
-
-ax[0].errorbar(np.array(removal_size_proportion_list) + 0.004, ranking_distance_means,
-               np.transpose(ranking_distance_stds),
-               label='Grid removal',
-               fmt='-o', color='#30ce56', elinewidth=4)
-ax[1].plot(removal_size_proportion_list, removal_time_means, label='Grid removal', color='#30ce56')
-
-# gmm_sampling removal
-ranking_distance_means = []
-ranking_distance_stds = []
-removal_time_means = []
-for removal_size_proportion in removal_size_proportion_list:
-    removal_size = removal_size_base + int(ref_pop_size * removal_size_proportion)
-    print('Removal proportion is', removal_size_proportion, '.')
-    distances = []
-    removal_times = []
-    for _ in range(n_exp):
-        ranking_distance, removal_time = analyze(ref_pop_size, pop_size, pop_dim, removal_size, 'gmm_sampling',
+        ranking_distance, removal_time = analyze(ref_pop_size, pop_size, pop_dim, removal_size, 'least_novel_iter',
                                                  generation)
         distances.append(ranking_distance)
         removal_times.append(removal_time)
@@ -556,11 +713,12 @@ for removal_size_proportion in removal_size_proportion_list:
     ranking_distance_stds.append([mean - np.percentile(distances, 25), np.percentile(distances, 75) - mean])
     removal_time_means.append(np.mean(np.array(removal_times)))
 
-ax[0].errorbar(np.array(removal_size_proportion_list) + 0.006, ranking_distance_means,
+ax[0].errorbar(np.array(removal_size_proportion_list) + 0.01, ranking_distance_means,
                np.transpose(ranking_distance_stds),
-               label='GMM sampling removal',
-               fmt='-o', color='#09521b', elinewidth=4)
-ax[1].plot(removal_size_proportion_list, removal_time_means, label='GMM sampling removal', color='#09521b')
+               label='Least novel iteration removal',
+               fmt='-o', color='#ef000e', elinewidth=4)
+ax[1].plot(removal_size_proportion_list, removal_time_means, label='Least novel iteration removal', color='#ef000e')
+
 
 ax[1].set_xlabel("Removal proportion", labelpad=15, fontsize=12, color="#333533")
 ax[0].set_ylabel("Kendall Tau similarity between rankings", labelpad=15, fontsize=12, color="#333533")
