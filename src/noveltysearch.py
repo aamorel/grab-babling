@@ -155,6 +155,8 @@ def assess_novelties(pop, archive, algo_type, bd_bounds, bd_indexes, bd_filters)
             if len(bd_lists[idx]) > 0:
                 kd_tree = KDTree(bd_lists[idx])
                 k_trees.append(kd_tree)
+            else:
+                k_trees.append(None)
 
         # compute novelties for the pop bds
         for i in range(len(pop)):

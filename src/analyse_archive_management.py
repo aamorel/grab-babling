@@ -263,7 +263,7 @@ def remove_ind(reference_pop, removal_size, removal_type):
         grid_density = grid_density / np.sum(grid_density)
 
         # TEST: square the grid_density to biase more towards high density cells
-        grid_density = np.square(grid_density)
+        # grid_density = np.square(grid_density)
 
         grid_law = np.cumsum(grid_density)
 
