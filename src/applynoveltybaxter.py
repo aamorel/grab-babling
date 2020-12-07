@@ -24,7 +24,7 @@ ENV = gym.make('gym_baxter_grabbing:baxter_grabbing-v1', display=DISPLAY)
 
 # choose parameters
 POP_SIZE = 100
-NB_GEN = 200
+NB_GEN = 100
 NB_KEYPOINTS = 3
 GENE_PER_KEYPOINTS = 7
 ADDITIONAL_GENES = 1
@@ -32,10 +32,10 @@ NB_ITER = 6000
 MINI = False  # maximization problem
 HEIGHT_THRESH = -0.08  # binary goal parameter
 DISTANCE_THRESH = 0.20  # binary goal parameter
-DIFF_OR_THRESH = 0.2  # threshold for clustering grasping orientations
+DIFF_OR_THRESH = 0.4  # threshold for clustering grasping orientations
 COV_LIMIT = 0.1  # threshold for changing behavior descriptor in change_bd ns
 N_LAG = 200  # number of steps before the grip time used in the multi_full_info BD
-ARCHIVE_LIMIT = 4000
+ARCHIVE_LIMIT = 400
 
 
 # choose controller type
@@ -720,11 +720,13 @@ if __name__ == "__main__":
         choose = choose_evaluation_function
 
     if EVAL_SUCCESSFULL:
-        for j in range(4):
+        for j in range(9):
             for i in range(1):
                 DISPLAY = True
-                path = os.path.join('runs', 'run18', 'type' + str(j) + '_' + str(i) + '.npy')
-                res = evaluation_function(np.load(path, allow_pickle=True))
+                path = os.path.join('../exp_results/109', 'run21', 'type' + str(j) + '_' + str(i) + '.npy')
+                ind = np.load(path, allow_pickle=True)
+                res = evaluation_function(ind)
+                print('Individual:', ind)
                 print('Verifying that individual was sucessful:')
                 print(res[2]['binary goal'])
         exit()
