@@ -11,7 +11,7 @@ import copy
 K = 15
 INF = 1000000000  # for security against infinite distances in KDtree queries
 N = 3  # number of gaussians
-CREATE_POP = 'gmm_novelty'  # type of population generation
+CREATE_POP = 'gmm_based'  # type of population generation
 SIGMA = 0.05  # mutation standard deviation for novelty_based population generation
 LIMIT_DENSITY_ITER = 100  # maximum number of iterations to find an individual in the cell not already chosen
 N_CELLS = 20  # number of cells to try to generate
@@ -742,5 +742,4 @@ ax[1].set_facecolor("#ffebb8")
 ax[1].set_ylabel("Removal computational time (s)", labelpad=15, fontsize=12, color="#333533")
 ax[1].set_title('Removal computational time with respect to removal proportion', fontsize=15)
 ax[1].legend(loc=2)
-
 plt.show()

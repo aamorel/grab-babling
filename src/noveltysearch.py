@@ -5,6 +5,9 @@ from deap import tools, base
 from scipy.spatial import cKDTree as KDTree
 from scoop import futures
 import utils
+import math
+from sklearn import mixture
+
 
 creator = None
 
@@ -15,7 +18,6 @@ def set_creator(cr):
 
 
 HOF_SIZE = 10  # number of individuals in hall of fame
-NB_CELLS = 1000  # number of cells in measuring grid
 K = 15  # number of nearest neighbours for novelty computation
 INF = 1000000000  # for security against infinite distances in KDtree queries
 ARCHIVE = 'random'  # random or novelty_based
@@ -29,6 +31,11 @@ SIGMA = 0.1  # std of the mutation of one gene
 TOURNSIZE = 10  # drives towards selective pressure
 OFFSPRING_NB_COEFF = 0.5  # number of offsprings generated (coeff of pop length)
 MAX_MUT_PROB = 0.5  # if algo is ns_rand_keep_diversity, probability for the less diverse gene to be mutated
+N_CELLS = 20  # number of cells to try to generate in case of grid_density archive management
+LIMIT_DENSITY_ITER = 100  # maximum number of iterations to find an individual in the cell not already chosen
+# in case of grid_density_archive_management
+N_COMP = 4  # number of GMM components in case of gmm sampling archive management
+
 
 id_counter = 0  # each individual will have a unique id
 
@@ -328,24 +335,24 @@ def gen_plot(mean_hist, min_hist, max_hist, arch_size_hist, coverage_hist, unifo
 
     # plot evolution
     fig, ax = plt.subplots(nrows=3, ncols=2, figsize=(15, 10))
-    ax[0][0].set(title='Evolution of fitness in population', xlabel='Generations', ylabel='Fitness')
+    ax[0][0].set(title='Evolution of fitness in population', ylabel='Fitness')
     ax[0][0].plot(mean_hist, label='Mean')
     ax[0][0].plot(min_hist, label='Min')
     ax[0][0].plot(max_hist, label='Max')
     ax[0][0].legend()
 
     # plot evolution
-    ax[1][0].set(title='Evolution of age in population', xlabel='Generations', ylabel='Age')
+    ax[1][0].set(title='Evolution of age in population', ylabel='Age')
     ax[1][0].plot(mean_age_hist, label='Mean')
     ax[1][0].plot(max_age_hist, label='Max')
     ax[1][0].legend()
 
     # plot evolution
-    ax[0][1].set(title='Evolution of archive size', xlabel='Generations', ylabel='Archive size')
+    ax[0][1].set(title='Evolution of archive size', ylabel='Archive size')
     ax[0][1].plot(arch_size_hist)
 
     # plot evolution
-    ax[1][1].set(title='Evolution of selected metrics in archive', xlabel='Generations')
+    ax[1][1].set(title='Evolution of selected metrics in archive')
     if algo_type == 'ns_rand_multi_bd':
         coverage_hist = np.array(coverage_hist)
         uniformity_hist = np.array(uniformity_hist)
@@ -529,7 +536,8 @@ def choose_bd_strategy(inventory):
 
 def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, mini=True, plot=False, nb_gen=100,
                  algo_type='ns_nov', bound_genotype=5, pop_size=30, parallelize=False,
-                 measures=False, run_name=None, choose_evaluate=None, bd_indexes=None, archive_limit_size=None):
+                 measures=False, run_name=None, choose_evaluate=None, bd_indexes=None, archive_limit_size=None,
+                 archive_limit_strat='random', nb_cells=1000):
 
     # each individual will have a unique id
     global id_counter
@@ -598,15 +606,15 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
             grid_hist = []
             cvt = []
             for bd_filter in bd_filters:
-                grid.append(np.zeros(NB_CELLS))
-                grid_hist.append(np.zeros(NB_CELLS))
-                cvt_member = utils.CVT(num_centroids=NB_CELLS, bounds=bd_bounds[bd_filter])
+                grid.append(np.zeros(nb_cells))
+                grid_hist.append(np.zeros(nb_cells))
+                cvt_member = utils.CVT(num_centroids=nb_cells, bounds=bd_bounds[bd_filter])
                 cvt.append(cvt_member)
                 
         else:
-            grid = np.zeros(NB_CELLS)
-            grid_hist = np.zeros(NB_CELLS)
-            cvt = utils.CVT(num_centroids=NB_CELLS, bounds=bd_bounds)
+            grid = np.zeros(nb_cells)
+            grid_hist = np.zeros(nb_cells)
+            cvt = utils.CVT(num_centroids=nb_cells, bounds=bd_bounds)
 
     # evaluate initial population
     evaluation_pop = list(toolbox.map(evaluate_individual, pop))
@@ -735,17 +743,200 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
         if archive_limit_size is not None:
             # implement archive size limitation strategy
             if len(archive) >= archive_limit_size:
-                nb_ind_to_keep = int(len(archive) * ARCHIVE_DECREMENTAL_RATIO)
+                original_len = len(archive)
+                nb_ind_to_keep = int(original_len * ARCHIVE_DECREMENTAL_RATIO)
+                nb_ind_to_remove = original_len - nb_ind_to_keep
 
-                # removal strategy
-                # strategy 1: remove random individuals
-                random.shuffle(archive)
-                # remove from grid
-                members_to_remove = archive[nb_ind_to_keep:]
-                for member in members_to_remove:
-                    remove_from_grid(member, grid, cvt, measures, algo_type, bd_filters)
+                # removal strategies
+                if archive_limit_strat == 'random':
+                    # strategy 1: remove random individuals
+                    random.shuffle(archive)
+                    # remove from grid
+                    members_to_remove = archive[nb_ind_to_keep:]
+                    for member in members_to_remove:
+                        remove_from_grid(member, grid, cvt, measures, algo_type, bd_filters)
 
-                archive = archive[:nb_ind_to_keep]
+                    archive = archive[:nb_ind_to_keep]
+                
+                if archive_limit_strat == 'oldest':
+                    # strategy 2: remove oldest individuals
+                    members_to_remove = archive[:nb_ind_to_remove]
+                    for member in members_to_remove:
+                        remove_from_grid(member, grid, cvt, measures, algo_type, bd_filters)
+                    archive = archive[nb_ind_to_remove:]
+
+                if archive_limit_strat == 'least_novel':
+                    # strategy 3: remove least novel individuals
+                    novelties = assess_novelties(archive, archive, algo_type, bd_bounds, bd_indexes, bd_filters)
+                    nov_n = np.array([nov[0] for nov in novelties])
+                    removal_indices = np.argpartition(nov_n, nb_ind_to_remove)[:nb_ind_to_remove]
+                    for idx in removal_indices:
+                        remove_from_grid(archive[idx], grid, cvt, measures, algo_type, bd_filters)
+                    temp_archive = []
+                    for i in range(original_len):
+                        if i not in removal_indices:
+                            temp_archive.append(archive[i])
+                    archive = temp_archive
+                
+                if archive_limit_strat == 'grid_density':
+                    # strategy 4: remove individuals with probability proportional to grid density
+                    reference_pop = np.array(archive)
+                    n_dim = reference_pop.shape[1]
+                    # compute maximums and mins on each dimension
+                    maximums = np.max(reference_pop, 0)
+                    mins = np.min(reference_pop, 0)
+                    ranges = maximums - mins
+                    bins_per_dim = math.floor(math.exp(math.log(N_CELLS) / n_dim)) + 1
+                    grid_positions = []
+                    for i in range(n_dim):
+                        # important choice on how we make the grid
+                        grid_position = [mins[i] + (j * ranges[i] / (bins_per_dim - 1)) for j in range(bins_per_dim)]
+                        grid_positions.append(grid_position)
+                    mesh = np.meshgrid(*grid_positions)
+                    nodes = list(zip(*(dim.flat for dim in mesh)))
+                    nodes = np.array(nodes)
+
+                    removal_indices = []
+                    n_cells = (bins_per_dim - 1) ** n_dim
+                    grid_density = np.zeros(n_cells)
+                    cells = [[] for _ in range(n_cells)]
+
+                    for ind_idx, ind in enumerate(reference_pop):
+                        dim_indexs = np.zeros(n_dim)
+                        for i, dim in enumerate(ind):
+                            grid_pos = grid_positions[i]
+                            for j in range(bins_per_dim - 1):
+                                if dim >= grid_pos[j] and dim < grid_pos[j + 1]:
+                                    dim_indexs[i] = j + 1
+                        if 0 not in dim_indexs:
+                            # indivudal is inside the grid
+                            dim_indexs = dim_indexs - 1
+                            cell_idx = 0
+                            for k, dim_idx in enumerate(dim_indexs):
+                                cell_idx += int(dim_idx * ((bins_per_dim - 1) ** k))
+                            grid_density[cell_idx] += 1
+                            cells[cell_idx].append(ind_idx)
+                    
+                    grid_density = grid_density / np.sum(grid_density)
+
+                    # TEST: square the grid_density to biase more towards high density cells
+                    # grid_density = np.square(grid_density)
+
+                    grid_law = np.cumsum(grid_density)
+
+                    for _ in range(nb_ind_to_remove):
+                        dice = random.random() * grid_law[-1]
+                        cell_to_remove_from = np.searchsorted(grid_law, dice)
+                        cond = True
+                        n = 0
+                        while cond:
+                            if n < LIMIT_DENSITY_ITER:
+                                removal_idx = random.choice(cells[cell_to_remove_from])
+                            else:
+                                removal_idx = random.choice(list(range(len(reference_pop))))
+                            if removal_idx not in removal_indices:
+                                removal_indices.append(removal_idx)
+                                cond = False
+                            n += 1
+                    for idx in removal_indices:
+                        remove_from_grid(archive[idx], grid, cvt, measures, algo_type, bd_filters)
+                    temp_archive = []
+                    for i in range(original_len):
+                        if i not in removal_indices:
+                            temp_archive.append(archive[i])
+                    archive = temp_archive
+                    
+                if archive_limit_strat == 'grid':
+                    # strategy 5: remove individuals at intersection of grid
+                    reference_pop = np.array(archive)
+                    n_dim = reference_pop.shape[1]
+                    # compute maximums and mins on each dimension
+                    maximums = np.max(reference_pop, 0)
+                    mins = np.min(reference_pop, 0)
+                    ranges = maximums - mins
+                    bins_per_dim = math.floor(math.exp(math.log(nb_ind_to_remove) / n_dim)) + 1
+                    grid_positions = []
+                    for i in range(n_dim):
+                        # important choice on how we make the grid
+                        grid_position = [mins[i] + ((j + 1) * ranges[i] / bins_per_dim) for j in range(bins_per_dim)]
+                        grid_position.pop()
+                        grid_positions.append(grid_position)
+                    mesh = np.meshgrid(*grid_positions)
+                    nodes = list(zip(*(dim.flat for dim in mesh)))
+                    nodes = np.array(nodes)
+
+                    k_tree = KDTree(reference_pop)
+                    removal_indices = []
+                    for node in nodes:
+                        # for each node, find the closest point in the reference pop
+                        cond = True
+                        closest = 1
+                        # make sure removal indivual was not already chosen
+                        while cond:
+                            if closest == 1:
+                                possible_removal_index = k_tree.query(node, closest)[1]
+                            else:
+                                possible_removal_index = k_tree.query(node, closest)[1][closest - 1]
+                            if possible_removal_index not in removal_indices:
+                                removal_indices.append(possible_removal_index)
+                                cond = False
+                            else:
+                                closest += 1
+                    # dealing with the missing removals
+                    nb_missing_removals = nb_ind_to_remove - len(nodes)
+                    for _ in range(nb_missing_removals):
+                        query = random.choice(nodes)
+                        cond = True
+                        # start with second closest since closest is for sure in removal indices
+                        closest = 2
+                        # make sure removal indivual was not already chosen
+                        while cond:
+                            possible_removal_index = k_tree.query(query, closest)[1][closest - 1]
+                            if possible_removal_index not in removal_indices:
+                                removal_indices.append(possible_removal_index)
+                                cond = False
+                            else:
+                                closest += 1
+                    for idx in removal_indices:
+                        remove_from_grid(archive[idx], grid, cvt, measures, algo_type, bd_filters)
+                    temp_archive = []
+                    for i in range(original_len):
+                        if i not in removal_indices:
+                            temp_archive.append(archive[i])
+                    archive = temp_archive
+
+                if archive_limit_strat == 'gmm':
+                    # strategy 6: fit a gmm on archive, sample and remove closest
+                    reference_pop = np.array(archive)
+                    gmix = mixture.GaussianMixture(n_components=N_COMP, covariance_type='full')
+                    gmix.fit(reference_pop)
+                    nodes = gmix.sample(nb_ind_to_remove)[0]
+                    k_tree = KDTree(reference_pop)
+                    removal_indices = []
+                    for node in nodes:
+                        # for each node, find the closest point in the reference pop
+                        cond = True
+                        closest = 1
+                        # make sure removal indivual was not already chosen
+                        while cond:
+                            if closest == 1:
+                                possible_removal_index = k_tree.query(node, closest)[1]
+                            else:
+                                possible_removal_index = k_tree.query(node, closest)[1][closest - 1]
+                            if possible_removal_index not in removal_indices:
+                                removal_indices.append(possible_removal_index)
+                                cond = False
+                            else:
+                                closest += 1
+                    for idx in removal_indices:
+                        remove_from_grid(archive[idx], grid, cvt, measures, algo_type, bd_filters)
+                    temp_archive = []
+                    for i in range(original_len):
+                        if i not in removal_indices:
+                            temp_archive.append(archive[i])
+                    archive = temp_archive
+
+                assert((original_len - len(archive)) == nb_ind_to_remove)
 
         # ###################################### MEASURE ############################################
         # increment age of the individuals in the population
@@ -776,7 +967,7 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
                 uniformities = []
                 # loop through all grids and compute measures for each grid
                 for gr in grid:
-                    coverages.append(np.count_nonzero(gr) / NB_CELLS)
+                    coverages.append(np.count_nonzero(gr) / nb_cells)
                     uniformities.append(utils.compute_uniformity(gr))
                 uniformity_hist.append(uniformities)
                 coverage_hist.append(coverages)
@@ -785,16 +976,16 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
                 uniformities = []
                 # loop through all grids and compute measures for each grid
                 for gr in grid_hist:
-                    coverages.append(np.count_nonzero(gr) / NB_CELLS)
+                    coverages.append(np.count_nonzero(gr) / nb_cells)
                     uniformities.append(utils.compute_uniformity(gr))
                 full_uni_hist.append(uniformities)
                 full_cov_hist.append(coverages)
 
             else:
                 # compute coverage
-                coverage = np.count_nonzero(grid) / NB_CELLS
+                coverage = np.count_nonzero(grid) / nb_cells
                 coverage_hist.append(coverage)
-                coverage = np.count_nonzero(grid_hist) / NB_CELLS
+                coverage = np.count_nonzero(grid_hist) / nb_cells
                 full_cov_hist.append(coverage)
 
                 # compute uniformity
@@ -834,17 +1025,19 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
 
                 if measures:
                     # re-initialize the CVT grid
-                    grid = np.zeros(NB_CELLS)
-                    cvt = utils.CVT(num_centroids=NB_CELLS, bounds=bd_bounds)
+                    grid = np.zeros(nb_cells)
+                    cvt = utils.CVT(num_centroids=nb_cells, bounds=bd_bounds)
         
     details['population genetic statistics'] = gen_stat_hist
     details['offsprings genetic statistics'] = gen_stat_hist_off
+    details['archive coverage'] = coverage_hist
+    details['archive uniformity'] = uniformity_hist
 
     if plot:
         gen_plot(mean_hist, min_hist, max_hist, arch_size_hist, coverage_hist, uniformity_hist,
                  mean_age_hist, max_age_hist, run_name, algo_type, full_cov_hist, full_uni_hist)
 
-    # show all plots
-    plt.show()
+        # show all plots
+        plt.show()
 
     return pop, archive, hall_of_fame, details
