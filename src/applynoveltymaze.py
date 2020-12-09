@@ -140,95 +140,95 @@ if __name__ == "__main__":
         plt.show()
     
     else:
-        # possible_strats = ['random', 'least_novel', 'oldest', 'grid', 'grid_density', 'gmm']
-        # colors = ['blue', 'red', 'yellow', 'green', 'pink', 'brown']
-        # fig, ax = plt.subplots(3, 1, figsize=(20, 15))
+        possible_strats = ['random', 'least_novel', 'oldest', 'grid', 'grid_density', 'gmm']
+        colors = ['blue', 'red', 'yellow', 'green', 'pink', 'brown']
+        fig, ax = plt.subplots(3, 1, figsize=(20, 15))
 
-        # for s, archive_strat in enumerate(possible_strats):
-        #     coverages = []
-        #     uniformities = []
-        #     rk_sim = []
-        #     for i in range(N_EXP):
-        #         print('experience', i, 'of strat', archive_strat)
-        #         pop, archive, hof, info = noveltysearch.novelty_algo(evaluate_individual, INITIAL_GENOTYPE_SIZE,
-        #                                                              BD_BOUNDS,
-        #                                                              mini=True, archive_limit_size=ARCHIVE_LIMIT,
-        #                                                              archive_limit_strat=archive_strat,
-        #                                                              plot=PLOT, algo_type=ALGO, nb_gen=GEN,
-        #                                                              parallelize=PARALLELIZE,
-        #                                                              measures=True, pop_size=POP_SIZE,
-        #                                                              nb_cells=NB_CELLS, analyze_archive=True)
-        #         cov = np.array(info['archive coverage'])
-        #         uni = np.array(info['archive uniformity'])
-        #         coverages.append(cov)
-        #         uniformities.append(uni)
-        #         ranking_similarities = np.array(info['ranking similarities'])
-        #         rk_sim.append(ranking_similarities)
-        #     mean_cov = np.mean(coverages, 0)
-        #     std_cov = [np.percentile(coverages, 25, 0), np.percentile(coverages, 75, 0)]
-        #     mean_uni = np.mean(uniformities, 0)
-        #     std_uni = [np.percentile(uniformities, 25, 0), np.percentile(uniformities, 75, 0)]
-        #     mean_rk_sim = np.mean(rk_sim, 0)
-        #     std_rk = [np.percentile(coverages, 25, 0), np.percentile(coverages, 75, 0)]
-        #     ax[0].plot(mean_cov, label=archive_strat, lw=2, color=colors[s])
-        #     ax[0].fill_between(list(range(GEN)), std_cov[0], std_cov[1], facecolor=colors[s], alpha=0.5)
-        #     ax[1].plot(mean_uni, label=archive_strat, lw=2, color=colors[s])
-        #     ax[1].fill_between(list(range(GEN)), std_uni[0], std_uni[1], facecolor=colors[s], alpha=0.5)
-        #     ax[2].plot(mean_rk_sim, label=archive_strat, lw=2, color=colors[s])
-        #     # ax[2].fill_between(list(range(len(mean_rk_sim))), std_rk[0], std_rk[1], facecolor=colors[s], alpha=0.5)
+        for s, archive_strat in enumerate(possible_strats):
+            coverages = []
+            uniformities = []
+            rk_sim = []
+            for i in range(N_EXP):
+                print('experience', i, 'of strat', archive_strat)
+                pop, archive, hof, info = noveltysearch.novelty_algo(evaluate_individual, INITIAL_GENOTYPE_SIZE,
+                                                                     BD_BOUNDS,
+                                                                     mini=True, archive_limit_size=ARCHIVE_LIMIT,
+                                                                     archive_limit_strat=archive_strat,
+                                                                     plot=PLOT, algo_type=ALGO, nb_gen=GEN,
+                                                                     parallelize=PARALLELIZE,
+                                                                     measures=True, pop_size=POP_SIZE,
+                                                                     nb_cells=NB_CELLS, analyze_archive=True)
+                cov = np.array(info['archive coverage'])
+                uni = np.array(info['archive uniformity'])
+                coverages.append(cov)
+                uniformities.append(uni)
+                ranking_similarities = np.array(info['ranking similarities'])
+                rk_sim.append(ranking_similarities)
+            mean_cov = np.mean(coverages, 0)
+            std_cov = [np.percentile(coverages, 25, 0), np.percentile(coverages, 75, 0)]
+            mean_uni = np.mean(uniformities, 0)
+            std_uni = [np.percentile(uniformities, 25, 0), np.percentile(uniformities, 75, 0)]
+            mean_rk_sim = np.mean(rk_sim, 0)
+            std_rk = [np.percentile(coverages, 25, 0), np.percentile(coverages, 75, 0)]
+            ax[0].plot(mean_cov, label=archive_strat, lw=2, color=colors[s])
+            ax[0].fill_between(list(range(GEN)), std_cov[0], std_cov[1], facecolor=colors[s], alpha=0.5)
+            ax[1].plot(mean_uni, label=archive_strat, lw=2, color=colors[s])
+            ax[1].fill_between(list(range(GEN)), std_uni[0], std_uni[1], facecolor=colors[s], alpha=0.5)
+            ax[2].plot(mean_rk_sim, label=archive_strat, lw=2, color=colors[s])
+            # ax[2].fill_between(list(range(len(mean_rk_sim))), std_rk[0], std_rk[1], facecolor=colors[s], alpha=0.5)
         
-        # ax[0].set_xlabel("Generations", labelpad=15, fontsize=12, color="#333533")
-        # ax[1].set_xlabel("Generations", labelpad=15, fontsize=12, color="#333533")
-        # ax[2].set_xlabel("Iterations of reduction of archive", labelpad=15, fontsize=12, color="#333533")
-        # ax[0].set_ylabel("Mean coverage", labelpad=15, fontsize=12, color="#333533")
-        # ax[0].set_facecolor("#ffebb8")
-        # ax[0].legend(loc=4)
-        # ax[1].set_facecolor("#ffebb8")
-        # ax[1].set_ylabel("Mean uniformity", labelpad=15, fontsize=12, color="#333533")
-        # ax[1].legend(loc=2)
-        # ax[2].set_ylabel("Mean Kendall Tau similarity", labelpad=15, fontsize=12, color="#333533")
-        # ax[2].set_facecolor("#ffebb8")
-        # ax[2].legend(loc=4)
-        # plt.savefig('archive_analysis.png')
-        # plt.show()
-
-        fig, ax = plt.subplots(2, 1, figsize=(20, 15))
-
-        coverages = []
-        uniformities = []
-        rk_sim = []
-        for i in range(N_EXP):
-            pop, archive, hof, info = noveltysearch.novelty_algo(evaluate_individual, INITIAL_GENOTYPE_SIZE,
-                                                                 BD_BOUNDS,
-                                                                 mini=True, archive_limit_size=None,
-                                                                 plot=PLOT, algo_type=ALGO, nb_gen=GEN,
-                                                                 parallelize=PARALLELIZE,
-                                                                 measures=True, pop_size=POP_SIZE,
-                                                                 nb_cells=NB_CELLS, analyze_archive=False)
-            cov = np.array(info['archive coverage'])
-            uni = np.array(info['archive uniformity'])
-            coverages.append(cov)
-            uniformities.append(uni)
-            ranking_similarities = np.array(info['ranking similarities'])
-            rk_sim.append(ranking_similarities)
-        mean_cov = np.mean(coverages, 0)
-        std_cov = [np.percentile(coverages, 25, 0), np.percentile(coverages, 75, 0)]
-        mean_uni = np.mean(uniformities, 0)
-        std_uni = [np.percentile(uniformities, 25, 0), np.percentile(uniformities, 75, 0)]
-        mean_rk_sim = np.mean(rk_sim, 0)
-        std_rk = [np.percentile(coverages, 25, 0), np.percentile(coverages, 75, 0)]
-        ax[0].plot(mean_cov, label='no archive limit', lw=2, color='gray')
-        ax[0].fill_between(list(range(GEN)), std_cov[0], std_cov[1], facecolor='gray', alpha=0.5)
-        ax[1].plot(mean_uni, label='no archive limit', lw=2, color='gray')
-        ax[1].fill_between(list(range(GEN)), std_uni[0], std_uni[1], facecolor='gray', alpha=0.5)
-
         ax[0].set_xlabel("Generations", labelpad=15, fontsize=12, color="#333533")
         ax[1].set_xlabel("Generations", labelpad=15, fontsize=12, color="#333533")
+        ax[2].set_xlabel("Iterations of reduction of archive", labelpad=15, fontsize=12, color="#333533")
         ax[0].set_ylabel("Mean coverage", labelpad=15, fontsize=12, color="#333533")
         ax[0].set_facecolor("#ffebb8")
         ax[0].legend(loc=4)
         ax[1].set_facecolor("#ffebb8")
         ax[1].set_ylabel("Mean uniformity", labelpad=15, fontsize=12, color="#333533")
         ax[1].legend(loc=2)
-        plt.savefig('archive_analysis_temoin.png')
+        ax[2].set_ylabel("Mean Kendall Tau similarity", labelpad=15, fontsize=12, color="#333533")
+        ax[2].set_facecolor("#ffebb8")
+        ax[2].legend(loc=4)
+        plt.savefig('archive_analysis.png')
         plt.show()
+
+        # fig, ax = plt.subplots(2, 1, figsize=(20, 15))
+
+        # coverages = []
+        # uniformities = []
+        # rk_sim = []
+        # for i in range(N_EXP):
+        #     pop, archive, hof, info = noveltysearch.novelty_algo(evaluate_individual, INITIAL_GENOTYPE_SIZE,
+        #                                                          BD_BOUNDS,
+        #                                                          mini=True, archive_limit_size=None,
+        #                                                          plot=PLOT, algo_type=ALGO, nb_gen=GEN,
+        #                                                          parallelize=PARALLELIZE,
+        #                                                          measures=True, pop_size=POP_SIZE,
+        #                                                          nb_cells=NB_CELLS, analyze_archive=False)
+        #     cov = np.array(info['archive coverage'])
+        #     uni = np.array(info['archive uniformity'])
+        #     coverages.append(cov)
+        #     uniformities.append(uni)
+        #     ranking_similarities = np.array(info['ranking similarities'])
+        #     rk_sim.append(ranking_similarities)
+        # mean_cov = np.mean(coverages, 0)
+        # std_cov = [np.percentile(coverages, 25, 0), np.percentile(coverages, 75, 0)]
+        # mean_uni = np.mean(uniformities, 0)
+        # std_uni = [np.percentile(uniformities, 25, 0), np.percentile(uniformities, 75, 0)]
+        # mean_rk_sim = np.mean(rk_sim, 0)
+        # std_rk = [np.percentile(coverages, 25, 0), np.percentile(coverages, 75, 0)]
+        # ax[0].plot(mean_cov, label='no archive limit', lw=2, color='gray')
+        # ax[0].fill_between(list(range(GEN)), std_cov[0], std_cov[1], facecolor='gray', alpha=0.5)
+        # ax[1].plot(mean_uni, label='no archive limit', lw=2, color='gray')
+        # ax[1].fill_between(list(range(GEN)), std_uni[0], std_uni[1], facecolor='gray', alpha=0.5)
+
+        # ax[0].set_xlabel("Generations", labelpad=15, fontsize=12, color="#333533")
+        # ax[1].set_xlabel("Generations", labelpad=15, fontsize=12, color="#333533")
+        # ax[0].set_ylabel("Mean coverage", labelpad=15, fontsize=12, color="#333533")
+        # ax[0].set_facecolor("#ffebb8")
+        # ax[0].legend(loc=4)
+        # ax[1].set_facecolor("#ffebb8")
+        # ax[1].set_ylabel("Mean uniformity", labelpad=15, fontsize=12, color="#333533")
+        # ax[1].legend(loc=2)
+        # plt.savefig('archive_analysis_temoin.png')
+        # plt.show()
