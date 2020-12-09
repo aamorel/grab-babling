@@ -576,7 +576,7 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
 
     # initialize the archive
     archive = []
-    archive_nb = int(ARCHIVE_PB * OFFSPRING_NB_COEFF)
+    archive_nb = int(ARCHIVE_PB * pop_size * OFFSPRING_NB_COEFF)
 
     # initialize the HOF
     hall_of_fame = tools.HallOfFame(HOF_SIZE)
@@ -706,11 +706,17 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
         # grid follows the archive
         if archive_type == 'random':
             # fill archive randomly
-            for member in offsprings:
-                if random.random() < ARCHIVE_PB and ind.behavior_descriptor.values is not None:
+            fill_arch_count = 0
+            idx_list = []
+            while fill_arch_count < archive_nb:
+                idx = random.randint(0, len(offsprings) - 1)
+                if idx not in idx_list:
+                    member = offsprings[idx]
                     archive.append(member)
                     add_to_grid(member, grid, cvt, measures, algo_type, bd_filters)
                     add_to_grid(member, grid_hist, cvt, measures, algo_type, bd_filters)
+                    idx_list.append(idx)
+                    fill_arch_count += 1
 
         if archive_type == 'novelty_based':
             #  TODO: deal with multi-bd case
