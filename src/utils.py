@@ -85,5 +85,5 @@ def compute_uniformity(grid):
     P = grid[np.nonzero(grid)]
     P = P / np.sum(P)
     Q = np.ones(len(P)) / len(P)
-    uniformity = distance.jensenshannon(P, Q)
+    uniformity = 1 - distance.jensenshannon(P, Q)
     return uniformity

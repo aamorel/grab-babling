@@ -751,7 +751,7 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
                     # monitor the change of ranking of novelties of population
                     novelties = assess_novelties(pop, pop + archive, algo_type, bd_bounds, bd_indexes, bd_filters)
                     nov_n = np.array([nov[0] for nov in novelties])
-                    order = novelties.argsort()
+                    order = nov_n.argsort()
                     ranking_before = order.argsort()
                 original_len = len(archive)
                 nb_ind_to_keep = int(original_len * ARCHIVE_DECREMENTAL_RATIO)
@@ -951,7 +951,7 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
                     # monitor the change of ranking of novelties of population
                     novelties = assess_novelties(pop, pop + archive, algo_type, bd_bounds, bd_indexes, bd_filters)
                     nov_n = np.array([nov[0] for nov in novelties])
-                    order = novelties.argsort()
+                    order = nov_n.argsort()
                     ranking_after = order.argsort()
                     ranking_similarity = stats.kendalltau(ranking_before, ranking_after)
                     ranking_similarities.append(ranking_similarity)
