@@ -41,7 +41,6 @@ class CVT():
         kmeans = KMeans(init='k-means++',
                         n_clusters=num_centroids,
                         n_init=num_replicates,
-                        n_jobs=-1,
                         max_iter=max_iterations,
                         tol=tolerance,
                         verbose=0)
