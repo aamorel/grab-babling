@@ -140,8 +140,8 @@ if __name__ == "__main__":
         plt.show()
     
     else:
-        possible_strats = ['random', 'least_novel', 'oldest', 'grid', 'grid_density', 'gmm']
-        colors = ['blue', 'red', 'yellow', 'green', 'pink', 'brown']
+        possible_strats = ['random', 'least_novel', 'oldest', 'grid', 'grid_density', 'gmm', 'newest']
+        colors = ['blue', 'red', 'yellow', 'green', 'pink', 'brown', 'purple']
         fig, ax = plt.subplots(3, 1, figsize=(20, 15))
 
         for s, archive_strat in enumerate(possible_strats):

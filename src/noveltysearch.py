@@ -952,6 +952,13 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
                             temp_archive.append(archive[i])
                     archive = temp_archive
 
+                if archive_limit_strat == 'newest':
+                    # strategy 7: remove newest individuals (blocks the archive sanity check)
+                    members_to_remove = archive[nb_ind_to_keep:]
+                    for member in members_to_remove:
+                        remove_from_grid(member, grid, cvt, measures, algo_type, bd_filters)
+                    archive = archive[nb_ind_to_keep:]
+
                 assert((original_len - len(archive)) == nb_ind_to_remove)
                 if analyze_archive:
                     # monitor the change of ranking of novelties of population
@@ -959,7 +966,7 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
                     nov_n = np.array([nov[0] for nov in novelties])
                     order = nov_n.argsort()
                     ranking_after = order.argsort()
-                    ranking_similarity = stats.kendalltau(ranking_before, ranking_after)
+                    ranking_similarity = stats.kendalltau(ranking_before, ranking_after)[0]
                     ranking_similarities.append(ranking_similarity)
 
         # ###################################### MEASURE ############################################
