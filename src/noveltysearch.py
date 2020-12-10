@@ -957,7 +957,7 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
                     members_to_remove = archive[nb_ind_to_keep:]
                     for member in members_to_remove:
                         remove_from_grid(member, grid, cvt, measures, algo_type, bd_filters)
-                    archive = archive[nb_ind_to_keep:]
+                    archive = archive[:nb_ind_to_keep]
 
                 assert((original_len - len(archive)) == nb_ind_to_remove)
                 if analyze_archive:
