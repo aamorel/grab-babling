@@ -17,6 +17,8 @@ NB_CELLS = 100
 BD_BOUNDS = [[0, 600], [0, 600]]
 INITIAL_GENOTYPE_SIZE = 12
 N_EXP = 30
+COV_TYPE = 'coverage'  # 'coverage' or 'archive coverage'
+UNI_TYPE = 'uniformity'  # 'uniformity' or 'archive uniformity'
 
 ALGO = 'ns_rand'
 PLOT = False
@@ -158,8 +160,8 @@ if __name__ == "__main__":
                                                                      parallelize=PARALLELIZE,
                                                                      measures=True, pop_size=POP_SIZE,
                                                                      nb_cells=NB_CELLS, analyze_archive=True)
-                cov = np.array(info['archive coverage'])
-                uni = np.array(info['archive uniformity'])
+                cov = np.array(info[COV_TYPE])
+                uni = np.array(info[UNI_TYPE])
                 coverages.append(cov)
                 uniformities.append(uni)
                 ranking_similarities = np.array(info['ranking similarities'])
@@ -188,8 +190,8 @@ if __name__ == "__main__":
                                                                  parallelize=PARALLELIZE,
                                                                  measures=True, pop_size=POP_SIZE,
                                                                  nb_cells=NB_CELLS, analyze_archive=False)
-            cov = np.array(info['archive coverage'])
-            uni = np.array(info['archive uniformity'])
+            cov = np.array(info[COV_TYPE])
+            uni = np.array(info[UNI_TYPE])
             coverages.append(cov)
             uniformities.append(uni)
 
@@ -206,11 +208,11 @@ if __name__ == "__main__":
         ax[0].set_xlabel("Generations", labelpad=15, fontsize=12, color="#333533")
         ax[1].set_xlabel("Generations", labelpad=15, fontsize=12, color="#333533")
         ax[2].set_xlabel("Iterations of reduction of archive", labelpad=15, fontsize=12, color="#333533")
-        ax[0].set_ylabel("Mean coverage", labelpad=15, fontsize=12, color="#333533")
+        ax[0].set_ylabel("Mean " + COV_TYPE, labelpad=15, fontsize=12, color="#333533")
         ax[0].set_facecolor("#ffebb8")
         ax[0].legend(loc=4)
         ax[1].set_facecolor("#ffebb8")
-        ax[1].set_ylabel("Mean uniformity", labelpad=15, fontsize=12, color="#333533")
+        ax[1].set_ylabel("Mean " + UNI_TYPE, labelpad=15, fontsize=12, color="#333533")
         ax[1].legend(loc=2)
         ax[2].set_ylabel("Mean Kendall Tau similarity", labelpad=15, fontsize=12, color="#333533")
         ax[2].set_facecolor("#ffebb8")

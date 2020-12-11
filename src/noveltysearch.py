@@ -325,8 +325,8 @@ def gen_plot(mean_hist, min_hist, max_hist, arch_size_hist, coverage_hist, unifo
         max_age_hist (list): history of max age of population
         run_name (String): path of the run folder to save the figure
         algo_type (String): name of the algo
-        full_cov_hist (list): history of coverage of archive without any removal
-        full_uni_hist (list): history of uniformity of archive without any removal
+        full_cov_hist (list): history of coverage of all generated individuals
+        full_uni_hist (list): history of uniformity of all generated individuals
 
 
 
@@ -589,7 +589,7 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
 
     # grid contains the current content of the archive
     grid = None
-    # grid_hist contains all individuals that have been in the archive
+    # grid_hist contains all individuals that have been created
     grid_hist = None
     # cvt is the tool to attribute individuals to grid cells (used for both grid and grid_hist)
     cvt = None
@@ -678,6 +678,10 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
             operate_offsprings(offsprings, toolbox, bound_genotype)  # crossover and mutation
         # now, offsprings have their correct genetic information
 
+        # add all generated individuals to historic
+        for member in offsprings:
+            add_to_grid(member, grid_hist, cvt, measures, algo_type, bd_filters)
+
         # ###################################### EVALUATE ############################################
         # current pool is old population + generated offsprings
         current_pool = pop + offsprings
@@ -714,7 +718,6 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
                     member = offsprings[idx]
                     archive.append(member)
                     add_to_grid(member, grid, cvt, measures, algo_type, bd_filters)
-                    add_to_grid(member, grid_hist, cvt, measures, algo_type, bd_filters)
                     idx_list.append(idx)
                     fill_arch_count += 1
 
@@ -729,7 +732,6 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
                     member = offsprings[i]
                     archive.append(member)
                     add_to_grid(member, grid, cvt, measures, algo_type, bd_filters)
-                    add_to_grid(member, grid_hist, cvt, measures, algo_type, bd_filters)
         
         # ###################################### REPLACE ############################################
         if algo_type == 'classic_ea':
@@ -1063,6 +1065,8 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
     details['offsprings genetic statistics'] = gen_stat_hist_off
     details['archive coverage'] = coverage_hist
     details['archive uniformity'] = uniformity_hist
+    details['coverage'] = full_cov_hist
+    details['uniformity'] = full_uni_hist
     details['ranking similarities'] = ranking_similarities
 
     if plot:
