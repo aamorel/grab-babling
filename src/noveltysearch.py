@@ -382,6 +382,8 @@ def gen_plot(mean_hist, min_hist, max_hist, arch_size_hist, coverage_hist, unifo
 
     if run_name is not None:
         plt.savefig(run_name + 'novelty_search_plots.png')
+    
+    return fig
 
 
 def add_to_grid(member, grid, cvt, measures, algo_type, bd_filters):
@@ -1069,10 +1071,11 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
     details['uniformity'] = full_uni_hist
     details['ranking similarities'] = ranking_similarities
 
+    fig = gen_plot(mean_hist, min_hist, max_hist, arch_size_hist, coverage_hist, uniformity_hist,
+                   mean_age_hist, max_age_hist, run_name, algo_type, full_cov_hist, full_uni_hist)
+    
+    details['figure'] = fig
     if plot:
-        gen_plot(mean_hist, min_hist, max_hist, arch_size_hist, coverage_hist, uniformity_hist,
-                 mean_age_hist, max_age_hist, run_name, algo_type, full_cov_hist, full_uni_hist)
-
         # show all plots
         plt.show()
 

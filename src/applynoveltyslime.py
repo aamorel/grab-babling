@@ -135,7 +135,7 @@ if __name__ == "__main__":
         pop, archive, hof, info = noveltysearch.novelty_algo(evaluate_individual, INITIAL_GENOTYPE_SIZE, BD_BOUNDS,
                                                              mini=False, archive_limit_size=ARCHIVE_LIMIT,
                                                              plot=PLOT, algo_type=ALGO, nb_gen=GEN,
-                                                             parallelize=PARALLELIZE,
+                                                             parallelize=PARALLELIZE, bound_genotype=1,
                                                              measures=True, pop_size=POP_SIZE, nb_cells=NB_CELLS)
         archive_behavior = np.array([ind.behavior_descriptor.values for ind in archive])
         pop_behavior = np.array([ind.behavior_descriptor.values for ind in pop])
@@ -152,6 +152,8 @@ if __name__ == "__main__":
             plt.show()
         else:
             plt.savefig('final_behavior.png')
+            fig = info['figure']
+            fig.savefig('exploration_lime.png')
     
     else:
         possible_strats = ['random', 'least_novel', 'oldest', 'grid', 'grid_density', 'gmm', 'newest']
