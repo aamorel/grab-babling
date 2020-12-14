@@ -137,20 +137,18 @@ if __name__ == "__main__":
                                                              plot=PLOT, algo_type=ALGO, nb_gen=GEN,
                                                              parallelize=PARALLELIZE,
                                                              measures=True, pop_size=POP_SIZE, nb_cells=NB_CELLS)
+        archive_behavior = np.array([ind.behavior_descriptor.values for ind in archive])
+        pop_behavior = np.array([ind.behavior_descriptor.values for ind in pop])
+        hof_behavior = np.array([ind.behavior_descriptor.values for ind in hof])
+        fig, ax = plt.subplots(figsize=(5, 5))
+        ax.set(title='Final Archive', xlabel='Game duration', ylabel='Mean distance between player and ball')
+        ax.scatter(archive_behavior[:, 0], archive_behavior[:, 1], color='red', label='Archive')
+        ax.scatter(pop_behavior[:, 0], pop_behavior[:, 1], color='blue', label='Population')
+        ax.scatter(hof_behavior[:, 0], hof_behavior[:, 1], color='green', label='Hall of Fame')
+        plt.legend()
 
         if PLOT:
             # plot final states
-
-            archive_behavior = np.array([ind.behavior_descriptor.values for ind in archive])
-            pop_behavior = np.array([ind.behavior_descriptor.values for ind in pop])
-            hof_behavior = np.array([ind.behavior_descriptor.values for ind in hof])
-            fig, ax = plt.subplots(figsize=(5, 5))
-            ax.set(title='Final Archive', xlabel='Game duration', ylabel='Mean distance between player and ball')
-            ax.scatter(archive_behavior[:, 0], archive_behavior[:, 1], color='red', label='Archive')
-            ax.scatter(pop_behavior[:, 0], pop_behavior[:, 1], color='blue', label='Population')
-            ax.scatter(hof_behavior[:, 0], hof_behavior[:, 1], color='green', label='Hall of Fame')
-            plt.legend()
-            
             plt.show()
         else:
             plt.savefig('final_behavior.png')

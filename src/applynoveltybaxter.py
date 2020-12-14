@@ -12,23 +12,21 @@ import json
 import math
 
 DISPLAY = False
-PARALLELIZE = True
-PLOT = True
+PARALLELIZE = False
+PLOT = False
 DISPLAY_HOF = False
 DISPLAY_RAND = False
 DISPLAY_TRIUMPHANTS = False
 EVAL_SUCCESSFULL = False
 
-# global variable for the environment
-ENV = gym.make('gym_baxter_grabbing:baxter_grabbing-v1', display=DISPLAY)
-
 # choose parameters
-POP_SIZE = 100
-NB_GEN = 100
+POP_SIZE = 20
+NB_GEN = 2
 NB_KEYPOINTS = 3
 GENE_PER_KEYPOINTS = 7
 ADDITIONAL_GENES = 1
-NB_ITER = 600  # 6000 divided by 10, where 10 is the nb_of_steps_to_roll in the gym env
+NB_STEPS_TO_ROLLOUT = 10
+NB_ITER = int(6000 / NB_STEPS_TO_ROLLOUT)  # 6000 divided by 10, where 10 is the nb_of_steps_to_roll in the gym env
 MINI = False  # maximization problem
 HEIGHT_THRESH = -0.08  # binary goal parameter
 DISTANCE_THRESH = 0.20  # binary goal parameter
@@ -36,7 +34,12 @@ DIFF_OR_THRESH = 0.4  # threshold for clustering grasping orientations
 COV_LIMIT = 0.1  # threshold for changing behavior descriptor in change_bd ns
 N_LAG = 200  # number of steps before the grip time used in the multi_full_info BD
 ARCHIVE_LIMIT = 400
+NB_CELLS = 1000  # number of cells for measurement
 
+
+# global variable for the environment
+ENV = gym.make('gym_baxter_grabbing:baxter_grabbing-v1', display=DISPLAY)
+ENV.set_steps_to_roll(NB_STEPS_TO_ROLLOUT)
 
 # choose controller type
 CONTROLLER = 'interpolate keypoints end pause grip'
@@ -113,15 +116,14 @@ def analyze_triumphants(triumphant_archive, run_name):
 
     # compute coverage and uniformity metrics: easy approach, use CVT cells in quaternion space
     bounds = [[-1, 1], [-1, 1], [-1, 1], [-1, 1]]
-    nb_cells = 1000
-    cvt = utils.CVT(nb_cells, bounds)
-    grid = np.zeros((nb_cells,))
+    cvt = utils.CVT(NB_CELLS, bounds)
+    grid = np.zeros((NB_CELLS,))
     for ind in triumphant_archive:
         or_diff = ind.info.values[measure]
         or_diff_arr = [or_diff[0], or_diff[1], or_diff[2], or_diff[3]]
         grid_index = cvt.get_grid_index(or_diff_arr)
         grid[grid_index] += 1
-    coverage = np.count_nonzero(grid) / nb_cells
+    coverage = np.count_nonzero(grid) / NB_CELLS
     uniformity = utils.compute_uniformity(grid)
 
     # cluster the triumphants with respect to grasping descriptor
@@ -752,7 +754,7 @@ if __name__ == "__main__":
                                                          plot=PLOT, algo_type=ALGO, nb_gen=NB_GEN, bound_genotype=1,
                                                          pop_size=POP_SIZE, parallelize=PARALLELIZE, measures=True,
                                                          choose_evaluate=choose, bd_indexes=BD_INDEXES,
-                                                         archive_limit_size=ARCHIVE_LIMIT)
+                                                         archive_limit_size=ARCHIVE_LIMIT, nb_cells=NB_CELLS)
     
     # create triumphant archive
     triumphant_archive = []
