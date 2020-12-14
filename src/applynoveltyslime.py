@@ -11,7 +11,7 @@ from deap import base, creator
 
 DISPLAY = False
 PARALLELIZE = True
-GEN = 100
+GEN = 500
 POP_SIZE = 100
 ARCHIVE_LIMIT = None
 NB_CELLS = 100
@@ -22,7 +22,7 @@ COV_TYPE = 'coverage'  # 'coverage' or 'archive coverage'
 UNI_TYPE = 'uniformity'  # 'uniformity' or 'archive uniformity'
 
 ALGO = 'ns_rand'
-PLOT = True
+PLOT = False
 ARCHIVE_ANALYSIS = False
 
 if PARALLELIZE:
@@ -151,7 +151,9 @@ if __name__ == "__main__":
             ax.scatter(hof_behavior[:, 0], hof_behavior[:, 1], color='green', label='Hall of Fame')
             plt.legend()
             
-        plt.show()
+            plt.show()
+        else:
+            plt.savefig('final_behavior.png')
     
     else:
         possible_strats = ['random', 'least_novel', 'oldest', 'grid', 'grid_density', 'gmm', 'newest']
