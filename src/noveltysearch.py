@@ -367,7 +367,7 @@ def gen_plot(mean_hist, min_hist, max_hist, arch_size_hist, coverage_hist, unifo
     ax[1][1].legend()
 
     # plot evolution
-    ax[2][1].set(title='Evolution of selected metrics in historic of archive', xlabel='Generations')
+    ax[2][1].set(title='Evolution of selected metrics in historic of all individuals', xlabel='Generations')
     if algo_type == 'ns_rand_multi_bd':
         full_cov_hist = np.array(full_cov_hist)
         full_uni_hist = np.array(full_uni_hist)
