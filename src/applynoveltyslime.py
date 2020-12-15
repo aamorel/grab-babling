@@ -11,13 +11,13 @@ from deap import base, creator
 
 DISPLAY = False
 PARALLELIZE = True
-GEN = 500
-POP_SIZE = 100
-ARCHIVE_LIMIT = None
+GEN = 2500
+POP_SIZE = 200
+ARCHIVE_LIMIT = 1000
 NB_CELLS = 100
 BD_BOUNDS = [[0, 1], [0, 1]]
 INITIAL_GENOTYPE_SIZE = 99
-N_EXP = 30
+N_EXP = 10
 COV_TYPE = 'coverage'  # 'coverage' or 'archive coverage'
 UNI_TYPE = 'uniformity'  # 'uniformity' or 'archive uniformity'
 
@@ -168,10 +168,10 @@ if __name__ == "__main__":
                 print('experience', i, 'of strat', archive_strat)
                 pop, archive, hof, info = noveltysearch.novelty_algo(evaluate_individual, INITIAL_GENOTYPE_SIZE,
                                                                      BD_BOUNDS,
-                                                                     mini=True, archive_limit_size=ARCHIVE_LIMIT,
+                                                                     mini=False, archive_limit_size=ARCHIVE_LIMIT,
                                                                      archive_limit_strat=archive_strat,
                                                                      plot=PLOT, algo_type=ALGO, nb_gen=GEN,
-                                                                     parallelize=PARALLELIZE,
+                                                                     parallelize=PARALLELIZE, bound_genotype=1,
                                                                      measures=True, pop_size=POP_SIZE,
                                                                      nb_cells=NB_CELLS, analyze_archive=True)
                 cov = np.array(info[COV_TYPE])
@@ -199,9 +199,9 @@ if __name__ == "__main__":
         for i in range(N_EXP):
             pop, archive, hof, info = noveltysearch.novelty_algo(evaluate_individual, INITIAL_GENOTYPE_SIZE,
                                                                  BD_BOUNDS,
-                                                                 mini=True, archive_limit_size=None,
+                                                                 mini=False, archive_limit_size=None,
                                                                  plot=PLOT, algo_type=ALGO, nb_gen=GEN,
-                                                                 parallelize=PARALLELIZE,
+                                                                 parallelize=PARALLELIZE, bound_genotype=1,
                                                                  measures=True, pop_size=POP_SIZE,
                                                                  nb_cells=NB_CELLS, analyze_archive=False)
             cov = np.array(info[COV_TYPE])
@@ -232,5 +232,6 @@ if __name__ == "__main__":
         ax[2].set_facecolor("#ffebb8")
         ax[2].legend(loc=4)
 
-        plt.savefig('archive_analysis.png')
-        plt.show()
+        plt.savefig('archive_analysis_slime.png')
+        if PLOT:
+            plt.show()
