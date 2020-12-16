@@ -23,7 +23,7 @@ color_list = ["#000000", "#FFFF00", "#1CE6FF", "#FF34FF", "#FF4A46", "#008941", 
 
 class CVT():
     def __init__(self, num_centroids=7, bounds=[[-1, 1]], num_samples=100000,
-                 num_replicates=1, max_iterations=100, tolerance=0.001):
+                 num_replicates=1, max_iterations=20, tolerance=0.001):
         
         self.num_centroids = num_centroids
         self.bounds = bounds

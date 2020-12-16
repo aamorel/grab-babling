@@ -9,22 +9,23 @@ from sklearn.cluster import AgglomerativeClustering
 import controllers
 import os
 import json
-import math
 
 DISPLAY = False
 PARALLELIZE = False
-PLOT = False
+PLOT = True
 DISPLAY_HOF = False
 DISPLAY_RAND = False
 DISPLAY_TRIUMPHANTS = False
 EVAL_SUCCESSFULL = False
 
 # choose parameters
-POP_SIZE = 20
-NB_GEN = 2
+POP_SIZE = 100
+NB_GEN = 1000
 NB_KEYPOINTS = 3
 GENE_PER_KEYPOINTS = 7
-ADDITIONAL_GENES = 1
+GENES = 343
+ADDITIONAL_GENES = 1  # minimum  1 for the gripper assumption
+PAUSE_FRAC = 0.66
 NB_STEPS_TO_ROLLOUT = 10
 NB_ITER = int(6000 / NB_STEPS_TO_ROLLOUT)  # 6000 divided by 10, where 10 is the nb_of_steps_to_roll in the gym env
 MINI = False  # maximization problem
@@ -33,8 +34,8 @@ DISTANCE_THRESH = 0.20  # binary goal parameter
 DIFF_OR_THRESH = 0.4  # threshold for clustering grasping orientations
 COV_LIMIT = 0.1  # threshold for changing behavior descriptor in change_bd ns
 N_LAG = 200  # number of steps before the grip time used in the multi_full_info BD
-ARCHIVE_LIMIT = 400
-NB_CELLS = 1000  # number of cells for measurement
+ARCHIVE_LIMIT = 2500
+NB_CELLS = 100  # number of cells for measurement
 
 
 # global variable for the environment
@@ -42,7 +43,7 @@ ENV = gym.make('gym_baxter_grabbing:baxter_grabbing-v1', display=DISPLAY)
 ENV.set_steps_to_roll(NB_STEPS_TO_ROLLOUT)
 
 # choose controller type
-CONTROLLER = 'interpolate keypoints end pause grip'
+CONTROLLER = 'closed loop end pause grip'
 
 # choose algorithm type
 ALGO = 'ns_rand_multi_bd'
@@ -162,7 +163,7 @@ def analyze_triumphants(triumphant_archive, run_name):
         # save first 3 grasping of each types
         for j in range(3):
             if len(clustered_triumphants[i]) > j:
-                np.save(run_name + 'type' + str(i) + '_' + str(j), np.array(clustered_triumphants[i][j]),
+                np.save(run_name + 'type' + str(i) + '_' + str(j), np.around(np.array(clustered_triumphants[i][j]), 3),
                         allow_pickle=True)
 
     return coverage, uniformity, clustered_triumphants
@@ -182,14 +183,11 @@ def two_d_behavioral_descriptor(individual):
     """
     global ENV
     ENV.reset()
-    actions = []
-    for i in range(NB_KEYPOINTS):
-        actions.append(individual[GENE_PER_KEYPOINTS * i:GENE_PER_KEYPOINTS * (i + 1)])
-
-    action = actions[0]
-
+    individual = np.around(np.array(individual), 3)
     # initialize controller
-    controller = controllers_dict[CONTROLLER](actions, NB_ITER)
+    controller_info = controllers_info_dict[CONTROLLER]
+    controller = controllers_dict[CONTROLLER](individual, controller_info)
+    action = controller.initial_action
 
     for i in range(NB_ITER):
         ENV.render()
@@ -198,8 +196,10 @@ def two_d_behavioral_descriptor(individual):
 
         if i == 0:
             initial_object_position = o[0]
-
-        action = controller.get_action(i)
+        if controller.open_loop:
+            action = controller.get_action(i)
+        else:
+            action = controller.get_action(i, o)
 
         if eo:
             break
@@ -231,18 +231,12 @@ def three_d_behavioral_descriptor(individual):
     """
     global ENV
     ENV.reset()
+    individual = np.around(np.array(individual), 3)
     
-    actions = []
-    for i in range(NB_KEYPOINTS):
-        actions.append(individual[GENE_PER_KEYPOINTS * i:GENE_PER_KEYPOINTS * (i + 1)])
-
-    if ADDITIONAL_GENES != 0:
-        additional_genes = individual[-ADDITIONAL_GENES:]
-    else:
-        additional_genes = None
-
     # initialize controller
-    controller = controllers_dict[CONTROLLER](actions, NB_ITER, additional_genes)
+    controller_info = controllers_info_dict[CONTROLLER]
+    controller = controllers_dict[CONTROLLER](individual, controller_info)
+    action = controller.initial_action
 
     # for precise measure when we have the gripper assumption
     grabbed = False
@@ -251,12 +245,14 @@ def three_d_behavioral_descriptor(individual):
 
     for i in range(NB_ITER):
         ENV.render()
-
-        # choose action
-        action = controller.get_action(i)
-
         # apply previously chosen action
         o, r, eo, inf = ENV.step(action)
+
+        # choose action
+        if controller.open_loop:
+            action = controller.get_action(i)
+        else:
+            action = controller.get_action(i, o)
 
         if i == 0:
             initial_object_position = o[0]
@@ -346,21 +342,13 @@ def multi_full_behavior_descriptor(individual):
     """
     global ENV
     ENV.reset()
+    individual = np.around(np.array(individual), 3)
 
-    actions = []
-    for i in range(NB_KEYPOINTS):
-        actions.append(individual[GENE_PER_KEYPOINTS * i:GENE_PER_KEYPOINTS * (i + 1)])
-
-    if ADDITIONAL_GENES != 0:
-        additional_genes = individual[-ADDITIONAL_GENES:]
-    else:
-        additional_genes = None
-    
     # initialize controller
-    pause_frac = 0.66
-    controller = controllers_dict[CONTROLLER](actions, NB_ITER, additional_genes, pause_frac=pause_frac)
-    grip_time = math.floor((additional_genes[0] / 2 + 0.5) * pause_frac * NB_ITER)
-    lag_time = grip_time - N_LAG
+    controller_info = controllers_info_dict[CONTROLLER]
+    controller = controllers_dict[CONTROLLER](individual, controller_info)
+    lag_time = controller.grip_time - N_LAG
+    action = controller.initial_action
 
     # for precise measure when we have the gripper assumption
     grabbed = False
@@ -372,12 +360,14 @@ def multi_full_behavior_descriptor(individual):
 
     for i in range(NB_ITER):
         ENV.render()
-
-        # choose action
-        action = controller.get_action(i)
-
         # apply previously chosen action
         o, r, eo, inf = ENV.step(action)
+
+        # choose action
+        if controller.open_loop:
+            action = controller.get_action(i)
+        else:
+            action = controller.get_action(i, o)
 
         if i == 0:
             initial_object_position = o[0]
@@ -462,18 +452,12 @@ def multi_behavioral_descriptor(individual):
     """
     global ENV
     ENV.reset()
-
-    actions = []
-    for i in range(NB_KEYPOINTS):
-        actions.append(individual[GENE_PER_KEYPOINTS * i:GENE_PER_KEYPOINTS * (i + 1)])
-
-    if ADDITIONAL_GENES != 0:
-        additional_genes = individual[-ADDITIONAL_GENES:]
-    else:
-        additional_genes = None
+    individual = np.around(np.array(individual), 3)
 
     # initialize controller
-    controller = controllers_dict[CONTROLLER](actions, NB_ITER, additional_genes)
+    controller_info = controllers_info_dict[CONTROLLER]
+    controller = controllers_dict[CONTROLLER](individual, controller_info)
+    action = controller.initial_action
 
     # for precise measure when we have the gripper assumption
     grabbed = False
@@ -482,12 +466,14 @@ def multi_behavioral_descriptor(individual):
 
     for i in range(NB_ITER):
         ENV.render()
-
-        # choose action
-        action = controller.get_action(i)
-
         # apply previously chosen action
         o, r, eo, inf = ENV.step(action)
+
+        # choose action
+        if controller.open_loop:
+            action = controller.get_action(i)
+        else:
+            action = controller.get_action(i, o)
 
         if i == 0:
             initial_object_position = o[0]
@@ -579,17 +565,12 @@ def orientation_behavioral_descriptor(individual):
     """
     global ENV
     ENV.reset()
-    actions = []
-    for i in range(NB_KEYPOINTS):
-        actions.append(individual[GENE_PER_KEYPOINTS * i:GENE_PER_KEYPOINTS * (i + 1)])
-
-    if ADDITIONAL_GENES != 0:
-        additional_genes = individual[-ADDITIONAL_GENES:]
-    else:
-        additional_genes = None
+    individual = np.around(np.array(individual), 3)
 
     # initialize controller
-    controller = controllers_dict[CONTROLLER](actions, NB_ITER, additional_genes)
+    controller_info = controllers_info_dict[CONTROLLER]
+    controller = controllers_dict[CONTROLLER](individual, controller_info)
+    action = controller.initial_action
 
     # for precise measure when we have the gripper assumption
     grabbed = False
@@ -598,12 +579,14 @@ def orientation_behavioral_descriptor(individual):
 
     for i in range(NB_ITER):
         ENV.render()
-
-        # choose action
-        action = controller.get_action(i)
-
         # apply previously chosen action
         o, r, eo, inf = ENV.step(action)
+
+        # choose action
+        if controller.open_loop:
+            action = controller.get_action(i)
+        else:
+            action = controller.get_action(i, o)
 
         if i == 0:
             initial_object_position = o[0]
@@ -703,8 +686,23 @@ def choose_evaluation_function(info_change_bd):
 controllers_dict = {'discrete keypoints': controllers.DiscreteKeyPoints,
                     'interpolate keypoints': controllers.InterpolateKeyPoints,
                     'interpolate keypoints end pause': controllers.InterpolateKeyPointsEndPause,
-                    'interpolate keypoints end pause grip': controllers.InterpolateKeyPointsEndPauseGripAssumption}
-
+                    'interpolate keypoints end pause grip': controllers.InterpolateKeyPointsEndPauseGripAssumption,
+                    'closed loop end pause grip': controllers.ClosedLoopEndPauseGripAssumption}
+controllers_info_dict = {'interpolate keypoints end pause grip': {'pause_frac': PAUSE_FRAC, 'n_iter': NB_ITER,
+                                                                  'NB_KEYPOINTS': NB_KEYPOINTS,
+                                                                  'GENE_PER_KEYPOINTS': GENE_PER_KEYPOINTS,
+                                                                  'ADDITIONAL_GENES': ADDITIONAL_GENES},
+                         'interpolate keypoints end pause': {'pause_frac': PAUSE_FRAC, 'n_iter': NB_ITER,
+                                                             'NB_KEYPOINTS': NB_KEYPOINTS,
+                                                             'GENE_PER_KEYPOINTS': GENE_PER_KEYPOINTS},
+                         'discrete keypoints': {'n_iter': NB_ITER,
+                                                'NB_KEYPOINTS': NB_KEYPOINTS,
+                                                'GENE_PER_KEYPOINTS': GENE_PER_KEYPOINTS},
+                         'interpolate keypoints': {'n_iter': NB_ITER,
+                                                   'NB_KEYPOINTS': NB_KEYPOINTS,
+                                                   'GENE_PER_KEYPOINTS': GENE_PER_KEYPOINTS},
+                         'closed loop end pause grip': {'n_iter': NB_ITER, 'pause_frac': PAUSE_FRAC,
+                                                        'ADDITIONAL_GENES': ADDITIONAL_GENES}}
 
 bd_dict = {'2D': two_d_behavioral_descriptor,
            '3D': three_d_behavioral_descriptor,
@@ -715,6 +713,8 @@ bd_dict = {'2D': two_d_behavioral_descriptor,
 if __name__ == "__main__":
 
     initial_genotype_size = NB_KEYPOINTS * GENE_PER_KEYPOINTS + ADDITIONAL_GENES
+    if CONTROLLER == 'closed loop end pause grip':
+        initial_genotype_size = GENES + ADDITIONAL_GENES
     evaluation_function = bd_dict[BD]
 
     choose = None
@@ -801,37 +801,37 @@ if __name__ == "__main__":
         # plot genetic diversity
         gen_div_pop = np.array(infs['population genetic statistics'])
         gen_div_off = np.array(infs['offsprings genetic statistics'])
-
-        fig, ax = plt.subplots(nrows=1, ncols=2, figsize=(15, 10))
-        ax[0].set(title='Evolution of population genetic diversity', xlabel='Generations', ylabel='Std of gene')
-        for i in range(len(gen_div_pop[0])):
-            if i < NB_KEYPOINTS * GENE_PER_KEYPOINTS:
-                color_index = i // GENE_PER_KEYPOINTS
-                rest = i % GENE_PER_KEYPOINTS
-                if rest == 0:
-                    ax[0].plot(gen_div_pop[:, i], color=utils.color_list[color_index],
-                               label='keypoint ' + str(color_index))
+        if len(gen_div_pop[0]) <= 25:
+            fig, ax = plt.subplots(nrows=1, ncols=2, figsize=(15, 10))
+            ax[0].set(title='Evolution of population genetic diversity', xlabel='Generations', ylabel='Std of gene')
+            for i in range(len(gen_div_pop[0])):
+                if i < NB_KEYPOINTS * GENE_PER_KEYPOINTS:
+                    color_index = i // GENE_PER_KEYPOINTS
+                    rest = i % GENE_PER_KEYPOINTS
+                    if rest == 0:
+                        ax[0].plot(gen_div_pop[:, i], color=utils.color_list[color_index],
+                                   label='keypoint ' + str(color_index))
+                    else:
+                        ax[0].plot(gen_div_pop[:, i], color=utils.color_list[color_index])
                 else:
+                    color_index += 1
                     ax[0].plot(gen_div_pop[:, i], color=utils.color_list[color_index])
-            else:
-                color_index += 1
-                ax[0].plot(gen_div_pop[:, i], color=utils.color_list[color_index])
-        ax[0].legend()
-        ax[1].set(title='Evolution of offsprings genetic diversity', xlabel='Generations', ylabel='Std of gene')
-        for i in range(len(gen_div_off[0])):
-            if i < NB_KEYPOINTS * GENE_PER_KEYPOINTS:
-                color_index = i // GENE_PER_KEYPOINTS
-                rest = i % GENE_PER_KEYPOINTS
-                if rest == 0:
-                    ax[1].plot(gen_div_off[:, i], color=utils.color_list[color_index],
-                               label='keypoint ' + str(color_index))
+            ax[0].legend()
+            ax[1].set(title='Evolution of offsprings genetic diversity', xlabel='Generations', ylabel='Std of gene')
+            for i in range(len(gen_div_off[0])):
+                if i < NB_KEYPOINTS * GENE_PER_KEYPOINTS:
+                    color_index = i // GENE_PER_KEYPOINTS
+                    rest = i % GENE_PER_KEYPOINTS
+                    if rest == 0:
+                        ax[1].plot(gen_div_off[:, i], color=utils.color_list[color_index],
+                                   label='keypoint ' + str(color_index))
+                    else:
+                        ax[1].plot(gen_div_off[:, i], color=utils.color_list[color_index])
                 else:
+                    color_index += 1
                     ax[1].plot(gen_div_off[:, i], color=utils.color_list[color_index])
-            else:
-                color_index += 1
-                ax[1].plot(gen_div_off[:, i], color=utils.color_list[color_index])
-        ax[1].legend()
-        plt.savefig(run_name + 'genetic_diversity_plot.png')
+            ax[1].legend()
+            plt.savefig(run_name + 'genetic_diversity_plot.png')
     
     with open(run_name + 'run.json', 'w') as fp:
         json.dump(run, fp)

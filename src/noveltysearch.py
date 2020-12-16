@@ -358,12 +358,12 @@ def gen_plot(mean_hist, min_hist, max_hist, arch_size_hist, coverage_hist, unifo
         coverage_hist = np.array(coverage_hist)
         uniformity_hist = np.array(uniformity_hist)
         for i in range(np.size(coverage_hist, 1)):
-            ax[1][1].plot(coverage_hist[:, i], label='Coverage ' + str(i))
-            ax[1][1].plot(uniformity_hist[:, i], label='Uniformity ' + str(i))
+            ax[1][1].plot(coverage_hist[:, i], color=utils.color_list[i], label='Coverage ' + str(i))
+            ax[1][1].plot(uniformity_hist[:, i], color=utils.color_list[i], alpha=0.6, label='Uniformity ' + str(i))
 
     else:
-        ax[1][1].plot(coverage_hist, label='Coverage')
-        ax[1][1].plot(uniformity_hist, label='Uniformity')
+        ax[1][1].plot(coverage_hist, color='blue', label='Coverage')
+        ax[1][1].plot(uniformity_hist, color='blue', alpha=0.6, label='Uniformity')
     ax[1][1].legend()
 
     # plot evolution
@@ -372,12 +372,12 @@ def gen_plot(mean_hist, min_hist, max_hist, arch_size_hist, coverage_hist, unifo
         full_cov_hist = np.array(full_cov_hist)
         full_uni_hist = np.array(full_uni_hist)
         for i in range(np.size(full_cov_hist, 1)):
-            ax[2][1].plot(full_cov_hist[:, i], label='Coverage ' + str(i))
-            ax[2][1].plot(full_uni_hist[:, i], label='Uniformity ' + str(i))
+            ax[2][1].plot(full_cov_hist[:, i], color=utils.color_list[i], label='Coverage ' + str(i))
+            ax[2][1].plot(full_uni_hist[:, i], color=utils.color_list[i], alpha=0.6, label='Uniformity ' + str(i))
 
     else:
-        ax[2][1].plot(full_cov_hist, label='Coverage')
-        ax[2][1].plot(full_uni_hist, label='Uniformity')
+        ax[2][1].plot(full_cov_hist, color='blue', label='Coverage')
+        ax[2][1].plot(full_uni_hist, color='blue', alpha=0.6, label='Uniformity')
     ax[2][1].legend()
 
     if run_name is not None:
@@ -838,9 +838,6 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
                             cells[cell_idx].append(ind_idx)
                     
                     grid_density = grid_density / np.sum(grid_density)
-
-                    # TEST: square the grid_density to biase more towards high density cells
-                    # grid_density = np.square(grid_density)
 
                     grid_law = np.cumsum(grid_density)
 
