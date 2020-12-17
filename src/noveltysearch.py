@@ -800,7 +800,8 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
                 
                 if archive_limit_strat == 'grid_density':
                     # strategy 4: remove individuals with probability proportional to grid density
-                    reference_pop = np.array(archive)
+                    # extract all the behavior descriptors
+                    reference_pop = np.array([ind.behavior_descriptor.values for ind in archive])
                     n_dim = reference_pop.shape[1]
                     # compute maximums and mins on each dimension
                     maximums = np.max(reference_pop, 0)
@@ -865,7 +866,8 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
                     
                 if archive_limit_strat == 'grid':
                     # strategy 5: remove individuals at intersection of grid
-                    reference_pop = np.array(archive)
+                    # extract all the behavior descriptors
+                    reference_pop = np.array([ind.behavior_descriptor.values for ind in archive])
                     n_dim = reference_pop.shape[1]
                     # compute maximums and mins on each dimension
                     maximums = np.max(reference_pop, 0)
@@ -924,7 +926,8 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
 
                 if archive_limit_strat == 'gmm':
                     # strategy 6: fit a gmm on archive, sample and remove closest
-                    reference_pop = np.array(archive)
+                    # extract all the behavior descriptors
+                    reference_pop = np.array([ind.behavior_descriptor.values for ind in archive])
                     gmix = mixture.GaussianMixture(n_components=N_COMP, covariance_type='full')
                     gmix.fit(reference_pop)
                     nodes = gmix.sample(nb_ind_to_remove)[0]
