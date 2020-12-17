@@ -19,10 +19,12 @@ BD_BOUNDS = [[0, 1], [0, 1]]
 INITIAL_GENOTYPE_SIZE = 99
 N_EXP = 10
 
+# global variable for the environment
+ENV = gym.make("SlimeVolley-v0")
 
 ALGO = 'ns_rand'
 PLOT = False
-ARCHIVE_ANALYSIS = False
+ARCHIVE_ANALYSIS = True
 
 if PARALLELIZE:
     # container for behavior descriptor
@@ -91,10 +93,10 @@ def evaluate_individual(individual):
     Returns:
         tuple: tuple of behavior (list) and fitness(tuple)
     """
+    global ENV
     inf = {}
 
-    env = gym.make("SlimeVolley-v0")
-    env.reset()
+    ENV.reset()
 
     action = [0, 0, 0]
     eo = False
@@ -108,9 +110,9 @@ def evaluate_individual(individual):
     while not eo:
         count += 1
         if DISPLAY:
-            env.render()
+            ENV.render()
         # apply previously chosen action
-        o, r, eo, info = env.step(action)
+        o, r, eo, info = ENV.step(action)
         reward += r
         with torch.no_grad():
             action = controller.forward(o)
