@@ -131,6 +131,7 @@ class ClosedLoopEndPauseGripAssumption():
         self.open_loop = False
         # for now, random
         self.initial_action = np.array([0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1])
+        self.gain = 0.1
 
         # network
         # assuming 34 inputs
@@ -155,6 +156,10 @@ class ClosedLoopEndPauseGripAssumption():
             with torch.no_grad():
                 input_to_net = torch.Tensor(input_to_net)
                 action = self.action_network(input_to_net).numpy()
+
+                # hypothesis: control in speed instead of position
+                action = self.last_action + self.gain * action
+                
             if i < self.grip_time:
                 action = np.append(action, 1)  # gripper is open
             else:
