@@ -1,7 +1,7 @@
 import gym
 import controllers
 import numpy as np
-baxter_env = gym.make('gym_baxter_grabbing:baxter_grabbing-v1', display=True)
+baxter_env = gym.make('gym_baxter_grabbing:baxter_grabbing-v1', display=False)
 baxter_env.set_steps_to_roll(2)
 n_iter = 3000
 controller_info = {'pause_frac': 0.66, 'n_iter': n_iter, 'ADDITIONAL_GENES': 1}

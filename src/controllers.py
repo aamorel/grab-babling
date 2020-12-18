@@ -133,7 +133,7 @@ class ClosedLoopEndPauseGripAssumption():
         # for now, random
         self.initial_action = np.array([0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1])
         self.last_action = self.initial_action
-        self.gain = 0.1
+        self.gain = 0.3
         self.action_bounds = [[-0.999, 0.999]] * 7
 
         # network
@@ -150,7 +150,7 @@ class ClosedLoopEndPauseGripAssumption():
         self.l2.weight = weight_2
         self.l2.bias = bias_2
         self.r1 = nn.ReLU()
-        self.r2 = nn.Sigmoid()
+        self.r2 = nn.Tanh()
         self.action_network = nn.Sequential(self.l1, self.r1, self.l2, self.r2)
 
     def get_action(self, i, obs):
