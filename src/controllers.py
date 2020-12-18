@@ -3,6 +3,7 @@ from scipy import interpolate
 import numpy as np
 import torch.nn as nn
 import torch
+import utils
 
 # ######################################### OPEN LOOP CONTROLLERS #####################################################
 
@@ -133,6 +134,7 @@ class ClosedLoopEndPauseGripAssumption():
         self.initial_action = np.array([0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1])
         self.last_action = self.initial_action
         self.gain = 0.1
+        self.action_bounds = [[-0.999, 0.999]] * 7
 
         # network
         # assuming 34 inputs
@@ -159,7 +161,9 @@ class ClosedLoopEndPauseGripAssumption():
                 action = self.action_network(input_to_net).numpy()
 
                 # hypothesis: control in speed instead of position
-                action = self.last_action + self.gain * action
+                action = self.last_action[:7] + self.gain * action
+                
+                utils.bound(action, self.action_bounds)
                 
             if i < self.grip_time:
                 action = np.append(action, 1)  # gripper is open
