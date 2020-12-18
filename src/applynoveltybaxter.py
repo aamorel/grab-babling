@@ -11,7 +11,7 @@ import os
 import json
 
 DISPLAY = False
-PARALLELIZE = False
+PARALLELIZE = True
 PLOT = True
 DISPLAY_HOF = False
 DISPLAY_RAND = False
@@ -19,8 +19,8 @@ DISPLAY_TRIUMPHANTS = False
 EVAL_SUCCESSFULL = False
 
 # choose parameters
-POP_SIZE = 20
-NB_GEN = 2
+POP_SIZE = 100
+NB_GEN = 5000
 NB_KEYPOINTS = 3
 GENE_PER_KEYPOINTS = 7
 GENES = 343

@@ -133,7 +133,7 @@ class ClosedLoopEndPauseGripAssumption():
         # for now, random
         self.initial_action = np.array([0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1])
         self.last_action = self.initial_action
-        self.gain = 0.3
+        self.gain = 0.001
         self.action_bounds = [[-0.999, 0.999]] * 7
 
         # network
