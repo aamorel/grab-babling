@@ -131,6 +131,7 @@ class ClosedLoopEndPauseGripAssumption():
         self.open_loop = False
         # for now, random
         self.initial_action = np.array([0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1])
+        self.last_action = self.initial_action
         self.gain = 0.1
 
         # network
