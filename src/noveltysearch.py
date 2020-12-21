@@ -603,6 +603,10 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
     # initialize details dictionnary
     details = {}
 
+    # if altered novelty experimental condition
+    if altered_novelty:
+        details['ranking similarities novelty'] = []
+
     # initialize generation counter
     gen = 0
 
@@ -668,10 +672,6 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
         full_cov_hist = []
         uniformity_hist = []
         full_uni_hist = []
-    
-    # if altered novelty experimental condition
-    if altered_novelty:
-        details['ranking similarities novelty'] = []
 
     # begin evolution
     while gen < nb_gen:

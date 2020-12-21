@@ -273,7 +273,7 @@ if __name__ == "__main__":
             fig, ax = plt.subplots(3, 1, figsize=(20, 15))
             fig_2, ax_2 = plt.subplots(3, 1, figsize=(20, 15))
 
-            for s, archive_strat in enumerate(possible_strats):
+            for s, archive_strat in enumerate(possible_degrees):
                 coverages = []
                 arch_coverages = []
                 uniformities = []
