@@ -126,7 +126,7 @@ def compute_average_distance(query, k_tree):
     return avg_distance,
 
 
-def assess_novelties(pop, archive, algo_type, bd_bounds, bd_indexes, bd_filters):
+def assess_novelties(pop, archive, algo_type, bd_bounds, bd_indexes, bd_filters, altered=False, degree=None, info=None):
     """Compute novelties of current population
 
     Args:
@@ -193,6 +193,22 @@ def assess_novelties(pop, archive, algo_type, bd_bounds, bd_indexes, bd_filters)
                 novelties.append(compute_average_distance(b_descriptors[i], k_tree))
             else:
                 novelties.append((0.0,))
+        if altered:
+            # experimental condition: alter the novelties
+            nov_n = np.array(novelties).flatten()
+            order = nov_n.argsort()
+            ranking_before = order.argsort()
+            mean_nov = np.mean(nov_n)
+            rand_range = mean_nov * degree
+            for nov in novelties:
+                # each novelty is incremented by a random float between -rand_range and rang_range
+                nov = (nov[0] + (random.random() * 2 - 0.5) * rand_range,)
+            nov_n = np.array(novelties).flatten()
+            order = nov_n.argsort()
+            ranking_after = order.argsort()
+            ranking_similarity = stats.kendalltau(ranking_before, ranking_after)[0]
+            info['ranking similarities novelty'].append(ranking_similarity)
+
     return novelties
 
 
@@ -540,7 +556,8 @@ def choose_bd_strategy(inventory):
 def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, mini=True, plot=False, nb_gen=100,
                  algo_type='ns_nov', bound_genotype=5, pop_size=30, parallelize=False,
                  measures=False, run_name=None, choose_evaluate=None, bd_indexes=None, archive_limit_size=None,
-                 archive_limit_strat='random', nb_cells=1000, analyze_archive=False):
+                 archive_limit_strat='random', nb_cells=1000, analyze_archive=False, altered_novelty=False,
+                 alteration_degree=None):
 
     # each individual will have a unique id
     global id_counter
@@ -632,7 +649,8 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
         ind.info.values = inf
         ind.fitness.values = fit
 
-    novelties = assess_novelties(pop, archive, algo_type, bd_bounds, bd_indexes, bd_filters)
+    novelties = assess_novelties(pop, archive, algo_type, bd_bounds, bd_indexes, bd_filters,
+                                 altered=altered_novelty, degree=alteration_degree, info=details)
     for ind, nov in zip(pop, novelties):
         ind.novelty.values = nov
 
@@ -650,6 +668,10 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
         full_cov_hist = []
         uniformity_hist = []
         full_uni_hist = []
+    
+    # if altered novelty experimental condition
+    if altered_novelty:
+        details['ranking similarities novelty'] = []
 
     # begin evolution
     while gen < nb_gen:
@@ -702,7 +724,8 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
             ind.fitness.values = fit
 
         # compute novelty for all current individuals (novelty of population may have changed)
-        novelties = assess_novelties(current_pool, archive, algo_type, bd_bounds, bd_indexes, bd_filters)
+        novelties = assess_novelties(current_pool, archive, algo_type, bd_bounds, bd_indexes, bd_filters,
+                                     altered=altered_novelty, degree=alteration_degree, info=details)
         for ind, nov in zip(current_pool, novelties):
             ind.novelty.values = nov
         # an individual with bd = None will have 0 novelty

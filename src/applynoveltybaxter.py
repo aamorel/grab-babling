@@ -9,6 +9,7 @@ from sklearn.cluster import AgglomerativeClustering
 import controllers
 import os
 import json
+import copy
 
 DISPLAY = False
 PARALLELIZE = True
@@ -16,7 +17,7 @@ PLOT = True
 DISPLAY_HOF = False
 DISPLAY_RAND = False
 DISPLAY_TRIUMPHANTS = False
-EVAL_SUCCESSFULL = False
+EVAL_SUCCESSFULL = True
 
 # choose parameters
 POP_SIZE = 100
@@ -33,7 +34,7 @@ HEIGHT_THRESH = -0.08  # binary goal parameter
 DISTANCE_THRESH = 0.20  # binary goal parameter
 DIFF_OR_THRESH = 0.4  # threshold for clustering grasping orientations
 COV_LIMIT = 0.1  # threshold for changing behavior descriptor in change_bd ns
-N_LAG = 200  # number of steps before the grip time used in the multi_full_info BD
+N_LAG = int(200 / NB_STEPS_TO_ROLLOUT)  # number of steps before the grip time used in the multi_full_info BD
 ARCHIVE_LIMIT = 2500
 NB_CELLS = 100  # number of cells for measurement
 
@@ -722,15 +723,43 @@ if __name__ == "__main__":
         choose = choose_evaluation_function
 
     if EVAL_SUCCESSFULL:
-        for j in range(9):
-            for i in range(1):
+        # case 1:
+        for j in range(7):
+            # case 3:
+            j = 6 - j
+            for i in range(3):
                 DISPLAY = True
-                path = os.path.join('../exp_results/109', 'run21', 'type' + str(j) + '_' + str(i) + '.npy')
+                path = os.path.join('../exp_results/109', 'run1', 'type' + str(j) + '_' + str(i) + '.npy')
                 ind = np.load(path, allow_pickle=True)
+                # np.save(path_2, ind, allow_pickle=True)
+                # ind_2 = np.load(path_2, allow_pickle=True)
                 res = evaluation_function(ind)
-                print('Individual:', ind)
-                print('Verifying that individual was sucessful:')
-                print(res[2]['binary goal'])
+                before = res[2]['binary goal']
+                print(before)
+                res_2 = evaluation_function(ind)
+                after = res_2[2]['binary goal']
+                assert(before == after)
+                # if before != after:
+                #     ind_1_res = []
+                #     ind_2_res = []
+                #     for _ in range(10):
+                #         res = evaluation_function(ind)
+                #         res_2 = evaluation_function(ind_2)
+                #         ind_1_res.append(res[2]['binary goal'])
+                #         ind_2_res.append(res_2[2]['binary goal'])
+                #     pass
+
+        # case 2
+        # path = os.path.join('../exp_results/109', 'run1', 'type' + str(5) + '_' + str(0) + '.npy')
+        # ind = np.load(path, allow_pickle=True)
+        # ind_2 = copy.deepcopy(ind)
+        # # np.save(path_2, ind, allow_pickle=True)
+        # # ind_2 = np.load(path_2, allow_pickle=True)
+        # res = evaluation_function(ind)
+        # before = res[2]['binary goal']
+        # res_2 = evaluation_function(ind)
+        # after = res_2[2]['binary goal']
+
         exit()
     
     i = 0
