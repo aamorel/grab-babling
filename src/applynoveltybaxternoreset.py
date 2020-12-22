@@ -38,10 +38,6 @@ ARCHIVE_LIMIT = 2500
 NB_CELLS = 100  # number of cells for measurement
 
 
-# global variable for the environment
-ENV = gym.make('gym_baxter_grabbing:baxter_grabbing-v1', display=DISPLAY)
-ENV.set_steps_to_roll(NB_STEPS_TO_ROLLOUT)
-
 # choose controller type
 CONTROLLER = 'closed loop end pause grip'
 
@@ -181,8 +177,8 @@ def two_d_behavioral_descriptor(individual):
     Returns:
         tuple: tuple of behavior (list) and fitness(tuple)
     """
-    global ENV
-    ENV.reset()
+    ENV = gym.make('gym_baxter_grabbing:baxter_grabbing-v1', display=DISPLAY)
+    ENV.set_steps_to_roll(NB_STEPS_TO_ROLLOUT)
     individual = np.around(np.array(individual), 3)
     # initialize controller
     controller_info = controllers_info_dict[CONTROLLER]
@@ -213,7 +209,7 @@ def two_d_behavioral_descriptor(individual):
     fitness = utils.list_l2_norm(behavior, [0, 0])
 
     info = {}
-
+    ENV.close()
     return (behavior, (fitness,), info)
 
 
@@ -229,8 +225,8 @@ def three_d_behavioral_descriptor(individual):
     Returns:
         tuple: tuple of behavior (list) and fitness(tuple)
     """
-    global ENV
-    ENV.reset()
+    ENV = gym.make('gym_baxter_grabbing:baxter_grabbing-v1', display=DISPLAY)
+    ENV.set_steps_to_roll(NB_STEPS_TO_ROLLOUT)
     individual = np.around(np.array(individual), 3)
     
     # initialize controller
@@ -318,6 +314,7 @@ def three_d_behavioral_descriptor(individual):
         if CONTROLLER == 'interpolate keypoints end pause grip':
             info['orientation difference at grab'] = diff_or_at_grab
 
+    ENV.close()
     return (behavior, (fitness,), info)
 
 
@@ -340,8 +337,8 @@ def multi_full_behavior_descriptor(individual):
     Returns:
         tuple: tuple of behavior (list) and fitness(tuple)
     """
-    global ENV
-    ENV.reset()
+    ENV = gym.make('gym_baxter_grabbing:baxter_grabbing-v1', display=DISPLAY)
+    ENV.set_steps_to_roll(NB_STEPS_TO_ROLLOUT)
     individual = np.around(np.array(individual), 3)
 
     # initialize controller
@@ -434,6 +431,7 @@ def multi_full_behavior_descriptor(individual):
     behavior.append(grip_or_lag[0])
     behavior.append(grip_or_lag[1])
     behavior.append(grip_or_lag[2])
+    ENV.close()
     
     return (behavior, (fitness,), info)
 
@@ -450,8 +448,8 @@ def multi_behavioral_descriptor(individual):
     Returns:
         tuple: tuple of behavior (list) and fitness(tuple)
     """
-    global ENV
-    ENV.reset()
+    ENV = gym.make('gym_baxter_grabbing:baxter_grabbing-v1', display=DISPLAY)
+    ENV.set_steps_to_roll(NB_STEPS_TO_ROLLOUT)
     individual = np.around(np.array(individual), 3)
 
     # initialize controller
@@ -549,6 +547,8 @@ def multi_behavioral_descriptor(individual):
             behavior[5] = diff_or_at_grab[2]
             behavior[6] = diff_or_at_grab[3]
 
+    ENV = gym.make('gym_baxter_grabbing:baxter_grabbing-v1', display=DISPLAY)
+    ENV.set_steps_to_roll(NB_STEPS_TO_ROLLOUT)
     return (behavior, (fitness,), info)
 
 
@@ -563,8 +563,8 @@ def orientation_behavioral_descriptor(individual):
     Returns:
         tuple: tuple of behavior (list) and fitness(tuple)
     """
-    global ENV
-    ENV.reset()
+    ENV = gym.make('gym_baxter_grabbing:baxter_grabbing-v1', display=DISPLAY)
+    ENV.set_steps_to_roll(NB_STEPS_TO_ROLLOUT)
     individual = np.around(np.array(individual), 3)
 
     # initialize controller
@@ -659,6 +659,7 @@ def orientation_behavioral_descriptor(individual):
         # set behavior as None and deal with in novelty search
         behavior = None
 
+    ENV.close()
     return (behavior, (fitness,), info)
 
 
@@ -760,7 +761,6 @@ if __name__ == "__main__":
         # case 4: error is triggered at j=5, i=0, before=False, after=True, logical
         for j in [0, 1, 2, 3, 4, 5]:
             for i in range(3):
-                DISPLAY = True
                 path = os.path.join('../exp_results/109', 'run1', 'type' + str(j) + '_' + str(i) + '.npy')
                 ind = np.load(path, allow_pickle=True)
                 res = evaluation_function(ind)
