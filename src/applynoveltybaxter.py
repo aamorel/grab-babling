@@ -723,43 +723,40 @@ if __name__ == "__main__":
         choose = choose_evaluation_function
 
     if EVAL_SUCCESSFULL:
-        # case 1:
-        for j in range(7):
-            # case 3:
-            j = 6 - j
-            for i in range(3):
-                DISPLAY = True
-                path = os.path.join('../exp_results/109', 'run1', 'type' + str(j) + '_' + str(i) + '.npy')
-                ind = np.load(path, allow_pickle=True)
-                # np.save(path_2, ind, allow_pickle=True)
-                # ind_2 = np.load(path_2, allow_pickle=True)
-                res = evaluation_function(ind)
-                before = res[2]['binary goal']
-                print(before)
-                res_2 = evaluation_function(ind)
-                after = res_2[2]['binary goal']
-                assert(before == after)
-                # if before != after:
-                #     ind_1_res = []
-                #     ind_2_res = []
-                #     for _ in range(10):
-                #         res = evaluation_function(ind)
-                #         res_2 = evaluation_function(ind_2)
-                #         ind_1_res.append(res[2]['binary goal'])
-                #         ind_2_res.append(res_2[2]['binary goal'])
-                #     pass
+        # case 1: error is triggered at j=5, i=0, before=False, after=True
+        # for j in range(7):
+        #     for i in range(3):
+        #         DISPLAY = True
+        #         path = os.path.join('../exp_results/109', 'run1', 'type' + str(j) + '_' + str(i) + '.npy')
+        #         ind = np.load(path, allow_pickle=True)
+        #         res = evaluation_function(ind)
+        #         before = res[2]['binary goal']
+        #         print(before)
+        #         res_2 = evaluation_function(ind)
+        #         after = res_2[2]['binary goal']
+        #         assert(before == after)
 
-        # case 2
+        # case 2: error is not triggered, before=True, after=True
         # path = os.path.join('../exp_results/109', 'run1', 'type' + str(5) + '_' + str(0) + '.npy')
         # ind = np.load(path, allow_pickle=True)
-        # ind_2 = copy.deepcopy(ind)
-        # # np.save(path_2, ind, allow_pickle=True)
-        # # ind_2 = np.load(path_2, allow_pickle=True)
         # res = evaluation_function(ind)
         # before = res[2]['binary goal']
         # res_2 = evaluation_function(ind)
         # after = res_2[2]['binary goal']
+        # assert(before == after)
 
+        # case 3: error is not triggered, before=True, after=True
+        # for j in [4, 5]:
+        #     for i in range(3):
+        #         DISPLAY = True
+        #         path = os.path.join('../exp_results/109', 'run1', 'type' + str(j) + '_' + str(i) + '.npy')
+        #         ind = np.load(path, allow_pickle=True)
+        #         res = evaluation_function(ind)
+        #         before = res[2]['binary goal']
+        #         print(before)
+        #         res_2 = evaluation_function(ind)
+        #         after = res_2[2]['binary goal']
+        #         assert(before == after)
         exit()
     
     i = 0

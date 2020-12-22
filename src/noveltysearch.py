@@ -200,9 +200,9 @@ def assess_novelties(pop, archive, algo_type, bd_bounds, bd_indexes, bd_filters,
             ranking_before = order.argsort()
             mean_nov = np.mean(nov_n)
             rand_range = mean_nov * degree
-            for nov in novelties:
+            for i, nov in enumerate(novelties):
                 # each novelty is incremented by a random float between -rand_range and rang_range
-                nov = (nov[0] + (random.random() * 2 - 0.5) * rand_range,)
+                novelties[i] = (nov[0] + (random.random() * 2 - 0.5) * rand_range,)
             nov_n = np.array(novelties).flatten()
             order = nov_n.argsort()
             ranking_after = order.argsort()
