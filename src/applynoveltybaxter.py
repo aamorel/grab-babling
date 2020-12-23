@@ -16,7 +16,7 @@ PLOT = True
 DISPLAY_HOF = False
 DISPLAY_RAND = False
 DISPLAY_TRIUMPHANTS = False
-EVAL_SUCCESSFULL = False
+EVAL_SUCCESSFULL = True
 
 # choose parameters
 POP_SIZE = 100
@@ -758,10 +758,21 @@ if __name__ == "__main__":
         #         assert(before == after)
 
         # case 4: error is triggered at j=5, i=0, before=False, after=True, logical
-        for j in [0, 1, 2, 3, 4, 5]:
+        # for j in [0, 1, 2, 3, 4, 5]:
+        #     for i in range(3):
+        #         DISPLAY = True
+        #         path = os.path.join('../exp_results/109', 'run1', 'type' + str(j) + '_' + str(i) + '.npy')
+        #         ind = np.load(path, allow_pickle=True)
+        #         res = evaluation_function(ind)
+        #         before = res[2]['binary goal']
+        #         print(before)
+        #         res_2 = evaluation_function(ind)
+        #         after = res_2[2]['binary goal']
+        #         assert(before == after)
+        for j in range(2):
             for i in range(3):
                 DISPLAY = True
-                path = os.path.join('../exp_results/109', 'run1', 'type' + str(j) + '_' + str(i) + '.npy')
+                path = os.path.join('../exp_results/110', 'run4', 'type' + str(j) + '_' + str(i) + '.npy')
                 ind = np.load(path, allow_pickle=True)
                 res = evaluation_function(ind)
                 before = res[2]['binary goal']
@@ -769,6 +780,7 @@ if __name__ == "__main__":
                 res_2 = evaluation_function(ind)
                 after = res_2[2]['binary goal']
                 assert(before == after)
+
         exit()
     
     i = 0
