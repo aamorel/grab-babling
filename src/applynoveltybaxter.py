@@ -20,7 +20,7 @@ EVAL_SUCCESSFULL = False
 
 # choose parameters
 POP_SIZE = 100
-NB_GEN = 2000
+NB_GEN = 300
 NB_KEYPOINTS = 3
 GENE_PER_KEYPOINTS = 7
 GENES = 343
@@ -101,12 +101,8 @@ def analyze_triumphants(triumphant_archive, run_name):
         print('No individual completed the binary goal.')
         return None, None, None
     
-    if CONTROLLER == 'interpolate keypoints end pause grip':
-        # use the precise measure of orientation for computing grabbing diversity
-        measure = 'orientation difference at grab'
-    else:
-        # use the measure of orientation at the end of the simulation
-        measure = 'orientation difference'
+    # orientation difference between the gripper and the object
+    measure = 'orientation difference'
 
     # # sample the triumphant archive to reduce computational cost
     # no need since the archive size is now bounded
@@ -260,7 +256,7 @@ def three_d_behavioral_descriptor(individual):
         if eo:
             break
         
-        if CONTROLLER == 'interpolate keypoints end pause grip':
+        if hasattr(controller, 'grip_time'):
             # we are in the case where the gripping time is given
             # in consequence, we can do the precise measure of the grabbing orientation
             if action[-1] == -1 and not grabbed:
@@ -301,22 +297,25 @@ def three_d_behavioral_descriptor(individual):
     info['binary goal'] = binary_goal
 
     if binary_goal:
-        # last object orientation (quaternion)
-        obj_or = o[1]
+        if hasattr(controller, 'grip_time'):
+            info['orientation difference'] = diff_or_at_grab
+        else:
+            # last object orientation (quaternion)
+            obj_or = o[1]
 
-        # last gripper orientation (quaternion)
-        grip_or = o[3]
+            # last gripper orientation (quaternion)
+            grip_or = o[3]
 
-        # pybullet is x, y, z, w whereas pyquaternion is w, x, y, z
-        obj_or = pyq.Quaternion(obj_or[3], obj_or[0], obj_or[1], obj_or[2])
-        grip_or = pyq.Quaternion(grip_or[3], grip_or[0], grip_or[1], grip_or[2])
+            # pybullet is x, y, z, w whereas pyquaternion is w, x, y, z
+            obj_or = pyq.Quaternion(obj_or[3], obj_or[0], obj_or[1], obj_or[2])
+            grip_or = pyq.Quaternion(grip_or[3], grip_or[0], grip_or[1], grip_or[2])
 
-        # difference:
-        diff_or = obj_or.conjugate * grip_or
-        info['orientation difference'] = diff_or
+            # difference:
+            diff_or = obj_or.conjugate * grip_or
+            info['orientation difference'] = diff_or
 
-        if CONTROLLER == 'interpolate keypoints end pause grip':
-            info['orientation difference at grab'] = diff_or_at_grab
+            if hasattr(controller, 'grip_time'):
+                info['orientation difference'] = diff_or_at_grab
 
     return (behavior, (fitness,), info)
 
@@ -424,7 +423,7 @@ def multi_full_behavior_descriptor(individual):
 
     if binary_goal:
 
-        info['orientation difference at grab'] = diff_or_at_grab
+        info['orientation difference'] = diff_or_at_grab
         behavior[3] = diff_or_at_grab[0]  # Quat to array
         behavior[4] = diff_or_at_grab[1]
         behavior[5] = diff_or_at_grab[2]
@@ -481,7 +480,7 @@ def multi_behavioral_descriptor(individual):
         if eo:
             break
         
-        if CONTROLLER == 'interpolate keypoints end pause grip':
+        if hasattr(controller, 'grip_time'):
             # we are in the case where the gripping time is given
             # in consequence, we can do the precise measure of the grabbing orientation
             if action[-1] == -1 and not grabbed:
@@ -524,30 +523,30 @@ def multi_behavioral_descriptor(individual):
     info['binary goal'] = binary_goal
 
     if binary_goal:
-        # last object orientation (quaternion)
-        obj_or = o[1]
-
-        # last gripper orientation (quaternion)
-        grip_or = o[3]
-
-        # pybullet is x, y, z, w whereas pyquaternion is w, x, y, z
-        obj_or = pyq.Quaternion(obj_or[3], obj_or[0], obj_or[1], obj_or[2])
-        grip_or = pyq.Quaternion(grip_or[3], grip_or[0], grip_or[1], grip_or[2])
-
-        # difference:
-        diff_or = obj_or.conjugate * grip_or
-        info['orientation difference'] = diff_or
-        behavior[3] = diff_or[0]  # Quat to array
-        behavior[4] = diff_or[1]
-        behavior[5] = diff_or[2]
-        behavior[6] = diff_or[3]
-
-        if CONTROLLER == 'interpolate keypoints end pause grip':
-            info['orientation difference at grab'] = diff_or_at_grab
+        if hasattr(controller, 'grip_time'):
+            info['orientation difference'] = diff_or_at_grab
             behavior[3] = diff_or_at_grab[0]  # Quat to array
             behavior[4] = diff_or_at_grab[1]
             behavior[5] = diff_or_at_grab[2]
             behavior[6] = diff_or_at_grab[3]
+        else:
+            # last object orientation (quaternion)
+            obj_or = o[1]
+
+            # last gripper orientation (quaternion)
+            grip_or = o[3]
+
+            # pybullet is x, y, z, w whereas pyquaternion is w, x, y, z
+            obj_or = pyq.Quaternion(obj_or[3], obj_or[0], obj_or[1], obj_or[2])
+            grip_or = pyq.Quaternion(grip_or[3], grip_or[0], grip_or[1], grip_or[2])
+
+            # difference:
+            diff_or = obj_or.conjugate * grip_or
+            info['orientation difference'] = diff_or
+            behavior[3] = diff_or[0]  # Quat to array
+            behavior[4] = diff_or[1]
+            behavior[5] = diff_or[2]
+            behavior[6] = diff_or[3]
 
     return (behavior, (fitness,), info)
 
@@ -594,7 +593,7 @@ def orientation_behavioral_descriptor(individual):
         if eo:
             break
         
-        if CONTROLLER == 'interpolate keypoints end pause grip':
+        if hasattr(controller, 'grip_time'):
             # we are in the case where the gripping time is given
             # in consequence, we can do the precise measure of the grabbing orientation
             if action[-1] == -1 and not grabbed:
@@ -636,25 +635,26 @@ def orientation_behavioral_descriptor(individual):
 
     # re attribute the behavior
     if binary_goal:
-        # last object orientation (quaternion)
-        obj_or = o[1]
-
-        # last gripper orientation (quaternion)
-        grip_or = o[3]
-
-        # pybullet is x, y, z, w whereas pyquaternion is w, x, y, z
-        obj_or = pyq.Quaternion(obj_or[3], obj_or[0], obj_or[1], obj_or[2])
-        grip_or = pyq.Quaternion(grip_or[3], grip_or[0], grip_or[1], grip_or[2])
-
-        # difference:
-        diff_or = obj_or.conjugate * grip_or
-        info['orientation difference'] = diff_or
-        behavior = [diff_or[0], diff_or[1], diff_or[2], diff_or[3]]  # Quat to array
-
-        if CONTROLLER == 'interpolate keypoints end pause grip':
-            info['orientation difference at grab'] = diff_or_at_grab
+        if hasattr(controller, 'grip_time'):
+            info['orientation difference'] = diff_or_at_grab
             # Quat to array
             behavior = [diff_or_at_grab[0], diff_or_at_grab[1], diff_or_at_grab[2], diff_or_at_grab[3]]
+        else:
+            # last object orientation (quaternion)
+            obj_or = o[1]
+
+            # last gripper orientation (quaternion)
+            grip_or = o[3]
+
+            # pybullet is x, y, z, w whereas pyquaternion is w, x, y, z
+            obj_or = pyq.Quaternion(obj_or[3], obj_or[0], obj_or[1], obj_or[2])
+            grip_or = pyq.Quaternion(grip_or[3], grip_or[0], grip_or[1], grip_or[2])
+
+            # difference:
+            diff_or = obj_or.conjugate * grip_or
+            info['orientation difference'] = diff_or
+            behavior = [diff_or[0], diff_or[1], diff_or[2], diff_or[3]]  # Quat to array
+
     else:
         # set behavior as None and deal with in novelty search
         behavior = None
