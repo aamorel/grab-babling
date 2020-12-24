@@ -16,7 +16,7 @@ PLOT = True
 DISPLAY_HOF = False
 DISPLAY_RAND = False
 DISPLAY_TRIUMPHANTS = False
-EVAL_SUCCESSFULL = True
+EVAL_SUCCESSFULL = False
 
 # choose parameters
 POP_SIZE = 100
@@ -154,8 +154,20 @@ def analyze_triumphants(triumphant_archive, run_name):
         # save first 3 grasping of each types
         for j in range(3):
             if len(clustered_triumphants[i]) > j:
-                np.save(run_name + 'type' + str(i) + '_' + str(j), np.around(np.array(clustered_triumphants[i][j]), 3),
+                ind = np.around(np.array(clustered_triumphants[i][j]), 3)
+
+                # debug
+                evaluation_function = bd_dict(BD)
+                res = evaluation_function(ind)
+                assert(res[2]['binary goal'])
+
+                np.save(run_name + 'type' + str(i) + '_' + str(j), ind,
                         allow_pickle=True)
+
+                # debug
+                ind_2 = np.load(run_name + 'type' + str(i) + '_' + str(j), allow_pickle=True)
+                res_2 = evaluation_function(ind_2)
+                assert(res_2[2]['binary goal'])
 
     return coverage, uniformity, clustered_triumphants
     
@@ -343,6 +355,7 @@ def multi_full_behavior_descriptor(individual):
     # initialize controller
     controller_info = controllers_info_dict[CONTROLLER]
     controller = controllers_dict[CONTROLLER](individual, controller_info)
+    assert(hasattr(controller, 'grip_time'))
     lag_time = controller.grip_time - N_LAG
     action = controller.initial_action
 
@@ -770,9 +783,9 @@ if __name__ == "__main__":
         #         res_2 = evaluation_function(ind)
         #         after = res_2[2]['binary goal']
         #         assert(before == after)
-        for j in range(2):
+        for j in range(4):
             for i in range(3):
-                path = os.path.join('../exp_results/110', 'run4', 'type' + str(j) + '_' + str(i) + '.npy')
+                path = os.path.join('../exp_results/110', 'run5', 'type' + str(j) + '_' + str(i) + '.npy')
                 ind = np.load(path, allow_pickle=True)
                 res = evaluation_function(ind)
                 before = res[2]['binary goal']
