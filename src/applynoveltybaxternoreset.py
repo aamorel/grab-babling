@@ -157,7 +157,7 @@ def analyze_triumphants(triumphant_archive, run_name):
                 ind = np.around(np.array(clustered_triumphants[i][j]), 3)
 
                 # debug
-                evaluation_function = bd_dict(BD)
+                evaluation_function = bd_dict[BD]
                 res = evaluation_function(ind)
                 assert(res[2]['binary goal'])
 

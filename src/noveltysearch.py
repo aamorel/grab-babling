@@ -680,16 +680,20 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
         print('--Generation %i --' % gen)
 
         # ###################################### SELECT ############################################
+        nb_offsprings_to_generate = int(pop_size * OFFSPRING_NB_COEFF)
         # references to selected individuals
         if algo_type == 'classic_ea':
             # classical EA: selection on fitness
-            offsprings = toolbox.select(pop, int(pop_size * OFFSPRING_NB_COEFF), fit_attr='fitness')
+            offsprings = toolbox.select(pop, nb_offsprings_to_generate, fit_attr='fitness')
         elif algo_type == 'ns_rand_multi_bd':
             # use special selection for multi novelties
-            offsprings = select_n_multi_bd_tournsize(pop, int(pop_size * OFFSPRING_NB_COEFF), TOURNSIZE, bd_filters)
+            offsprings = select_n_multi_bd_tournsize(pop, nb_offsprings_to_generate, TOURNSIZE, bd_filters)
+        elif algo_type == 'random_search':
+            # for experimental baseline
+            offsprings = random.sample(pop, nb_offsprings_to_generate)
         else:
             # novelty search: selection on novelty
-            offsprings = toolbox.select(pop, int(pop_size * OFFSPRING_NB_COEFF), fit_attr='novelty')
+            offsprings = toolbox.select(pop, nb_offsprings_to_generate, fit_attr='novelty')
         
         offsprings = list(map(toolbox.clone, offsprings))  # clone selected indivduals
 
@@ -765,6 +769,8 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
         elif algo_type == 'ns_rand_multi_bd':
             # replacement: keep the most novel individuals in case of multi novelties
             pop[:] = select_n_multi_bd_tournsize(current_pool, pop_size, TOURNSIZE, bd_filters, putback=False)
+        elif algo_type == 'random_search':
+            pop[:] = random.sample(current_pool, pop_size)
         else:
             # replacement: keep the most novel individuals
             pop[:] = toolbox.replace(current_pool, pop_size, fit_attr='novelty')

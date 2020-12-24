@@ -142,6 +142,7 @@ if __name__ == "__main__":
     
     else:
         if not NOVELTY_ANALYSIS:
+            # ################################## ARCHIVE MANAGEMENT ANALYSIS ####################################
             possible_strats = ['random', 'least_novel', 'oldest', 'grid', 'grid_density', 'gmm', 'newest']
             colors = ['blue', 'red', 'yellow', 'green', 'pink', 'brown', 'purple']
             fig, ax = plt.subplots(3, 1, figsize=(20, 15))
@@ -157,7 +158,7 @@ if __name__ == "__main__":
                     print('experience', i, 'of strat', archive_strat)
                     pop, archive, hof, info = noveltysearch.novelty_algo(evaluate_individual, INITIAL_GENOTYPE_SIZE,
                                                                          BD_BOUNDS,
-                                                                         mini=False, archive_limit_size=ARCHIVE_LIMIT,
+                                                                         mini=True, archive_limit_size=ARCHIVE_LIMIT,
                                                                          archive_limit_strat=archive_strat,
                                                                          plot=PLOT, algo_type=ALGO, nb_gen=GEN,
                                                                          parallelize=PARALLELIZE, bound_genotype=1,
@@ -197,6 +198,7 @@ if __name__ == "__main__":
                 # ax[2].fill_between(list(range(len(mean_rk_sim))), std_rk[0], std_rk[1],
                 #                    facecolor=colors[s], alpha=0.5)
             
+            # adding a run for classic ns
             coverages = []
             arch_coverages = []
             uniformities = []
@@ -205,7 +207,7 @@ if __name__ == "__main__":
             for i in range(N_EXP):
                 pop, archive, hof, info = noveltysearch.novelty_algo(evaluate_individual, INITIAL_GENOTYPE_SIZE,
                                                                      BD_BOUNDS,
-                                                                     mini=False, archive_limit_size=None,
+                                                                     mini=True, archive_limit_size=None,
                                                                      plot=PLOT, algo_type=ALGO, nb_gen=GEN,
                                                                      parallelize=PARALLELIZE, bound_genotype=1,
                                                                      measures=True, pop_size=POP_SIZE,
@@ -236,7 +238,90 @@ if __name__ == "__main__":
             ax_2[0].fill_between(list(range(GEN)), std_arch_cov[0], std_arch_cov[1], facecolor='gray', alpha=0.5)
             ax_2[1].plot(mean_arch_uni, label='no archive limit', lw=2, color='gray')
             ax_2[1].fill_between(list(range(GEN)), std_arch_uni[0], std_arch_uni[1], facecolor='gray', alpha=0.5)
-            
+
+            # adding a run for random search
+            coverages = []
+            arch_coverages = []
+            uniformities = []
+            arch_uniformities = []
+            rk_sim = []
+            for i in range(N_EXP):
+                pop, archive, hof, info = noveltysearch.novelty_algo(evaluate_individual, INITIAL_GENOTYPE_SIZE,
+                                                                     BD_BOUNDS,
+                                                                     mini=True, archive_limit_size=None,
+                                                                     plot=PLOT, algo_type='random_search', nb_gen=GEN,
+                                                                     parallelize=PARALLELIZE, bound_genotype=1,
+                                                                     measures=True, pop_size=POP_SIZE,
+                                                                     nb_cells=NB_CELLS, analyze_archive=False)
+                cov = np.array(info['coverage'])
+                uni = np.array(info['uniformity'])
+                coverages.append(cov)
+                uniformities.append(uni)
+                arch_cov = np.array(info['archive coverage'])
+                arch_uni = np.array(info['archive uniformity'])
+                arch_coverages.append(arch_cov)
+                arch_uniformities.append(arch_uni)
+
+            mean_cov = np.mean(coverages, 0)
+            std_cov = [np.percentile(coverages, 25, 0), np.percentile(coverages, 75, 0)]
+            mean_uni = np.mean(uniformities, 0)
+            std_uni = [np.percentile(uniformities, 25, 0), np.percentile(uniformities, 75, 0)]
+            mean_arch_cov = np.mean(arch_coverages, 0)
+            std_arch_cov = [np.percentile(arch_coverages, 25, 0), np.percentile(arch_coverages, 75, 0)]
+            mean_arch_uni = np.mean(arch_uniformities, 0)
+            std_arch_uni = [np.percentile(arch_uniformities, 25, 0), np.percentile(arch_uniformities, 75, 0)]
+
+            ax[0].plot(mean_cov, label='random search', lw=2, color='orange')
+            ax[0].fill_between(list(range(GEN)), std_cov[0], std_cov[1], facecolor='orange', alpha=0.5)
+            ax[1].plot(mean_uni, label='random search', lw=2, color='orange')
+            ax[1].fill_between(list(range(GEN)), std_uni[0], std_uni[1], facecolor='orange', alpha=0.5)
+            ax_2[0].plot(mean_arch_cov, label='random search', lw=2, color='orange')
+            ax_2[0].fill_between(list(range(GEN)), std_arch_cov[0], std_arch_cov[1], facecolor='orange', alpha=0.5)
+            ax_2[1].plot(mean_arch_uni, label='random search', lw=2, color='orange')
+            ax_2[1].fill_between(list(range(GEN)), std_arch_uni[0], std_arch_uni[1], facecolor='orange', alpha=0.5)
+
+            # adding a run for random search
+            coverages = []
+            arch_coverages = []
+            uniformities = []
+            arch_uniformities = []
+            rk_sim = []
+            for i in range(N_EXP):
+                pop, archive, hof, info = noveltysearch.novelty_algo(evaluate_individual, INITIAL_GENOTYPE_SIZE,
+                                                                     BD_BOUNDS,
+                                                                     mini=True, archive_limit_size=None,
+                                                                     plot=PLOT, algo_type='classic_ea',
+                                                                     parallelize=PARALLELIZE, bound_genotype=1,
+                                                                     measures=True, pop_size=POP_SIZE,
+                                                                     nb_cells=NB_CELLS, analyze_archive=False)
+                cov = np.array(info['coverage'])
+                uni = np.array(info['uniformity'])
+                coverages.append(cov)
+                uniformities.append(uni)
+                arch_cov = np.array(info['archive coverage'])
+                arch_uni = np.array(info['archive uniformity'])
+                arch_coverages.append(arch_cov)
+                arch_uniformities.append(arch_uni)
+
+            mean_cov = np.mean(coverages, 0)
+            std_cov = [np.percentile(coverages, 25, 0), np.percentile(coverages, 75, 0)]
+            mean_uni = np.mean(uniformities, 0)
+            std_uni = [np.percentile(uniformities, 25, 0), np.percentile(uniformities, 75, 0)]
+            mean_arch_cov = np.mean(arch_coverages, 0)
+            std_arch_cov = [np.percentile(arch_coverages, 25, 0), np.percentile(arch_coverages, 75, 0)]
+            mean_arch_uni = np.mean(arch_uniformities, 0)
+            std_arch_uni = [np.percentile(arch_uniformities, 25, 0), np.percentile(arch_uniformities, 75, 0)]
+
+            ax[0].plot(mean_cov, label='fitness ea', lw=2, color='cyan')
+            ax[0].fill_between(list(range(GEN)), std_cov[0], std_cov[1], facecolor='cyan', alpha=0.5)
+            ax[1].plot(mean_uni, label='fitness ea', lw=2, color='cyan')
+            ax[1].fill_between(list(range(GEN)), std_uni[0], std_uni[1], facecolor='cyan', alpha=0.5)
+            ax_2[0].plot(mean_arch_cov, label='fitness ea', lw=2, color='cyan')
+            ax_2[0].fill_between(list(range(GEN)), std_arch_cov[0], std_arch_cov[1], facecolor='cyan', alpha=0.5)
+            ax_2[1].plot(mean_arch_uni, label='fitness ea', lw=2, color='cyan')
+            ax_2[1].fill_between(list(range(GEN)), std_arch_uni[0], std_arch_uni[1], facecolor='cyan', alpha=0.5)
+
+            # generating the plot
             ax[0].set_xlabel("Generations", labelpad=15, fontsize=12, color="#333533")
             ax[1].set_xlabel("Generations", labelpad=15, fontsize=12, color="#333533")
             ax[2].set_xlabel("Iterations of reduction of archive", labelpad=15, fontsize=12, color="#333533")
@@ -268,6 +353,9 @@ if __name__ == "__main__":
             if PLOT:
                 plt.show()
         else:
+            # ################################# ANALYSIS OF ALTERATION OF NOVELTY ######################################
+
+            # looping through all degrees
             possible_degrees = [0.005, 0.01, 0.05, 0.1, 0.5, 1, 5]
             colors = ['blue', 'red', 'yellow', 'green', 'pink', 'brown', 'purple']
             fig, ax = plt.subplots(3, 1, figsize=(20, 15))
@@ -284,7 +372,7 @@ if __name__ == "__main__":
                     pop, archive, hof, info = noveltysearch.novelty_algo(evaluate_individual, INITIAL_GENOTYPE_SIZE,
                                                                          BD_BOUNDS, altered_novelty=True,
                                                                          alteration_degree=archive_strat,
-                                                                         mini=False,
+                                                                         mini=True,
                                                                          plot=PLOT, algo_type=ALGO, nb_gen=GEN,
                                                                          parallelize=PARALLELIZE, bound_genotype=1,
                                                                          measures=True, pop_size=POP_SIZE,
@@ -323,6 +411,7 @@ if __name__ == "__main__":
                 # ax[2].fill_between(list(range(len(mean_rk_sim))), std_rk[0], std_rk[1],
                 #                    facecolor=colors[s], alpha=0.5)
             
+            # adding a run for classic ns
             coverages = []
             arch_coverages = []
             uniformities = []
@@ -331,7 +420,7 @@ if __name__ == "__main__":
             for i in range(N_EXP):
                 pop, archive, hof, info = noveltysearch.novelty_algo(evaluate_individual, INITIAL_GENOTYPE_SIZE,
                                                                      BD_BOUNDS, altered_novelty=False,
-                                                                     mini=False,
+                                                                     mini=True,
                                                                      plot=PLOT, algo_type=ALGO, nb_gen=GEN,
                                                                      parallelize=PARALLELIZE, bound_genotype=1,
                                                                      measures=True, pop_size=POP_SIZE,
@@ -362,6 +451,88 @@ if __name__ == "__main__":
             ax_2[0].fill_between(list(range(GEN)), std_arch_cov[0], std_arch_cov[1], facecolor='gray', alpha=0.5)
             ax_2[1].plot(mean_arch_uni, label='no alteration', lw=2, color='gray')
             ax_2[1].fill_between(list(range(GEN)), std_arch_uni[0], std_arch_uni[1], facecolor='gray', alpha=0.5)
+
+            # adding a run for random search
+            coverages = []
+            arch_coverages = []
+            uniformities = []
+            arch_uniformities = []
+            rk_sim = []
+            for i in range(N_EXP):
+                pop, archive, hof, info = noveltysearch.novelty_algo(evaluate_individual, INITIAL_GENOTYPE_SIZE,
+                                                                     BD_BOUNDS, altered_novelty=False,
+                                                                     mini=True,
+                                                                     plot=PLOT, algo_type='random_search', nb_gen=GEN,
+                                                                     parallelize=PARALLELIZE, bound_genotype=1,
+                                                                     measures=True, pop_size=POP_SIZE,
+                                                                     nb_cells=NB_CELLS)
+                cov = np.array(info['coverage'])
+                uni = np.array(info['uniformity'])
+                coverages.append(cov)
+                uniformities.append(uni)
+                arch_cov = np.array(info['archive coverage'])
+                arch_uni = np.array(info['archive uniformity'])
+                arch_coverages.append(arch_cov)
+                arch_uniformities.append(arch_uni)
+
+            mean_cov = np.mean(coverages, 0)
+            std_cov = [np.percentile(coverages, 25, 0), np.percentile(coverages, 75, 0)]
+            mean_uni = np.mean(uniformities, 0)
+            std_uni = [np.percentile(uniformities, 25, 0), np.percentile(uniformities, 75, 0)]
+            mean_arch_cov = np.mean(arch_coverages, 0)
+            std_arch_cov = [np.percentile(arch_coverages, 25, 0), np.percentile(arch_coverages, 75, 0)]
+            mean_arch_uni = np.mean(arch_uniformities, 0)
+            std_arch_uni = [np.percentile(arch_uniformities, 25, 0), np.percentile(arch_uniformities, 75, 0)]
+
+            ax[0].plot(mean_cov, label='random search', lw=2, color='orange')
+            ax[0].fill_between(list(range(GEN)), std_cov[0], std_cov[1], facecolor='orange', alpha=0.5)
+            ax[1].plot(mean_uni, label='random search', lw=2, color='orange')
+            ax[1].fill_between(list(range(GEN)), std_uni[0], std_uni[1], facecolor='orange', alpha=0.5)
+            ax_2[0].plot(mean_arch_cov, label='random search', lw=2, color='orange')
+            ax_2[0].fill_between(list(range(GEN)), std_arch_cov[0], std_arch_cov[1], facecolor='orange', alpha=0.5)
+            ax_2[1].plot(mean_arch_uni, label='random search', lw=2, color='orange')
+            ax_2[1].fill_between(list(range(GEN)), std_arch_uni[0], std_arch_uni[1], facecolor='orange', alpha=0.5)
+
+            # adding a run for fitness ea
+            coverages = []
+            arch_coverages = []
+            uniformities = []
+            arch_uniformities = []
+            rk_sim = []
+            for i in range(N_EXP):
+                pop, archive, hof, info = noveltysearch.novelty_algo(evaluate_individual, INITIAL_GENOTYPE_SIZE,
+                                                                     BD_BOUNDS, altered_novelty=False,
+                                                                     mini=True,
+                                                                     plot=PLOT, algo_type='classic_ea', nb_gen=GEN,
+                                                                     parallelize=PARALLELIZE, bound_genotype=1,
+                                                                     measures=True, pop_size=POP_SIZE,
+                                                                     nb_cells=NB_CELLS)
+                cov = np.array(info['coverage'])
+                uni = np.array(info['uniformity'])
+                coverages.append(cov)
+                uniformities.append(uni)
+                arch_cov = np.array(info['archive coverage'])
+                arch_uni = np.array(info['archive uniformity'])
+                arch_coverages.append(arch_cov)
+                arch_uniformities.append(arch_uni)
+
+            mean_cov = np.mean(coverages, 0)
+            std_cov = [np.percentile(coverages, 25, 0), np.percentile(coverages, 75, 0)]
+            mean_uni = np.mean(uniformities, 0)
+            std_uni = [np.percentile(uniformities, 25, 0), np.percentile(uniformities, 75, 0)]
+            mean_arch_cov = np.mean(arch_coverages, 0)
+            std_arch_cov = [np.percentile(arch_coverages, 25, 0), np.percentile(arch_coverages, 75, 0)]
+            mean_arch_uni = np.mean(arch_uniformities, 0)
+            std_arch_uni = [np.percentile(arch_uniformities, 25, 0), np.percentile(arch_uniformities, 75, 0)]
+
+            ax[0].plot(mean_cov, label='fitness ea', lw=2, color='cyan')
+            ax[0].fill_between(list(range(GEN)), std_cov[0], std_cov[1], facecolor='cyan', alpha=0.5)
+            ax[1].plot(mean_uni, label='fitness ea', lw=2, color='cyan')
+            ax[1].fill_between(list(range(GEN)), std_uni[0], std_uni[1], facecolor='cyan', alpha=0.5)
+            ax_2[0].plot(mean_arch_cov, label='fitness ea', lw=2, color='cyan')
+            ax_2[0].fill_between(list(range(GEN)), std_arch_cov[0], std_arch_cov[1], facecolor='cyan', alpha=0.5)
+            ax_2[1].plot(mean_arch_uni, label='fitness ea', lw=2, color='cyan')
+            ax_2[1].fill_between(list(range(GEN)), std_arch_uni[0], std_arch_uni[1], facecolor='cyan', alpha=0.5)
             
             ax[0].set_xlabel("Generations", labelpad=15, fontsize=12, color="#333533")
             ax[1].set_xlabel("Generations", labelpad=15, fontsize=12, color="#333533")
@@ -376,6 +547,7 @@ if __name__ == "__main__":
             ax[2].set_facecolor("#ffebb8")
             ax[2].legend(loc=4)
 
+            # generating the plot
             ax_2[0].set_xlabel("Generations", labelpad=15, fontsize=12, color="#333533")
             ax_2[1].set_xlabel("Generations", labelpad=15, fontsize=12, color="#333533")
             ax_2[2].set_xlabel("Iterations of novelty computation", labelpad=15, fontsize=12, color="#333533")
