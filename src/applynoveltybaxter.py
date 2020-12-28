@@ -159,8 +159,20 @@ def analyze_triumphants(triumphant_archive, run_name):
         # save first 3 grasping of each types
         for j in range(3):
             if len(clustered_triumphants[i]) > j:
-                np.save(run_name + 'type' + str(i) + '_' + str(j), np.around(np.array(clustered_triumphants[i][j]), 3),
+                ind = np.around(np.array(clustered_triumphants[i][j]), 3)
+
+                # debug
+                evaluation_function = bd_dict[BD]
+                res = evaluation_function(ind)
+                assert(res[2]['binary goal'])
+
+                np.save(run_name + 'type' + str(i) + '_' + str(j), ind,
                         allow_pickle=True)
+
+                # debug
+                ind_2 = np.load(run_name + 'type' + str(i) + '_' + str(j) + '.npy', allow_pickle=True)
+                res_2 = evaluation_function(ind_2)
+                assert(res_2[2]['binary goal'])
 
     return coverage, uniformity, clustered_triumphants
     

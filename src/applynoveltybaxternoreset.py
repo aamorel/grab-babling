@@ -16,7 +16,7 @@ PLOT = True
 DISPLAY_HOF = False
 DISPLAY_RAND = False
 DISPLAY_TRIUMPHANTS = False
-EVAL_SUCCESSFULL = False
+EVAL_SUCCESSFULL = True
 
 # choose parameters
 POP_SIZE = 100
@@ -785,7 +785,7 @@ if __name__ == "__main__":
         #         assert(before == after)
         for j in range(4):
             for i in range(3):
-                path = os.path.join('../exp_results/110', 'run5', 'type' + str(j) + '_' + str(i) + '.npy')
+                path = os.path.join('../exp_results/106', 'run11', 'type' + str(j) + '_' + str(i) + '.npy')
                 ind = np.load(path, allow_pickle=True)
                 res = evaluation_function(ind)
                 before = res[2]['binary goal']
