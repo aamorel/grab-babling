@@ -356,7 +356,7 @@ if __name__ == "__main__":
             # ################################# ANALYSIS OF ALTERATION OF NOVELTY ######################################
 
             # looping through all degrees
-            possible_degrees = [0.005, 0.01, 0.05, 0.1, 0.5, 1, 5]
+            possible_degrees = [0.1, 0.5, 1, 5, 10, 20, 100]
             colors = ['blue', 'red', 'yellow', 'green', 'pink', 'brown', 'purple']
             fig, ax = plt.subplots(3, 1, figsize=(20, 15))
             fig_2, ax_2 = plt.subplots(3, 1, figsize=(20, 15))

@@ -165,7 +165,7 @@ def analyze_triumphants(triumphant_archive, run_name):
                         allow_pickle=True)
 
                 # debug
-                ind_2 = np.load(run_name + 'type' + str(i) + '_' + str(j), allow_pickle=True)
+                ind_2 = np.load(run_name + 'type' + str(i) + '_' + str(j) + '.npy', allow_pickle=True)
                 res_2 = evaluation_function(ind_2)
                 assert(res_2[2]['binary goal'])
 

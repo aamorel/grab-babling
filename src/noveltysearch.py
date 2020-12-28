@@ -195,17 +195,24 @@ def assess_novelties(pop, archive, algo_type, bd_bounds, bd_indexes, bd_filters,
                 novelties.append((0.0,))
         if altered:
             # experimental condition: alter the novelties
+
+            # compute ranking before
             nov_n = np.array(novelties).flatten()
             order = nov_n.argsort()
             ranking_before = order.argsort()
+
             mean_nov = np.mean(nov_n)
             rand_range = mean_nov * degree
             for i, nov in enumerate(novelties):
                 # each novelty is incremented by a random float between -rand_range and rang_range
                 novelties[i] = (nov[0] + (random.random() * 2 - 0.5) * rand_range,)
+            
+            # compute ranking after (using altered novelties)
             nov_n = np.array(novelties).flatten()
             order = nov_n.argsort()
             ranking_after = order.argsort()
+
+            # compute rankings similarity
             ranking_similarity = stats.kendalltau(ranking_before, ranking_after)[0]
             info['ranking similarities novelty'].append(ranking_similarity)
 
