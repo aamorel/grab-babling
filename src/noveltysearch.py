@@ -713,10 +713,6 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
             operate_offsprings(offsprings, toolbox, bound_genotype)  # crossover and mutation
         # now, offsprings have their correct genetic information
 
-        # add all generated individuals to historic
-        for member in offsprings:
-            add_to_grid(member, grid_hist, cvt, measures, algo_type, bd_filters)
-
         # ###################################### EVALUATE ############################################
         # current pool is old population + generated offsprings
         current_pool = pop + offsprings
@@ -740,6 +736,10 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
         for ind, nov in zip(current_pool, novelties):
             ind.novelty.values = nov
         # an individual with bd = None will have 0 novelty
+
+        # add all generated individuals to historic
+        for member in offsprings:
+            add_to_grid(member, grid_hist, cvt, measures, algo_type, bd_filters)
  
         # ###################################### FILL ARCHIVE ############################################
         # fill archive with individuals from the offsprings group (direct references to those individuals)

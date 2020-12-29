@@ -111,9 +111,9 @@ if __name__ == "__main__":
         archive_strat = 'least_novel'
         
         pop, archive, hof, info = noveltysearch.novelty_algo(evaluate_individual, INITIAL_GENOTYPE_SIZE, BD_BOUNDS,
-                                                             mini=True, archive_limit_size=ARCHIVE_LIMIT,
+                                                             mini=True, archive_limit_size=None,
                                                              archive_limit_strat=archive_strat,
-                                                             plot=PLOT, algo_type=ALGO, nb_gen=GEN,
+                                                             plot=PLOT, algo_type='classic_ea', nb_gen=GEN,
                                                              parallelize=PARALLELIZE,
                                                              measures=True, pop_size=POP_SIZE, nb_cells=NB_CELLS)
 
