@@ -10,7 +10,7 @@ from deap import base, creator
 EXAMPLE = False
 DISPLAY = False
 PARALLELIZE = True
-GEN = 100
+GEN = 10
 POP_SIZE = 100
 ARCHIVE_LIMIT = 200
 NB_CELLS = 100
@@ -19,8 +19,8 @@ INITIAL_GENOTYPE_SIZE = 12
 N_EXP = 30
 
 ALGO = 'ns_rand'
-PLOT = False
-ARCHIVE_ANALYSIS = True
+PLOT = True
+ARCHIVE_ANALYSIS = False
 NOVELTY_ANALYSIS = True
 
 if PARALLELIZE:
@@ -113,7 +113,7 @@ if __name__ == "__main__":
         pop, archive, hof, info = noveltysearch.novelty_algo(evaluate_individual, INITIAL_GENOTYPE_SIZE, BD_BOUNDS,
                                                              mini=True, archive_limit_size=None,
                                                              archive_limit_strat=archive_strat,
-                                                             plot=PLOT, algo_type='classic_ea', nb_gen=GEN,
+                                                             plot=PLOT, algo_type='ns_rand', nb_gen=GEN,
                                                              parallelize=PARALLELIZE,
                                                              measures=True, pop_size=POP_SIZE, nb_cells=NB_CELLS)
 

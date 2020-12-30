@@ -3,6 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from deap import tools, base
 from scipy.spatial import cKDTree as KDTree
+from sklearn.neighbors import NearestNeighbors as Nearest
 import scipy.stats as stats
 from scoop import futures
 import utils
@@ -111,22 +112,33 @@ def compute_average_distance(query, k_tree):
 
     Args:
         query (List): behavioral descriptor of individual
-        k_tree (KDTree): tree in the behavior descriptor space
+        k_tree (KDTree or Nearest): tree in the behavior descriptor space
 
     Returns:
         float: average distance to the K nearest neighbours
     """
-    # find K nearest neighbours and distances
-    neighbours = k_tree.query(query, range(2, K + 2))[0]
-    # beware: if K > number of points in tree, missing neighbors are associated with infinite distances
-    # workaround:
-    real_neighbours = neighbours[neighbours < INF]
-    # compute mean distance
-    avg_distance = np.mean(real_neighbours)
+    if isinstance(k_tree, KDTree):
+        # no used anymore but kept in case
+        # find K nearest neighbours and distances
+        neighbours_distances = k_tree.query(query, range(2, K + 2))[0]
+        # beware: if K > number of points in tree, missing neighbors are associated with infinite distances
+        # workaround:
+        real_neighbours_distances = neighbours_distances[neighbours_distances < INF]
+        # compute mean distance
+        avg_distance = np.mean(real_neighbours_distances)
+    if isinstance(k_tree, Nearest):
+        n_samples = k_tree.n_samples_fit_
+        query = np.array(query)
+        if n_samples >= K + 1:
+            neighbours_distances = k_tree.kneighbors(X=query.reshape(1, -1))[0][0][1:]
+        else:
+            neighbours_distances = k_tree.kneighbors(X=query.reshape(1, -1), n_neighbors=n_samples)[0][0][1:]
+        avg_distance = np.mean(neighbours_distances)
     return avg_distance,
 
 
-def assess_novelties(pop, archive, algo_type, bd_bounds, bd_indexes, bd_filters, altered=False, degree=None, info=None):
+def assess_novelties(pop, archive, algo_type, bd_bounds, bd_indexes, bd_filters, novelty_metric,
+                     altered=False, degree=None, info=None):
     """Compute novelties of current population
 
     Args:
@@ -161,8 +173,9 @@ def assess_novelties(pop, archive, algo_type, bd_bounds, bd_indexes, bd_filters,
                     bd_lists[idx].append(bd[bd_filter])
         for idx in range(nb_bd):
             if len(bd_lists[idx]) > 0:
-                kd_tree = KDTree(bd_lists[idx])
-                k_trees.append(kd_tree)
+                neigh = Nearest(n_neighbors=K + 1, metric=novelty_metric[idx])
+                neigh.fit(bd_lists[idx])
+                k_trees.append(neigh)
             else:
                 k_trees.append(None)
 
@@ -186,7 +199,8 @@ def assess_novelties(pop, archive, algo_type, bd_bounds, bd_indexes, bd_filters,
     else:
         # extract all the behavior descriptors that are not None to create the tree
         b_ds = [ind.behavior_descriptor.values for ind in reference_pop if ind.behavior_descriptor.values is not None]
-        k_tree = KDTree(b_ds)
+        k_tree = Nearest(n_neighbors=K + 1, metric=novelty_metric)
+        k_tree.fit(b_ds)
         # compute novelty for current individuals (loop only on the pop)
         for i in range(len(pop)):
             if b_descriptors[i] is not None:
@@ -564,7 +578,7 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
                  algo_type='ns_nov', bound_genotype=5, pop_size=30, parallelize=False,
                  measures=False, run_name=None, choose_evaluate=None, bd_indexes=None, archive_limit_size=None,
                  archive_limit_strat='random', nb_cells=1000, analyze_archive=False, altered_novelty=False,
-                 alteration_degree=None):
+                 alteration_degree=None, novelty_metric='minkowski'):
 
     # each individual will have a unique id
     global id_counter
@@ -660,7 +674,7 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
         ind.info.values = inf
         ind.fitness.values = fit
 
-    novelties = assess_novelties(pop, archive, algo_type, bd_bounds, bd_indexes, bd_filters,
+    novelties = assess_novelties(pop, archive, algo_type, bd_bounds, bd_indexes, bd_filters, novelty_metric,
                                  altered=altered_novelty, degree=alteration_degree, info=details)
     for ind, nov in zip(pop, novelties):
         ind.novelty.values = nov
@@ -731,7 +745,8 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
             ind.fitness.values = fit
 
         # compute novelty for all current individuals (novelty of population may have changed)
-        novelties = assess_novelties(current_pool, archive, algo_type, bd_bounds, bd_indexes, bd_filters,
+        novelties = assess_novelties(current_pool, archive, algo_type, bd_bounds, bd_indexes, bd_filters, 
+                                     novelty_metric,
                                      altered=altered_novelty, degree=alteration_degree, info=details)
         for ind, nov in zip(current_pool, novelties):
             ind.novelty.values = nov
@@ -795,7 +810,8 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
             if len(archive) >= archive_limit_size:
                 if analyze_archive:
                     # monitor the change of ranking of novelties of population
-                    novelties = assess_novelties(pop, pop + archive, algo_type, bd_bounds, bd_indexes, bd_filters)
+                    novelties = assess_novelties(pop, pop + archive, algo_type, bd_bounds, bd_indexes, bd_filters,
+                                                 novelty_metric)
                     nov_n = np.array([nov[0] for nov in novelties])
                     order = nov_n.argsort()
                     ranking_before = order.argsort()
@@ -823,7 +839,8 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
 
                 if archive_limit_strat == 'least_novel':
                     # strategy 3: remove least novel individuals
-                    novelties = assess_novelties(archive, archive, algo_type, bd_bounds, bd_indexes, bd_filters)
+                    novelties = assess_novelties(archive, archive, algo_type, bd_bounds, bd_indexes, bd_filters,
+                                                 novelty_metric)
                     nov_n = np.array([nov[0] for nov in novelties])
                     removal_indices = np.argpartition(nov_n, nb_ind_to_remove)[:nb_ind_to_remove]
                     for idx in removal_indices:
@@ -1002,7 +1019,8 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
                 assert((original_len - len(archive)) == nb_ind_to_remove)
                 if analyze_archive:
                     # monitor the change of ranking of novelties of population
-                    novelties = assess_novelties(pop, pop + archive, algo_type, bd_bounds, bd_indexes, bd_filters)
+                    novelties = assess_novelties(pop, pop + archive, algo_type, bd_bounds, bd_indexes, bd_filters,
+                                                 novelty_metric)
                     nov_n = np.array([nov[0] for nov in novelties])
                     order = nov_n.argsort()
                     ranking_after = order.argsort()

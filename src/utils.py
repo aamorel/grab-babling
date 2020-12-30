@@ -2,6 +2,8 @@ import numpy as np
 from sklearn.cluster import KMeans
 from scipy.spatial import cKDTree as KDTree
 from scipy.spatial import distance
+from numpy import linalg as LA
+
 
 color_list = ["#000000", "#FFFF00", "#1CE6FF", "#FF34FF", "#FF4A46", "#008941", "#006FA6", "#A30059",
               "#FFDBE5", "#7A4900", "#0000A6", "#63FFAC", "#B79762", "#004D43", "#8FB0FF", "#997D87",
@@ -87,3 +89,27 @@ def compute_uniformity(grid):
     Q = np.ones(len(P)) / len(P)
     uniformity = 1 - distance.jensenshannon(P, Q)
     return uniformity
+
+
+def quatmetric(a, b):
+    """Takes as input two 4-dimensional arrays representing quaternion and returns a significative
+       distance between the two orientations.
+       Inspired by 'Comparing Distance Metrics for Rotation Using the k-Nearest Neighbors Algorithm for 
+       Entropy Estimation' and PyQuaternion.
+
+    Args:
+        a (ndarray): first quaternion
+        b (ndarray): second quaternion
+
+    Returns:
+        float: distance between 0 and 1
+    """
+    aminusb = a - b
+    aplusb = a + b
+    normminus = LA.norm(aminusb)
+    normplus = LA.norm(aplusb)
+    
+    if normminus < normplus:
+        return normminus
+    else:
+        return normplus
