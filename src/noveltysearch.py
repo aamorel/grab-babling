@@ -148,7 +148,7 @@ def assess_novelties(pop, archive, algo_type, bd_bounds, bd_indexes, bd_filters,
     Returns:
         list: list of novelties of current individuals
     """
-    if not archive:
+    if not archive or algo_type == 'ns_no_archive':
         # archive is empty --> only consider current population
         reference_pop = pop
     else:

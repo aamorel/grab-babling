@@ -21,7 +21,8 @@ N_EXP = 30
 ALGO = 'ns_rand'
 PLOT = True
 ARCHIVE_ANALYSIS = False
-NOVELTY_ANALYSIS = True
+NOVELTY_ANALYSIS = False
+SIMPLE_RUN = False
 
 if PARALLELIZE:
     # container for behavior descriptor
@@ -107,39 +108,133 @@ def evaluate_individual(individual):
 
 if __name__ == "__main__":
     if not ARCHIVE_ANALYSIS:
+        if SIMPLE_RUN:
 
-        archive_strat = 'least_novel'
-        
-        pop, archive, hof, info = noveltysearch.novelty_algo(evaluate_individual, INITIAL_GENOTYPE_SIZE, BD_BOUNDS,
-                                                             mini=True, archive_limit_size=None,
-                                                             archive_limit_strat=archive_strat,
-                                                             plot=PLOT, algo_type='ns_rand', nb_gen=GEN,
-                                                             parallelize=PARALLELIZE,
-                                                             measures=True, pop_size=POP_SIZE, nb_cells=NB_CELLS)
-
-        if PLOT:
-            # plot final states
-            env = gym.make('FastsimSimpleNavigation-v0')
-            env.reset()
-            maze = env.map.get_data()
-            maze = np.array([str(pix) for pix in maze])
-            maze[maze == 'status_t.obstacle'] = 0.0
-            maze[maze == 'status_t.free'] = 1.0
-            maze = np.reshape(maze, (200, 200))
-            maze = np.array(maze, dtype='float')
-            archive_behavior = np.array([ind.behavior_descriptor.values for ind in archive])
-            pop_behavior = np.array([ind.behavior_descriptor.values for ind in pop])
-            hof_behavior = np.array([ind.behavior_descriptor.values for ind in hof])
-            fig, ax = plt.subplots(figsize=(5, 5))
-            ax.set(title='Final Archive', xlabel='x1', ylabel='x2')
-            ax.imshow(maze)
-            ax.scatter(archive_behavior[:, 0] / 3, archive_behavior[:, 1] / 3, color='red', label='Archive')
-            ax.scatter(pop_behavior[:, 0] / 3, pop_behavior[:, 1] / 3, color='blue', label='Population')
-            ax.scatter(hof_behavior[:, 0] / 3, hof_behavior[:, 1] / 3, color='green', label='Hall of Fame')
-            plt.legend()
+            archive_strat = 'least_novel'
             
-        plt.show()
-    
+            pop, archive, hof, info = noveltysearch.novelty_algo(evaluate_individual, INITIAL_GENOTYPE_SIZE, BD_BOUNDS,
+                                                                 mini=True, archive_limit_size=None,
+                                                                 archive_limit_strat=archive_strat,
+                                                                 plot=PLOT, algo_type='ns_rand', nb_gen=GEN,
+                                                                 parallelize=PARALLELIZE,
+                                                                 measures=True, pop_size=POP_SIZE, nb_cells=NB_CELLS)
+
+            if PLOT:
+                # plot final states
+                env = gym.make('FastsimSimpleNavigation-v0')
+                env.reset()
+                maze = env.map.get_data()
+                maze = np.array([str(pix) for pix in maze])
+                maze[maze == 'status_t.obstacle'] = 0.0
+                maze[maze == 'status_t.free'] = 1.0
+                maze = np.reshape(maze, (200, 200))
+                maze = np.array(maze, dtype='float')
+                archive_behavior = np.array([ind.behavior_descriptor.values for ind in archive])
+                pop_behavior = np.array([ind.behavior_descriptor.values for ind in pop])
+                hof_behavior = np.array([ind.behavior_descriptor.values for ind in hof])
+                fig, ax = plt.subplots(figsize=(5, 5))
+                ax.set(title='Final Archive', xlabel='x1', ylabel='x2')
+                ax.imshow(maze)
+                ax.scatter(archive_behavior[:, 0] / 3, archive_behavior[:, 1] / 3, color='red', label='Archive')
+                ax.scatter(pop_behavior[:, 0] / 3, pop_behavior[:, 1] / 3, color='blue', label='Population')
+                ax.scatter(hof_behavior[:, 0] / 3, hof_behavior[:, 1] / 3, color='green', label='Hall of Fame')
+                plt.legend()
+                
+            plt.show()
+        else:
+            # ############################### ANALYSI IMPORTANCE OF ARCHIVE #####################################
+            fig, ax = plt.subplots(2, 1, figsize=(20, 15))
+            # adding a run for classic ns
+            coverages = []
+            uniformities = []
+            for i in range(N_EXP):
+                pop, archive, hof, info = noveltysearch.novelty_algo(evaluate_individual, INITIAL_GENOTYPE_SIZE,
+                                                                     BD_BOUNDS,
+                                                                     mini=True, archive_limit_size=None,
+                                                                     plot=PLOT, algo_type='ns_rand', nb_gen=GEN,
+                                                                     parallelize=PARALLELIZE, bound_genotype=1,
+                                                                     measures=True, pop_size=POP_SIZE,
+                                                                     nb_cells=NB_CELLS)
+                cov = np.array(info['coverage'])
+                uni = np.array(info['uniformity'])
+                coverages.append(cov)
+                uniformities.append(uni)
+
+            mean_cov = np.mean(coverages, 0)
+            std_cov = [np.percentile(coverages, 25, 0), np.percentile(coverages, 75, 0)]
+            mean_uni = np.mean(uniformities, 0)
+            std_uni = [np.percentile(uniformities, 25, 0), np.percentile(uniformities, 75, 0)]
+
+            ax[0].plot(mean_cov, label='classic ns', lw=2, color='grey')
+            ax[0].fill_between(list(range(GEN)), std_cov[0], std_cov[1], facecolor='grey', alpha=0.5)
+            ax[1].plot(mean_uni, label='classic ns', lw=2, color='grey')
+            ax[1].fill_between(list(range(GEN)), std_uni[0], std_uni[1], facecolor='grey', alpha=0.5)
+
+            # adding a run for no archive ns
+            coverages = []
+            uniformities = []
+            for i in range(N_EXP):
+                pop, archive, hof, info = noveltysearch.novelty_algo(evaluate_individual, INITIAL_GENOTYPE_SIZE,
+                                                                     BD_BOUNDS,
+                                                                     mini=True, archive_limit_size=None,
+                                                                     plot=PLOT, algo_type='ns_no_archive',
+                                                                     parallelize=PARALLELIZE, bound_genotype=1,
+                                                                     measures=True, pop_size=POP_SIZE,
+                                                                     nb_cells=NB_CELLS, analyze_archive=False)
+                cov = np.array(info['coverage'])
+                uni = np.array(info['uniformity'])
+                coverages.append(cov)
+                uniformities.append(uni)
+
+            mean_cov = np.mean(coverages, 0)
+            std_cov = [np.percentile(coverages, 25, 0), np.percentile(coverages, 75, 0)]
+            mean_uni = np.mean(uniformities, 0)
+            std_uni = [np.percentile(uniformities, 25, 0), np.percentile(uniformities, 75, 0)]
+
+            ax[0].plot(mean_cov, label='no archive', lw=2, color='green')
+            ax[0].fill_between(list(range(GEN)), std_cov[0], std_cov[1], facecolor='green', alpha=0.5)
+            ax[1].plot(mean_uni, label='no archive', lw=2, color='green')
+            ax[1].fill_between(list(range(GEN)), std_uni[0], std_uni[1], facecolor='green', alpha=0.5)
+
+            # adding a run for random search
+            coverages = []
+            uniformities = []
+            for i in range(N_EXP):
+                pop, archive, hof, info = noveltysearch.novelty_algo(evaluate_individual, INITIAL_GENOTYPE_SIZE,
+                                                                     BD_BOUNDS,
+                                                                     mini=True, archive_limit_size=None,
+                                                                     plot=PLOT, algo_type='random_search',
+                                                                     parallelize=PARALLELIZE, bound_genotype=1,
+                                                                     measures=True, pop_size=POP_SIZE,
+                                                                     nb_cells=NB_CELLS, analyze_archive=False)
+                cov = np.array(info['coverage'])
+                uni = np.array(info['uniformity'])
+                coverages.append(cov)
+                uniformities.append(uni)
+
+            mean_cov = np.mean(coverages, 0)
+            std_cov = [np.percentile(coverages, 25, 0), np.percentile(coverages, 75, 0)]
+            mean_uni = np.mean(uniformities, 0)
+            std_uni = [np.percentile(uniformities, 25, 0), np.percentile(uniformities, 75, 0)]
+
+            ax[0].plot(mean_cov, label='random search', lw=2, color='orange')
+            ax[0].fill_between(list(range(GEN)), std_cov[0], std_cov[1], facecolor='orange', alpha=0.5)
+            ax[1].plot(mean_uni, label='random search', lw=2, color='orange')
+            ax[1].fill_between(list(range(GEN)), std_uni[0], std_uni[1], facecolor='orange', alpha=0.5)
+
+            # generating the plot
+            ax[0].set_xlabel("Generations", labelpad=15, fontsize=12, color="#333533")
+            ax[1].set_xlabel("Generations", labelpad=15, fontsize=12, color="#333533")
+            ax[0].set_ylabel("Mean coverage", labelpad=15, fontsize=12, color="#333533")
+            ax[0].set_facecolor("#ffebb8")
+            ax[0].legend(loc=4)
+            ax[1].set_facecolor("#ffebb8")
+            ax[1].set_ylabel("Mean uniformity", labelpad=15, fontsize=12, color="#333533")
+            ax[1].legend(loc=2)
+
+            fig.savefig('archive_importance_maze.png')
+            if PLOT:
+                plt.show()
     else:
         if not NOVELTY_ANALYSIS:
             # ################################## ARCHIVE MANAGEMENT ANALYSIS ####################################
