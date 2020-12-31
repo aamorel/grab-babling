@@ -348,6 +348,8 @@ def multi_full_behavior_descriptor(individual):
     the difference of orientation between the gripper and the object at gripping time, eligible if the object is grabbed
     the orientation of the gripper N_LAG steps before the gripping time, always eligible
 
+    variant of the second descriptor can be simply the orientation of the gripper at gripping time (same eligibility)
+
     Args:
         individual (Individual): an individual
 
@@ -440,10 +442,16 @@ def multi_full_behavior_descriptor(individual):
     if binary_goal:
 
         info['orientation difference'] = diff_or_at_grab
-        behavior[3] = diff_or_at_grab[0]  # Quat to array
-        behavior[4] = diff_or_at_grab[1]
-        behavior[5] = diff_or_at_grab[2]
-        behavior[6] = diff_or_at_grab[3]
+        # behavior[3] = diff_or_at_grab[0]  # Quat to array
+        # behavior[4] = diff_or_at_grab[1]
+        # behavior[5] = diff_or_at_grab[2]
+        # behavior[6] = diff_or_at_grab[3]
+
+        # variant
+        behavior[3] = grip_or[0]  # Quat to array
+        behavior[4] = grip_or[1]
+        behavior[5] = grip_or[2]
+        behavior[6] = grip_or[3]
     
     behavior.append(grip_or_lag[3])
     behavior.append(grip_or_lag[0])

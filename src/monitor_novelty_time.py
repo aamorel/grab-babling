@@ -104,8 +104,8 @@ def analyse_time(pop_size, archive_size, behavior_size, algo_type, archive_gener
 
 
 bar_width = 0.5
-pop_size = 10
-archive_generation_type = 'structured'
+pop_size = 100
+archive_generation_type = 'uniform'
 archive_sizes = [1000, 10000, 100000]
 behavior_size = 5
 algo_types = ['ball_tree', 'kd_tree', 'brute']
@@ -129,12 +129,12 @@ for i, algo_type in enumerate(algo_types):
     for j, bar in enumerate(bars):
         bars[j] += j * bar_width
     b.append(bars)
-    ax.bar(bars, means, width=bar_width, label='Algo type is ' + str(algo_type))
+    ax.bar(bars, means, width=bar_width, label='Algo type: ' + str(algo_type))
 ax.legend()
 ax.set_yscale('log')
-ax.set_ylabel('Novelty computational time')
+ax.set_ylabel('Novelty computational time (s)')
 ax.set_xlabel('Archive size')
-ax.set_title('Novelty computational time')
+ax.set_title('Novelty computational time with respect to archive size')
 labels = archive_sizes * len(algo_types)
 b = np.array(b)
 b = b.flatten()
