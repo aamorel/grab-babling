@@ -24,7 +24,7 @@ count_save = 0
 quat = 0
 
 
-def callback_save():
+def callback_save(k):
     global quat, count_save
     print('saving orientation', quat)
     quat = np.array(quat)

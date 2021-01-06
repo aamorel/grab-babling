@@ -8,9 +8,9 @@ import pybullet as p
 import pybullet_data
 import time
 
-VIZ = True
+job = 'viz'  # viz or ana or cov
 
-if not VIZ:
+if job == 'ana':
     n_samples = 1000
     K = 20
     n_clusts = [10, 20, 30, 40, 50, 60, 70, 80, 90]
@@ -113,7 +113,7 @@ if not VIZ:
         print('for', n_clust, 'clusters, custom mean distance is', mean_distance_custom)
         print('classic mean distance is', mean_distance_classic)
 
-else:
+if job == 'viz':
     n_samples = 1000
     K = 20
     n_clust = 200
@@ -121,8 +121,6 @@ else:
     n_test = 500
 
     sqrt_2 = math.sqrt(2)
-
-    cvt = utils.CVT(n_clust, bounds=[[-1, 1], [-1, 1], [-1, 1], [-1, 1]])
 
     quats = []
     quats_arr = []
@@ -189,3 +187,62 @@ else:
 
             j += 1
     p.disconnect()
+
+
+if job == 'cov':
+    n_samples = 1000
+    K = 20
+    n_clust = 200
+    n_test = 22
+    sqrt_2 = math.sqrt(2)
+
+    cvt = utils.CVT(n_clust, bounds=[[-1, 1], [-1, 1], [-1, 1], [-1, 1]])
+
+    quats = []
+    quats_arr = []
+    for _ in range(n_samples):
+        a = pyq.Quaternion.random()
+        a = a.normalised
+        quats.append(a)
+        quats_arr.append(a.elements)
+
+    quats_arr = np.array(quats_arr)
+
+    # compute similarity matrix
+    X = np.zeros((n_samples, n_samples))
+    for x in range(n_samples):
+        for y in range(n_samples):
+            if x == y:
+                X[x, y] = 1
+            else:
+                a = quats[x]
+                b = quats[y]
+                X[x, y] = (sqrt_2 - pyq.Quaternion.absolute_distance(a, b)) / sqrt_2
+
+    clustering = SC(n_clusters=n_clust, affinity='precomputed')
+    clustering.fit(X)
+    samples_labels = clustering.labels_
+    neigh = Nearest(n_neighbors=K, metric=utils.quatmetric)
+    neigh.fit(quats_arr)
+
+    labels = []
+    labels_cvt = []
+    for i in range(n_test):
+        quat = np.load('orientation_' + str(i) + '.npy')
+        test = np.array([quat[3], quat[0], quat[1], quat[2]])
+
+        # for custom cvt
+        neigh_indices = neigh.kneighbors(test.reshape(1, -1))[1][0]
+        neigh_labels = samples_labels[neigh_indices]
+        label = np.bincount(neigh_labels).argmax()
+        labels.append(label)
+
+        # for classic cvt
+        label = cvt.get_grid_index(test)
+        labels_cvt.append(label)
+    labels = np.array(labels)
+    labels_cvt = np.array(labels_cvt)
+
+    cov_custom = len(np.unique(labels)) / n_clust
+    cov_cvt = len(np.unique(labels_cvt)) / n_clust
+    print('Custom coverage is', cov_custom, ', classic coverage is', cov_cvt)
