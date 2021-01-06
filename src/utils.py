@@ -94,7 +94,7 @@ def compute_uniformity(grid):
 def quatmetric(a, b):
     """Takes as input two 4-dimensional arrays representing quaternion and returns a significative
        distance between the two orientations.
-       Inspired by 'Comparing Distance Metrics for Rotation Using the k-Nearest Neighbors Algorithm for 
+       Inspired by 'Comparing Distance Metrics for Rotation Using the k-Nearest Neighbors Algorithm for
        Entropy Estimation' and PyQuaternion.
 
     Args:
@@ -102,7 +102,7 @@ def quatmetric(a, b):
         b (ndarray): second quaternion
 
     Returns:
-        float: distance between 0 and 1
+        float: distance between 0 and sqrt(2)
     """
     aminusb = a - b
     aplusb = a + b

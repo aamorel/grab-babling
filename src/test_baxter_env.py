@@ -18,7 +18,7 @@ for _ in range(3):
             print(o[2])
 
 controller_info = {'pause_frac': 0.66, 'n_iter': n_iter, 'ADDITIONAL_GENES': 1,
-                   'NB_KEYPOINTS':3, 'GENE_PER_KEYPOINTS': 7}
+                   'NB_KEYPOINTS': 3, 'GENE_PER_KEYPOINTS': 7}
 for _ in range(3):
     baxter_env.reset()
     individual = np.random.rand(22) * 2 - 1

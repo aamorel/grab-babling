@@ -10,13 +10,13 @@ from deap import base, creator
 EXAMPLE = False
 DISPLAY = False
 PARALLELIZE = True
-GEN = 10
-POP_SIZE = 100
+GEN = 200
+POP_SIZE = 10
 ARCHIVE_LIMIT = 200
 NB_CELLS = 100
 BD_BOUNDS = [[0, 600], [0, 600]]
 INITIAL_GENOTYPE_SIZE = 12
-N_EXP = 30
+N_EXP = 2
 
 ALGO = 'ns_rand'
 PLOT = True
@@ -176,7 +176,7 @@ if __name__ == "__main__":
             for i in range(N_EXP):
                 pop, archive, hof, info = noveltysearch.novelty_algo(evaluate_individual, INITIAL_GENOTYPE_SIZE,
                                                                      BD_BOUNDS,
-                                                                     mini=True, archive_limit_size=None,
+                                                                     mini=True, archive_limit_size=None, nb_gen=GEN,
                                                                      plot=PLOT, algo_type='ns_no_archive',
                                                                      parallelize=PARALLELIZE, bound_genotype=1,
                                                                      measures=True, pop_size=POP_SIZE,
@@ -202,7 +202,7 @@ if __name__ == "__main__":
             for i in range(N_EXP):
                 pop, archive, hof, info = noveltysearch.novelty_algo(evaluate_individual, INITIAL_GENOTYPE_SIZE,
                                                                      BD_BOUNDS,
-                                                                     mini=True, archive_limit_size=None,
+                                                                     mini=True, archive_limit_size=None, nb_gen=GEN,
                                                                      plot=PLOT, algo_type='random_search',
                                                                      parallelize=PARALLELIZE, bound_genotype=1,
                                                                      measures=True, pop_size=POP_SIZE,
@@ -375,7 +375,7 @@ if __name__ == "__main__":
             ax_2[1].plot(mean_arch_uni, label='random search', lw=2, color='orange')
             ax_2[1].fill_between(list(range(GEN)), std_arch_uni[0], std_arch_uni[1], facecolor='orange', alpha=0.5)
 
-            # adding a run for random search
+            # adding a run for fitness ea
             coverages = []
             arch_coverages = []
             uniformities = []
@@ -385,7 +385,7 @@ if __name__ == "__main__":
                 pop, archive, hof, info = noveltysearch.novelty_algo(evaluate_individual, INITIAL_GENOTYPE_SIZE,
                                                                      BD_BOUNDS,
                                                                      mini=True, archive_limit_size=None,
-                                                                     plot=PLOT, algo_type='classic_ea',
+                                                                     plot=PLOT, algo_type='classic_ea', nb_gen=GEN,
                                                                      parallelize=PARALLELIZE, bound_genotype=1,
                                                                      measures=True, pop_size=POP_SIZE,
                                                                      nb_cells=NB_CELLS, analyze_archive=False)
