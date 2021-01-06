@@ -175,11 +175,16 @@ else:
     for i in range(n_clust):
         count = 0
         j = 0
+        prev_quat = 0
         while count <= 5 and j < n_test:
             if labels[j] == i:
                 p.resetBasePositionAndOrientation(boxId, cubeStartPos, [pos[j][1], pos[j][2], pos[j][3], pos[j][0]])
-                print(i)
-                time.sleep(2)
+                print('cluster:', i)
+                if count >= 1:
+                    dist = pyq.Quaternion.absolute_distance(prev_quat, pos[j])
+                    print('distance with previous orientation:', dist)
+                prev_quat = pos[j]
+                time.sleep(3)
                 count += 1
 
             j += 1
