@@ -21,6 +21,20 @@ angle_2_id = p.addUserDebugParameter("angle 2", -pi, pi, 0)
 angle_3_id = p.addUserDebugParameter("angle 3", -pi, pi, 0)
 count_save = 0
 
+quat = 0
+
+
+def callback_save():
+    global quat, count_save
+    print('saving orientation', quat)
+    quat = np.array(quat)
+    file_name = 'orientation_' + str(count_save)
+    np.save(file_name, quat)
+    count_save += 1
+
+
+keyboard.on_press_key('s', callback_save)
+
 for i in range(10000):
     p.stepSimulation()
 
@@ -31,10 +45,4 @@ for i in range(10000):
     quat = p.getQuaternionFromEuler([angle_1, angle_2, angle_3])
     p.resetBasePositionAndOrientation(boxId, cubeStartPos, quat)
 
-    time.sleep(2)
-    if keyboard.read_key() == 's':
-        print('saving orientation', quat)
-        quat = np.array(quat)
-        file_name = 'orientation_' + str(count_save)
-        np.save(file_name, quat)
-        count_save += 1
+    time.sleep(0.1)
