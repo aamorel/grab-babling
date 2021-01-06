@@ -16,7 +16,8 @@ n_test = 500
 
 sqrt_2 = math.sqrt(2)
 
-dists = []
+cvt = utils.CVT(n_clust, bounds=[[-1, 1], [-1, 1], [-1, 1], [-1, 1]])
+
 for n_clust in n_clusts:
     quats = []
     quats_arr = []
@@ -49,24 +50,30 @@ for n_clust in n_clusts:
 
     pos = []
     labels = []
+    labels_cvt = []
     for _ in range(n_test):
         quat = pyq.Quaternion.random()
         test = np.array(quat.elements)
+        pos.append(quat)
+
+        # for custom cvt
         neigh_indices = neigh.kneighbors(test.reshape(1, -1))[1][0]
         neigh_labels = samples_labels[neigh_indices]
         label = np.bincount(neigh_labels).argmax()
-        pos.append(quat)
         labels.append(label)
+
+        # for classic cvt
+        label = cvt.get_grid_index(test)
+        labels_cvt.append(label)
 
     mean_distances = []
     for i in range(n_clust):
-        count = 0
+        # find members of cluster i following labels
         j = 0
         members = []
-        while count <= 5 and j < n_test:
+        while j < n_test:
             if labels[j] == i:
                 members.append(pos[j])
-                count += 1
 
             j += 1
         distances = []
@@ -77,11 +84,31 @@ for n_clust in n_clusts:
         if len(distances) > 0:
             mean = np.mean(distances)
             mean_distances.append(mean)
-    mean_distances = np.array(mean_distances)
-    dists.append(np.mean(mean_distances))
-    print('finished experiment')
+    mean_distance_custom = np.mean(np.array(mean_distances))
 
-print(dists)
+    mean_distances = []
+    for i in range(n_clust):
+        # find members of cluster i following labels_cvt
+        j = 0
+        members = []
+        while j < n_test:
+            if labels_cvt[j] == i:
+                members.append(pos[j])
+
+            j += 1
+        distances = []
+        for a in members:
+            for b in members:
+                distances.append(pyq.Quaternion.absolute_distance(a, b))
+        distances = np.array(distances)
+        if len(distances) > 0:
+            mean = np.mean(distances)
+            mean_distances.append(mean)
+    mean_distance_classic = np.mean(np.array(mean_distances))
+
+    print('for', n_clust, 'clusters, custom mean distance is', mean_distance_custom)
+    print('classic mean distance is', mean_distance_classic)
+
 
 # physicsClient = p.connect(p.GUI)  # or p.DIRECT for non-graphical version
 # p.setAdditionalSearchPath(pybullet_data.getDataPath())  # optionally
