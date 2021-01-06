@@ -8,7 +8,7 @@ import pybullet as p
 import pybullet_data
 import time
 
-job = 'viz'  # viz or ana or cov
+job = 'cov'  # viz or ana or cov
 
 if job == 'ana':
     n_samples = 1000
@@ -242,6 +242,10 @@ if job == 'cov':
         labels_cvt.append(label)
     labels = np.array(labels)
     labels_cvt = np.array(labels_cvt)
+    print('Labels for custom grid')
+    print(labels)
+    print('Labels for classical grid')
+    print(labels_cvt)
 
     cov_custom = len(np.unique(labels)) / n_clust
     cov_cvt = len(np.unique(labels_cvt)) / n_clust
