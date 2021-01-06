@@ -116,7 +116,7 @@ if not VIZ:
 else:
     n_samples = 1000
     K = 20
-    n_clust = 20
+    n_clust = 200
 
     n_test = 500
 
