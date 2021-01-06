@@ -9,7 +9,7 @@ import pybullet_data
 
 n_samples = 1000
 K = 20
-n_clusts = [10, 20, 30, 40, 50]
+n_clusts = [10, 20, 30, 40, 50, 60, 70, 80, 90]
 n_clust = 20
 n_samples_arr = [100, 500, 1000, 2000, 4000]
 n_test = 500
@@ -17,7 +17,7 @@ n_test = 500
 sqrt_2 = math.sqrt(2)
 
 dists = []
-for n_samples in n_samples_arr:
+for n_clust in n_clusts:
     quats = []
     quats_arr = []
     for _ in range(n_samples):
@@ -74,8 +74,9 @@ for n_samples in n_samples_arr:
             for b in members:
                 distances.append(pyq.Quaternion.absolute_distance(a, b))
         distances = np.array(distances)
-        mean = np.mean(distances)
-        mean_distances.append(mean)
+        if len(distances) > 0:
+            mean = np.mean(distances)
+            mean_distances.append(mean)
     mean_distances = np.array(mean_distances)
     dists.append(np.mean(mean_distances))
     print('finished experiment')

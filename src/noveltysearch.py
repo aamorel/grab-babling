@@ -396,11 +396,11 @@ def gen_plot(mean_hist, min_hist, max_hist, arch_size_hist, coverage_hist, unifo
         uniformity_hist = np.array(uniformity_hist)
         for i in range(np.size(coverage_hist, 1)):
             ax[1][1].plot(coverage_hist[:, i], color=utils.color_list[i], label='Coverage ' + str(i))
-            ax[1][1].plot(uniformity_hist[:, i], color=utils.color_list[i], alpha=0.6, label='Uniformity ' + str(i))
+            ax[1][1].plot(uniformity_hist[:, i], ls='--', color=utils.color_list[i], label='Uniformity ' + str(i))
 
     else:
         ax[1][1].plot(coverage_hist, color='blue', label='Coverage')
-        ax[1][1].plot(uniformity_hist, color='blue', alpha=0.6, label='Uniformity')
+        ax[1][1].plot(uniformity_hist, ls='--', color='blue', label='Uniformity')
     ax[1][1].legend()
 
     # plot evolution
@@ -410,11 +410,11 @@ def gen_plot(mean_hist, min_hist, max_hist, arch_size_hist, coverage_hist, unifo
         full_uni_hist = np.array(full_uni_hist)
         for i in range(np.size(full_cov_hist, 1)):
             ax[2][1].plot(full_cov_hist[:, i], color=utils.color_list[i], label='Coverage ' + str(i))
-            ax[2][1].plot(full_uni_hist[:, i], color=utils.color_list[i], alpha=0.6, label='Uniformity ' + str(i))
+            ax[2][1].plot(full_uni_hist[:, i], ls='--', color=utils.color_list[i], label='Uniformity ' + str(i))
 
     else:
         ax[2][1].plot(full_cov_hist, color='blue', label='Coverage')
-        ax[2][1].plot(full_uni_hist, color='blue', alpha=0.6, label='Uniformity')
+        ax[2][1].plot(full_uni_hist, ls='--', color='blue', label='Uniformity')
     ax[2][1].legend()
 
     if run_name is not None:
