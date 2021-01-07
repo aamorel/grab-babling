@@ -16,9 +16,9 @@ cubeStartOrientation = p.getQuaternionFromEuler([0, 0, 0])
 boxId = p.loadURDF("r2d2.urdf", cubeStartPos, cubeStartOrientation)
 
 
-angle_1_id = p.addUserDebugParameter("angle 1", -pi, pi, 0)
-angle_2_id = p.addUserDebugParameter("angle 2", -pi, pi, 0)
-angle_3_id = p.addUserDebugParameter("angle 3", -pi, pi, 0)
+angle_1_id = p.addUserDebugParameter("roll", -pi, pi, 0)
+angle_2_id = p.addUserDebugParameter("pitch", -pi / 2, pi / 2, 0)
+angle_3_id = p.addUserDebugParameter("yaw", -pi, pi, 0)
 count_save = 0
 
 quat = 0

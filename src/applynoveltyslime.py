@@ -11,20 +11,22 @@ from deap import base, creator
 
 DISPLAY = False
 PARALLELIZE = True
-GEN = 2500
-POP_SIZE = 200
+MINI = False
+GEN = 500
+POP_SIZE = 100
 ARCHIVE_LIMIT = 2000
 NB_CELLS = 100
 BD_BOUNDS = [[0, 1], [0, 1]]
 INITIAL_GENOTYPE_SIZE = 99
 N_EXP = 40
+N_REPEAT = 10
 
 # global variable for the environment
 ENV = gym.make("SlimeVolley-v0")
 
 ALGO = 'ns_rand'
-PLOT = False
-ARCHIVE_ANALYSIS = True
+PLOT = True
+ARCHIVE_ANALYSIS = False
 NOVELTY_ANALYSIS = True
 
 if PARALLELIZE:
@@ -37,7 +39,7 @@ if PARALLELIZE:
     # container for novelty
     creator.create('Novelty', base.Fitness, weights=(1.0,))
     # container for fitness
-    if min:
+    if MINI:
         creator.create('Fit', base.Fitness, weights=(-1.0,))
     else:
         creator.create('Fit', base.Fitness, weights=(1.0,))
@@ -96,38 +98,46 @@ def evaluate_individual(individual):
     """
     global ENV
     inf = {}
+    fitness_arr = []
+    behavior_arr = []
 
-    ENV.reset()
+    for _ in range(N_REPEAT):
+        ENV.reset()
 
-    action = [0, 0, 0]
-    eo = False
-    count = 0
-    reward = 0
-    distance = 0
+        action = [0, 0, 0]
+        eo = False
+        count = 0
+        reward = 0
+        distance = 0
 
-    # CONTROLLER
-    individual = np.array(individual)
-    controller = ControllerNet(individual)
-    while not eo:
-        count += 1
-        if DISPLAY:
-            ENV.render()
-        # apply previously chosen action
-        o, r, eo, info = ENV.step(action)
-        reward += r
-        with torch.no_grad():
-            action = controller.forward(o)
+        # CONTROLLER
+        individual = np.array(individual)
+        controller = ControllerNet(individual)
+        while not eo:
+            count += 1
+            if DISPLAY:
+                ENV.render()
+            # apply previously chosen action
+            o, r, eo, info = ENV.step(action)
+            reward += r
+            with torch.no_grad():
+                action = controller.forward(o)
 
-        dist_to_ball = math.sqrt((o[0] - o[4])**2 + (o[1] - o[5])**2)
-        distance += dist_to_ball
+            dist_to_ball = math.sqrt((o[0] - o[4])**2 + (o[1] - o[5])**2)
+            distance += dist_to_ball
 
-        if(DISPLAY):
-            time.sleep(0.01)
+            if(DISPLAY):
+                time.sleep(0.01)
 
-    # use last info to compute behavior and fitness
-    mean_distance = distance / (count * 4)
-    behavior = [count / 3000, mean_distance]
-    fitness = reward
+        # use last info to compute behavior and fitness
+        mean_distance = distance / (count * 4)
+        behavior_arr.append([count / 3000, mean_distance])
+        fitness_arr.append(reward)
+
+    behavior_arr = np.array(behavior_arr)
+    behavior = np.mean(behavior_arr, axis=0)
+    fitness_arr = np.array(fitness_arr)
+    fitness = np.mean(fitness_arr)
     return (behavior, (fitness,), inf)
 
 
@@ -139,6 +149,12 @@ if __name__ == "__main__":
                                                              plot=PLOT, algo_type=ALGO, nb_gen=GEN,
                                                              parallelize=PARALLELIZE, bound_genotype=1,
                                                              measures=True, pop_size=POP_SIZE, nb_cells=NB_CELLS)
+        # DISPLAY = True
+        # for ind in hof:
+        #     res = evaluate_individual(ind)
+        #     print('fitness of individual at first eval:', ind.fitness.values)
+        #     print('fitness of individual at second eval:', res[1][0])
+
         archive_behavior = np.array([ind.behavior_descriptor.values for ind in archive])
         pop_behavior = np.array([ind.behavior_descriptor.values for ind in pop])
         hof_behavior = np.array([ind.behavior_descriptor.values for ind in hof])
@@ -155,7 +171,7 @@ if __name__ == "__main__":
         else:
             plt.savefig('final_behavior.png')
             fig = info['figure']
-            fig.savefig('exploration_lime.png')
+            fig.savefig('exploration_slime.png')
     
     else:
         if not NOVELTY_ANALYSIS:
@@ -297,7 +313,7 @@ if __name__ == "__main__":
             ax_2[1].plot(mean_arch_uni, label='random search', lw=2, color='orange')
             ax_2[1].fill_between(list(range(GEN)), std_arch_uni[0], std_arch_uni[1], facecolor='orange', alpha=0.5)
 
-            # adding a run for random search
+            # adding a run for fitness ea
             coverages = []
             arch_coverages = []
             uniformities = []
@@ -307,7 +323,7 @@ if __name__ == "__main__":
                 pop, archive, hof, info = noveltysearch.novelty_algo(evaluate_individual, INITIAL_GENOTYPE_SIZE,
                                                                      BD_BOUNDS,
                                                                      mini=False, archive_limit_size=None,
-                                                                     plot=PLOT, algo_type='classic_ea',
+                                                                     plot=PLOT, algo_type='classic_ea', nb_gen=GEN,
                                                                      parallelize=PARALLELIZE, bound_genotype=1,
                                                                      measures=True, pop_size=POP_SIZE,
                                                                      nb_cells=NB_CELLS, analyze_archive=False)

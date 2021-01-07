@@ -17,6 +17,7 @@ NB_CELLS = 100
 BD_BOUNDS = [[0, 600], [0, 600]]
 INITIAL_GENOTYPE_SIZE = 12
 N_EXP = 2
+MINI = True
 
 ALGO = 'ns_rand'
 PLOT = True
@@ -34,7 +35,7 @@ if PARALLELIZE:
     # container for novelty
     creator.create('Novelty', base.Fitness, weights=(1.0,))
     # container for fitness
-    if min:
+    if MINI:
         creator.create('Fit', base.Fitness, weights=(-1.0,))
     else:
         creator.create('Fit', base.Fitness, weights=(1.0,))
