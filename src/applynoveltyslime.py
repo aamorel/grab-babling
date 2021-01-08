@@ -12,7 +12,7 @@ from deap import base, creator
 DISPLAY = False
 PARALLELIZE = True
 MINI = False
-GEN = 500
+GEN = 100
 POP_SIZE = 100
 ARCHIVE_LIMIT = 2000
 NB_CELLS = 100
@@ -25,9 +25,9 @@ N_REPEAT = 10
 ENV = gym.make("SlimeVolley-v0")
 
 ALGO = 'ns_rand'
-PLOT = True
+PLOT = False
 ARCHIVE_ANALYSIS = False
-NOVELTY_ANALYSIS = True
+NOVELTY_ANALYSIS = False
 
 if PARALLELIZE:
     # container for behavior descriptor
@@ -108,7 +108,8 @@ def evaluate_individual(individual):
         eo = False
         count = 0
         reward = 0
-        distance = 0
+        distance_ball = 0
+        distance_player = 0
 
         # CONTROLLER
         individual = np.array(individual)
@@ -124,14 +125,24 @@ def evaluate_individual(individual):
                 action = controller.forward(o)
 
             dist_to_ball = math.sqrt((o[0] - o[4])**2 + (o[1] - o[5])**2)
-            distance += dist_to_ball
+            distance_ball += dist_to_ball
+
+            dist_to_player = math.sqrt((o[0] - o[8])**2 + (o[1] - o[9])**2)
+            distance_player += dist_to_player
 
             if(DISPLAY):
                 time.sleep(0.01)
 
         # use last info to compute behavior and fitness
-        mean_distance = distance / (count * 4)
-        behavior_arr.append([count / 3000, mean_distance])
+        mean_distance_ball = distance_ball / (count * 4)
+        mean_distance_player = distance_player / (count * 4)
+        
+        # variant 1: game duration + distance to ball
+        # behavior_arr.append([count / 3000, mean_distance_ball])
+
+        # variant 2: distance to other player + distance to ball
+        behavior_arr.append([mean_distance_player, mean_distance_ball])
+
         fitness_arr.append(reward)
 
     behavior_arr = np.array(behavior_arr)
