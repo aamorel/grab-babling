@@ -421,7 +421,7 @@ def gen_plot(mean_hist, min_hist, max_hist, arch_size_hist, coverage_hist, unifo
     ax[2][1].legend()
 
     # plot evolution
-    ax[2][0].set(title='Evolution of selected metrics in historic of all individuals', xlabel='Generations')
+    ax[2][0].set(title='Evolution of selected metrics in population', xlabel='Generations')
     if algo_type == 'ns_rand_multi_bd':
         pop_cov_hist = np.array(pop_cov_hist)
         pop_uni_hist = np.array(pop_uni_hist)
@@ -871,9 +871,19 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
                         if i not in removal_indices:
                             temp_archive.append(archive[i])
                     archive = temp_archive
+
+                if archive_limit_strat == 'least_novel_iter':
+                    # strategy 4: remove least novel individual iteratively
+                    for _ in range(nb_ind_to_remove):
+                        novelties = assess_novelties(archive, archive, algo_type, bd_bounds, bd_indexes, bd_filters,
+                                                     novelty_metric)
+                        nov_n = np.array([nov[0] for nov in novelties])
+                        removal_idx = np.argmin(nov_n)
+                        remove_from_grid(archive[removal_idx], grid, cvt, measures, algo_type, bd_filters)
+                        archive.pop(removal_idx)
                 
                 if archive_limit_strat == 'grid_density':
-                    # strategy 4: remove individuals with probability proportional to grid density
+                    # strategy 5: remove individuals with probability proportional to grid density
                     # extract all the behavior descriptors
                     reference_pop = np.array([ind.behavior_descriptor.values for ind in archive])
                     n_dim = reference_pop.shape[1]
@@ -939,7 +949,7 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
                     archive = temp_archive
                     
                 if archive_limit_strat == 'grid':
-                    # strategy 5: remove individuals at intersection of grid
+                    # strategy 6: remove individuals at intersection of grid
                     # extract all the behavior descriptors
                     reference_pop = np.array([ind.behavior_descriptor.values for ind in archive])
                     n_dim = reference_pop.shape[1]
@@ -999,7 +1009,7 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
                     archive = temp_archive
 
                 if archive_limit_strat == 'gmm':
-                    # strategy 6: fit a gmm on archive, sample and remove closest
+                    # strategy 7: fit a gmm on archive, sample and remove closest
                     # extract all the behavior descriptors
                     reference_pop = np.array([ind.behavior_descriptor.values for ind in archive])
                     gmix = mixture.GaussianMixture(n_components=N_COMP, covariance_type='full')
@@ -1031,7 +1041,7 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
                     archive = temp_archive
 
                 if archive_limit_strat == 'newest':
-                    # strategy 7: remove newest individuals (blocks the archive sanity check)
+                    # strategy 8: remove newest individuals (blocks the archive sanity check)
                     members_to_remove = archive[nb_ind_to_keep:]
                     for member in members_to_remove:
                         remove_from_grid(member, grid, cvt, measures, algo_type, bd_filters)

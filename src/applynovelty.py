@@ -5,23 +5,37 @@ import time
 import numpy as np
 import matplotlib.pyplot as plt
 from deap import base, creator
+import torch
+import torch.nn as nn
+import math
 
 DISPLAY = False
 PARALLELIZE = True
-GEN = 200
+GEN = 1000
 POP_SIZE = 10
 ARCHIVE_LIMIT = 200
 NB_CELLS = 100
-BD_BOUNDS = [[0, 600], [0, 600]]
-INITIAL_GENOTYPE_SIZE = 12
-N_EXP = 30
-MINI = True
-
+N_EXP = 60
 ALGO = 'ns_rand'
 PLOT = False
 ARCHIVE_ANALYSIS = False
 NOVELTY_ANALYSIS = False
 SIMPLE_RUN = False
+ENV_NAME = 'maze'
+
+if ENV_NAME == 'maze':
+    BD_BOUNDS = [[0, 600], [0, 600]]
+    INITIAL_GENOTYPE_SIZE = 12
+    MINI = True
+
+if ENV_NAME == 'slime':
+    # global variable for the environment
+    ENV = gym.make("SlimeVolley-v0")
+    BD_BOUNDS = [[0, 1], [0, 1]]
+    INITIAL_GENOTYPE_SIZE = 99
+    N_REPEAT = 10
+    MINI = False
+
 
 if PARALLELIZE:
     # container for behavior descriptor
@@ -47,7 +61,106 @@ if PARALLELIZE:
     noveltysearch.set_creator(creator)
 
 
-def evaluate_individual(individual):
+class ControllerNetSlime(nn.Module):
+
+    def __init__(self, params):
+        super(ControllerNetSlime, self).__init__()
+        self.l1 = nn.Linear(12, 6)
+        weight_1 = nn.Parameter(torch.Tensor(params[:72]).reshape((6, 12)))
+        bias_1 = nn.Parameter(torch.Tensor(params[72:78]).reshape(6))
+        self.l1.weight = weight_1
+        self.l1.bias = bias_1
+        self.l2 = nn.Linear(6, 3)
+        weight_2 = nn.Parameter(torch.Tensor(params[78:96]).reshape((3, 6)))
+        bias_2 = nn.Parameter(torch.Tensor(params[96:99]).reshape(3))
+        self.l2.weight = weight_2
+        self.l2.bias = bias_2
+        self.r1 = nn.ReLU()
+        self.r2 = nn.Sigmoid()
+
+    def forward(self, ind):
+        ind = torch.Tensor(ind)
+        ind = self.r1(self.l1(ind))
+        action = self.r2(self.l2(ind)).numpy()
+        
+        action[0] = int(action[0] > 0.5)
+        action[1] = int(action[1] > 0.5)
+        action[2] = int(action[2] > 0.5)
+
+        return action
+
+
+def sigmoid(x):
+    return 1 / (1 + math.exp(-x))
+
+
+def evaluate_slime(individual):
+    """Evaluates an individual: computes its value in the behavior descriptor space,
+    and its fitness value.
+
+    Args:
+        individual (Individual): an individual
+
+    Returns:
+        tuple: tuple of behavior (list) and fitness(tuple)
+    """
+    global ENV
+    inf = {}
+    fitness_arr = []
+    behavior_arr = []
+
+    for _ in range(N_REPEAT):
+        ENV.reset()
+
+        action = [0, 0, 0]
+        eo = False
+        count = 0
+        reward = 0
+        distance_ball = 0
+        distance_player = 0
+
+        # CONTROLLER
+        individual = np.array(individual)
+        controller = ControllerNetSlime(individual)
+        while not eo:
+            count += 1
+            if DISPLAY:
+                ENV.render()
+            # apply previously chosen action
+            o, r, eo, info = ENV.step(action)
+            reward += r
+            with torch.no_grad():
+                action = controller.forward(o)
+
+            dist_to_ball = math.sqrt((o[0] - o[4])**2 + (o[1] - o[5])**2)
+            distance_ball += dist_to_ball
+
+            dist_to_player = math.sqrt((o[0] - o[8])**2 + (o[1] - o[9])**2)
+            distance_player += dist_to_player
+
+            if(DISPLAY):
+                time.sleep(0.01)
+
+        # use last info to compute behavior and fitness
+        mean_distance_ball = distance_ball / (count * 4)
+        mean_distance_player = distance_player / (count * 4)
+        
+        # variant 1: game duration + distance to ball
+        # behavior_arr.append([count / 3000, mean_distance_ball])
+
+        # variant 2: distance to other player + distance to ball
+        behavior_arr.append([mean_distance_player, mean_distance_ball])
+
+        fitness_arr.append(reward)
+
+    behavior_arr = np.array(behavior_arr)
+    behavior = np.mean(behavior_arr, axis=0)
+    fitness_arr = np.array(fitness_arr)
+    fitness = np.mean(fitness_arr)
+    return (behavior, (fitness,), inf)
+
+
+def evaluate_maze(individual):
     """Evaluates an individual: computes its value in the behavior descriptor space,
     and its fitness value.
 
@@ -95,7 +208,7 @@ def evaluate_individual(individual):
 if __name__ == "__main__":
     SMALL_SIZE = 8
     MEDIUM_SIZE = 10
-    BIGGER_SIZE = 12
+    BIGGER_SIZE = 25
 
     plt.rc('font', size=BIGGER_SIZE, weight='bold')          # controls default text sizes
     plt.rc('axes', titlesize=BIGGER_SIZE, titleweight='bold')     # fontsize of the axes title
@@ -105,42 +218,59 @@ if __name__ == "__main__":
     plt.rc('legend', fontsize=BIGGER_SIZE)    # legend fontsize
     plt.rc('figure', titlesize=BIGGER_SIZE, titleweight='bold')  # fontsize of the figure title
 
+    if ENV_NAME == 'maze':
+        evaluate_individual = evaluate_maze
+
+    if ENV_NAME == 'slime':
+        evaluate_individual = evaluate_slime
+
     if not ARCHIVE_ANALYSIS:
         if SIMPLE_RUN:
-
             archive_strat = 'least_novel'
             
             pop, archive, hof, info = noveltysearch.novelty_algo(evaluate_individual, INITIAL_GENOTYPE_SIZE, BD_BOUNDS,
-                                                                 mini=True, archive_limit_size=None,
+                                                                 mini=MINI, archive_limit_size=None,
                                                                  archive_limit_strat=archive_strat,
                                                                  plot=PLOT, algo_type='ns_rand', nb_gen=GEN,
-                                                                 parallelize=PARALLELIZE,
+                                                                 parallelize=PARALLELIZE, bound_genotype=1,
                                                                  measures=True, pop_size=POP_SIZE, nb_cells=NB_CELLS)
 
             if PLOT:
-                # plot final states
-                env = gym.make('FastsimSimpleNavigation-v0')
-                env.reset()
-                maze = env.map.get_data()
-                maze = np.array([str(pix) for pix in maze])
-                maze[maze == 'status_t.obstacle'] = 0.0
-                maze[maze == 'status_t.free'] = 1.0
-                maze = np.reshape(maze, (200, 200))
-                maze = np.array(maze, dtype='float')
-                archive_behavior = np.array([ind.behavior_descriptor.values for ind in archive])
-                pop_behavior = np.array([ind.behavior_descriptor.values for ind in pop])
-                hof_behavior = np.array([ind.behavior_descriptor.values for ind in hof])
-                fig, ax = plt.subplots(figsize=(5, 5))
-                ax.set(title='Final Archive', xlabel='x1', ylabel='x2')
-                ax.imshow(maze)
-                ax.scatter(archive_behavior[:, 0] / 3, archive_behavior[:, 1] / 3, color='red', label='Archive')
-                ax.scatter(pop_behavior[:, 0] / 3, pop_behavior[:, 1] / 3, color='blue', label='Population')
-                ax.scatter(hof_behavior[:, 0] / 3, hof_behavior[:, 1] / 3, color='green', label='Hall of Fame')
-                plt.legend()
+                if ENV_NAME == 'maze':
+                    # plot final states
+                    env = gym.make('FastsimSimpleNavigation-v0')
+                    env.reset()
+                    maze = env.map.get_data()
+                    maze = np.array([str(pix) for pix in maze])
+                    maze[maze == 'status_t.obstacle'] = 0.0
+                    maze[maze == 'status_t.free'] = 1.0
+                    maze = np.reshape(maze, (200, 200))
+                    maze = np.array(maze, dtype='float')
+                    archive_behavior = np.array([ind.behavior_descriptor.values for ind in archive])
+                    pop_behavior = np.array([ind.behavior_descriptor.values for ind in pop])
+                    hof_behavior = np.array([ind.behavior_descriptor.values for ind in hof])
+                    fig, ax = plt.subplots(figsize=(5, 5))
+                    ax.set(title='Final Archive', xlabel='x1', ylabel='x2')
+                    ax.imshow(maze)
+                    ax.scatter(archive_behavior[:, 0] / 3, archive_behavior[:, 1] / 3, color='red', label='Archive')
+                    ax.scatter(pop_behavior[:, 0] / 3, pop_behavior[:, 1] / 3, color='blue', label='Population')
+                    ax.scatter(hof_behavior[:, 0] / 3, hof_behavior[:, 1] / 3, color='green', label='Hall of Fame')
+                    plt.legend()
+                
+                if ENV_NAME == 'slime':
+                    archive_behavior = np.array([ind.behavior_descriptor.values for ind in archive])
+                    pop_behavior = np.array([ind.behavior_descriptor.values for ind in pop])
+                    hof_behavior = np.array([ind.behavior_descriptor.values for ind in hof])
+                    fig, ax = plt.subplots(figsize=(5, 5))
+                    ax.set(title='Final Archive', xlabel='Game duration', ylabel='Mean distance btw player and ball')
+                    ax.scatter(archive_behavior[:, 0], archive_behavior[:, 1], color='red', label='Archive')
+                    ax.scatter(pop_behavior[:, 0], pop_behavior[:, 1], color='blue', label='Population')
+                    ax.scatter(hof_behavior[:, 0], hof_behavior[:, 1], color='green', label='Hall of Fame')
+                    plt.legend()
                 
             plt.show()
         else:
-            # ############################### ANALYSI IMPORTANCE OF ARCHIVE #####################################
+            # ############################### ANALYSE IMPORTANCE OF ARCHIVE #####################################
             fig, ax = plt.subplots(2, 1, figsize=(20, 15))
             # adding a run for classic ns
             coverages = []
@@ -148,7 +278,7 @@ if __name__ == "__main__":
             for i in range(N_EXP):
                 pop, archive, hof, info = noveltysearch.novelty_algo(evaluate_individual, INITIAL_GENOTYPE_SIZE,
                                                                      BD_BOUNDS,
-                                                                     mini=True, archive_limit_size=None,
+                                                                     mini=MINI, archive_limit_size=None,
                                                                      plot=PLOT, algo_type='ns_rand', nb_gen=GEN,
                                                                      parallelize=PARALLELIZE, bound_genotype=1,
                                                                      measures=True, pop_size=POP_SIZE,
@@ -176,7 +306,7 @@ if __name__ == "__main__":
             for i in range(N_EXP):
                 pop, archive, hof, info = noveltysearch.novelty_algo(evaluate_individual, INITIAL_GENOTYPE_SIZE,
                                                                      BD_BOUNDS,
-                                                                     mini=True, archive_limit_size=None, nb_gen=GEN,
+                                                                     mini=MINI, archive_limit_size=None, nb_gen=GEN,
                                                                      plot=PLOT, algo_type='ns_no_archive',
                                                                      parallelize=PARALLELIZE, bound_genotype=1,
                                                                      measures=True, pop_size=POP_SIZE,
@@ -204,7 +334,7 @@ if __name__ == "__main__":
             for i in range(N_EXP):
                 pop, archive, hof, info = noveltysearch.novelty_algo(evaluate_individual, INITIAL_GENOTYPE_SIZE,
                                                                      BD_BOUNDS,
-                                                                     mini=True, archive_limit_size=None, nb_gen=GEN,
+                                                                     mini=MINI, archive_limit_size=None, nb_gen=GEN,
                                                                      plot=PLOT, algo_type='random_search',
                                                                      parallelize=PARALLELIZE, bound_genotype=1,
                                                                      measures=True, pop_size=POP_SIZE,
@@ -242,8 +372,9 @@ if __name__ == "__main__":
     else:
         if not NOVELTY_ANALYSIS:
             # ################################## ARCHIVE MANAGEMENT ANALYSIS ####################################
-            possible_strats = ['random', 'least_novel', 'oldest', 'grid', 'grid_density', 'gmm', 'newest']
-            colors = ['blue', 'red', 'yellow', 'green', 'pink', 'brown', 'purple']
+            possible_strats = ['random', 'least_novel', 'oldest', 'grid', 'grid_density', 'gmm', 'newest',
+                               'least_novel_iter']
+            colors = ['blue', 'red', 'yellow', 'green', 'pink', 'brown', 'purple', 'light_green']
             fig, ax = plt.subplots(3, 1, figsize=(20, 15))
             fig_2, ax_2 = plt.subplots(3, 1, figsize=(20, 15))
 
@@ -257,7 +388,7 @@ if __name__ == "__main__":
                     print('experience', i, 'of strat', archive_strat)
                     pop, archive, hof, info = noveltysearch.novelty_algo(evaluate_individual, INITIAL_GENOTYPE_SIZE,
                                                                          BD_BOUNDS,
-                                                                         mini=True, archive_limit_size=ARCHIVE_LIMIT,
+                                                                         mini=MINI, archive_limit_size=ARCHIVE_LIMIT,
                                                                          archive_limit_strat=archive_strat,
                                                                          plot=PLOT, algo_type=ALGO, nb_gen=GEN,
                                                                          parallelize=PARALLELIZE, bound_genotype=1,
@@ -306,7 +437,7 @@ if __name__ == "__main__":
             for i in range(N_EXP):
                 pop, archive, hof, info = noveltysearch.novelty_algo(evaluate_individual, INITIAL_GENOTYPE_SIZE,
                                                                      BD_BOUNDS,
-                                                                     mini=True, archive_limit_size=None,
+                                                                     mini=MINI, archive_limit_size=None,
                                                                      plot=PLOT, algo_type=ALGO, nb_gen=GEN,
                                                                      parallelize=PARALLELIZE, bound_genotype=1,
                                                                      measures=True, pop_size=POP_SIZE,
@@ -347,7 +478,7 @@ if __name__ == "__main__":
             for i in range(N_EXP):
                 pop, archive, hof, info = noveltysearch.novelty_algo(evaluate_individual, INITIAL_GENOTYPE_SIZE,
                                                                      BD_BOUNDS,
-                                                                     mini=True, archive_limit_size=None,
+                                                                     mini=MINI, archive_limit_size=None,
                                                                      plot=PLOT, algo_type='random_search', nb_gen=GEN,
                                                                      parallelize=PARALLELIZE, bound_genotype=1,
                                                                      measures=True, pop_size=POP_SIZE,
@@ -388,7 +519,7 @@ if __name__ == "__main__":
             for i in range(N_EXP):
                 pop, archive, hof, info = noveltysearch.novelty_algo(evaluate_individual, INITIAL_GENOTYPE_SIZE,
                                                                      BD_BOUNDS,
-                                                                     mini=True, archive_limit_size=None,
+                                                                     mini=MINI, archive_limit_size=None,
                                                                      plot=PLOT, algo_type='classic_ea', nb_gen=GEN,
                                                                      parallelize=PARALLELIZE, bound_genotype=1,
                                                                      measures=True, pop_size=POP_SIZE,
@@ -471,7 +602,7 @@ if __name__ == "__main__":
                     pop, archive, hof, info = noveltysearch.novelty_algo(evaluate_individual, INITIAL_GENOTYPE_SIZE,
                                                                          BD_BOUNDS, altered_novelty=True,
                                                                          alteration_degree=archive_strat,
-                                                                         mini=True,
+                                                                         mini=MINI,
                                                                          plot=PLOT, algo_type=ALGO, nb_gen=GEN,
                                                                          parallelize=PARALLELIZE, bound_genotype=1,
                                                                          measures=True, pop_size=POP_SIZE,
@@ -519,7 +650,7 @@ if __name__ == "__main__":
             for i in range(N_EXP):
                 pop, archive, hof, info = noveltysearch.novelty_algo(evaluate_individual, INITIAL_GENOTYPE_SIZE,
                                                                      BD_BOUNDS, altered_novelty=False,
-                                                                     mini=True,
+                                                                     mini=MINI,
                                                                      plot=PLOT, algo_type=ALGO, nb_gen=GEN,
                                                                      parallelize=PARALLELIZE, bound_genotype=1,
                                                                      measures=True, pop_size=POP_SIZE,
@@ -560,7 +691,7 @@ if __name__ == "__main__":
             for i in range(N_EXP):
                 pop, archive, hof, info = noveltysearch.novelty_algo(evaluate_individual, INITIAL_GENOTYPE_SIZE,
                                                                      BD_BOUNDS, altered_novelty=False,
-                                                                     mini=True,
+                                                                     mini=MINI,
                                                                      plot=PLOT, algo_type='random_search', nb_gen=GEN,
                                                                      parallelize=PARALLELIZE, bound_genotype=1,
                                                                      measures=True, pop_size=POP_SIZE,
@@ -601,7 +732,7 @@ if __name__ == "__main__":
             for i in range(N_EXP):
                 pop, archive, hof, info = noveltysearch.novelty_algo(evaluate_individual, INITIAL_GENOTYPE_SIZE,
                                                                      BD_BOUNDS, altered_novelty=False,
-                                                                     mini=True,
+                                                                     mini=MINI,
                                                                      plot=PLOT, algo_type='classic_ea', nb_gen=GEN,
                                                                      parallelize=PARALLELIZE, bound_genotype=1,
                                                                      measures=True, pop_size=POP_SIZE,
