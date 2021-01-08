@@ -40,6 +40,9 @@ NB_CELLS = 100  # number of cells for measurement
 # choose controller type
 CONTROLLER = 'closed loop end pause grip'
 
+# choose diversity measure if gripping time is given by the controller
+DIV_MEASURE = 'gripper orientation'  # 'gripper orientation', 'gripper orientation difference'
+
 # choose algorithm type
 ALGO = 'ns_rand_multi_bd'
 
@@ -97,13 +100,35 @@ if PARALLELIZE:
     noveltysearch.set_creator(creator)
 
 
+def diversity_measure(o):
+    if DIV_MEASURE == 'gripper orientation difference':
+        # object orientation at gripping time (quaternion)
+        obj_or = o[1]
+
+        # gripper orientation at gripping time (quaternion)
+        grip_or = o[3]
+
+        # pybullet is x, y, z, w whereas pyquaternion is w, x, y, z
+        obj_or = pyq.Quaternion(obj_or[3], obj_or[0], obj_or[1], obj_or[2])
+        grip_or = pyq.Quaternion(grip_or[3], grip_or[0], grip_or[1], grip_or[2])
+
+        # difference:
+        measure = obj_or.conjugate * grip_or
+
+    if DIV_MEASURE == 'gripper orientation':
+        grip_or = o[3]
+        measure = pyq.Quaternion(grip_or[3], grip_or[0], grip_or[1], grip_or[2])
+
+    return measure
+
+
 def analyze_triumphants(triumphant_archive, run_name):
     if len(triumphant_archive) < 2:
         print('No individual completed the binary goal.')
         return None, None, None
     
-    # orientation difference between the gripper and the object
-    measure = 'orientation difference'
+    # analyze the triumphants following the diversity descriptor
+    measure = 'diversity_descriptor'
 
     # # sample the triumphant archive to reduce computational cost
     # no need since the archive size is now bounded
@@ -276,18 +301,7 @@ def three_d_behavioral_descriptor(individual):
             if action[-1] == -1 and not grabbed:
                 # first action that orders the grabbing
 
-                # object orientation at grab (quaternion)
-                obj_or = o[1]
-
-                # gripper orientation at grab (quaternion)
-                grip_or = o[3]
-
-                # pybullet is x, y, z, w whereas pyquaternion is w, x, y, z
-                obj_or = pyq.Quaternion(obj_or[3], obj_or[0], obj_or[1], obj_or[2])
-                grip_or = pyq.Quaternion(grip_or[3], grip_or[0], grip_or[1], grip_or[2])
-
-                # difference:
-                diff_or_at_grab = obj_or.conjugate * grip_or
+                measure_grip_time = diversity_measure(o)
                 grabbed = True
 
     # use last info to compute behavior and fitness
@@ -312,7 +326,7 @@ def three_d_behavioral_descriptor(individual):
 
     if binary_goal:
         if hasattr(controller, 'grip_time'):
-            info['orientation difference'] = diff_or_at_grab
+            info['diversity_descriptor'] = measure_grip_time
         else:
             # last object orientation (quaternion)
             obj_or = o[1]
@@ -326,10 +340,7 @@ def three_d_behavioral_descriptor(individual):
 
             # difference:
             diff_or = obj_or.conjugate * grip_or
-            info['orientation difference'] = diff_or
-
-            if hasattr(controller, 'grip_time'):
-                info['orientation difference'] = diff_or_at_grab
+            info['diversity_descriptor'] = diff_or
     ENV.close()
 
     return (behavior, (fitness,), info)
@@ -341,14 +352,12 @@ def multi_full_behavior_descriptor(individual):
     In this case, we consider the behavior space where we give the maximum amount of information
     as possible to the algorithm to establish a strong baseline.
 
-    'interpolate keypoints end pause grip' controller is required
+    controller with grip_time is required
 
     3 descriptors:
-    the end position of the object in the 3D volume, always eligible
-    the difference of orientation between the gripper and the object at gripping time, eligible if the object is grabbed
-    the orientation of the gripper N_LAG steps before the gripping time, always eligible
-
-    variant of the second descriptor can be simply the orientation of the gripper at gripping time (same eligibility)
+    -the end position of the object in the 3D volume, always eligible
+    -the measure described by diversity_measure, eligible if the object is grabbed
+    -the orientation of the gripper N_LAG steps before the gripping time, always eligible
 
     Args:
         individual (Individual): an individual
@@ -394,27 +403,12 @@ def multi_full_behavior_descriptor(individual):
         
         if action[-1] == -1 and not grabbed:
             # first action that orders the grabbing
-
-            # object orientation at grab (quaternion)
-            obj_or = o[1]
-
-            # gripper orientation at grab (quaternion)
-            grip_or = o[3]
-
-            # pybullet is x, y, z, w whereas pyquaternion is w, x, y, z
-            obj_or = pyq.Quaternion(obj_or[3], obj_or[0], obj_or[1], obj_or[2])
-            grip_or = pyq.Quaternion(grip_or[3], grip_or[0], grip_or[1], grip_or[2])
-
-            # difference:
-            diff_or_at_grab = obj_or.conjugate * grip_or
+            measure_grip_time = diversity_measure(o)
             grabbed = True
         
         if i >= lag_time and not lag_measured:
-            # we want to measure the orientation of the gripper
-
-            # gripper orientation (quaternion)
+            # gripper orientation
             grip_or_lag = o[3]
-
             lag_measured = True
 
     # use last info to compute behavior and fitness
@@ -440,18 +434,11 @@ def multi_full_behavior_descriptor(individual):
     info['binary goal'] = binary_goal
 
     if binary_goal:
-
-        info['orientation difference'] = diff_or_at_grab
-        # behavior[3] = diff_or_at_grab[0]  # Quat to array
-        # behavior[4] = diff_or_at_grab[1]
-        # behavior[5] = diff_or_at_grab[2]
-        # behavior[6] = diff_or_at_grab[3]
-
-        # variant
-        behavior[3] = grip_or[0]  # Quat to array
-        behavior[4] = grip_or[1]
-        behavior[5] = grip_or[2]
-        behavior[6] = grip_or[3]
+        info['diversity_descriptor'] = measure_grip_time
+        behavior[3] = measure_grip_time[0]  # Quat to array
+        behavior[4] = measure_grip_time[1]
+        behavior[5] = measure_grip_time[2]
+        behavior[6] = measure_grip_time[3]
     
     behavior.append(grip_or_lag[3])
     behavior.append(grip_or_lag[0])
@@ -466,8 +453,9 @@ def multi_full_behavior_descriptor(individual):
 def multi_behavioral_descriptor(individual):
     """Evaluates an individual: computes its value in the behavior descriptor space,
     and its fitness value.
-    In this case, we consider the behavior space as the end position of the object in
-    the 3D volume and the difference of orientation between the gripper and the object at gripping time.
+    In this case, we consider two behavioral descriptors:
+    -the end position of the object in the 3D volume, always eligible
+    -the measure described by diversity_measure, eligible if the object is grabbed
 
     Args:
         individual (Individual): an individual
@@ -512,18 +500,7 @@ def multi_behavioral_descriptor(individual):
             if action[-1] == -1 and not grabbed:
                 # first action that orders the grabbing
 
-                # object orientation at grab (quaternion)
-                obj_or = o[1]
-
-                # gripper orientation at grab (quaternion)
-                grip_or = o[3]
-
-                # pybullet is x, y, z, w whereas pyquaternion is w, x, y, z
-                obj_or = pyq.Quaternion(obj_or[3], obj_or[0], obj_or[1], obj_or[2])
-                grip_or = pyq.Quaternion(grip_or[3], grip_or[0], grip_or[1], grip_or[2])
-
-                # difference:
-                diff_or_at_grab = obj_or.conjugate * grip_or
+                measure_grip_time = diversity_measure(o)
                 grabbed = True
 
     # use last info to compute behavior and fitness
@@ -550,11 +527,11 @@ def multi_behavioral_descriptor(individual):
 
     if binary_goal:
         if hasattr(controller, 'grip_time'):
-            info['orientation difference'] = diff_or_at_grab
-            behavior[3] = diff_or_at_grab[0]  # Quat to array
-            behavior[4] = diff_or_at_grab[1]
-            behavior[5] = diff_or_at_grab[2]
-            behavior[6] = diff_or_at_grab[3]
+            info['diversity_descriptor'] = measure_grip_time
+            behavior[3] = measure_grip_time[0]  # Quat to array
+            behavior[4] = measure_grip_time[1]
+            behavior[5] = measure_grip_time[2]
+            behavior[6] = measure_grip_time[3]
         else:
             # last object orientation (quaternion)
             obj_or = o[1]
@@ -568,7 +545,7 @@ def multi_behavioral_descriptor(individual):
 
             # difference:
             diff_or = obj_or.conjugate * grip_or
-            info['orientation difference'] = diff_or
+            info['diversity_descriptor'] = diff_or
             behavior[3] = diff_or[0]  # Quat to array
             behavior[4] = diff_or[1]
             behavior[5] = diff_or[2]
@@ -626,18 +603,7 @@ def orientation_behavioral_descriptor(individual):
             if action[-1] == -1 and not grabbed:
                 # first action that orders the grabbing
 
-                # object orientation at grab (quaternion)
-                obj_or = o[1]
-
-                # gripper orientation at grab (quaternion)
-                grip_or = o[3]
-
-                # pybullet is x, y, z, w whereas pyquaternion is w, x, y, z
-                obj_or = pyq.Quaternion(obj_or[3], obj_or[0], obj_or[1], obj_or[2])
-                grip_or = pyq.Quaternion(grip_or[3], grip_or[0], grip_or[1], grip_or[2])
-
-                # difference:
-                diff_or_at_grab = obj_or.conjugate * grip_or
+                measure_grip_time = diversity_measure(o)
                 grabbed = True
 
     # use last info to compute behavior and fitness
@@ -663,9 +629,9 @@ def orientation_behavioral_descriptor(individual):
     # re attribute the behavior
     if binary_goal:
         if hasattr(controller, 'grip_time'):
-            info['orientation difference'] = diff_or_at_grab
+            info['diversity_descriptor'] = measure_grip_time
             # Quat to array
-            behavior = [diff_or_at_grab[0], diff_or_at_grab[1], diff_or_at_grab[2], diff_or_at_grab[3]]
+            behavior = [measure_grip_time[0], measure_grip_time[1], measure_grip_time[2], measure_grip_time[3]]
         else:
             # last object orientation (quaternion)
             obj_or = o[1]
@@ -679,7 +645,7 @@ def orientation_behavioral_descriptor(individual):
 
             # difference:
             diff_or = obj_or.conjugate * grip_or
-            info['orientation difference'] = diff_or
+            info['diversity_descriptor'] = diff_or
             behavior = [diff_or[0], diff_or[1], diff_or[2], diff_or[3]]  # Quat to array
 
     else:
@@ -750,53 +716,7 @@ if __name__ == "__main__":
         choose = choose_evaluation_function
 
     if EVAL_SUCCESSFULL:
-        # case 1: error is triggered at j=5, i=0, before=False, after=True
-        # for j in range(7):
-        #     for i in range(3):
-        #         DISPLAY = True
-        #         path = os.path.join('../exp_results/109', 'run1', 'type' + str(j) + '_' + str(i) + '.npy')
-        #         ind = np.load(path, allow_pickle=True)
-        #         res = evaluation_function(ind)
-        #         before = res[2]['binary goal']
-        #         print(before)
-        #         res_2 = evaluation_function(ind)
-        #         after = res_2[2]['binary goal']
-        #         assert(before == after)
 
-        # case 2: error is not triggered, before=True, after=True
-        # path = os.path.join('../exp_results/109', 'run1', 'type' + str(5) + '_' + str(0) + '.npy')
-        # ind = np.load(path, allow_pickle=True)
-        # res = evaluation_function(ind)
-        # before = res[2]['binary goal']
-        # res_2 = evaluation_function(ind)
-        # after = res_2[2]['binary goal']
-        # assert(before == after)
-
-        # case 3: error is not triggered, before=True, after=True
-        # for j in [4, 5]:
-        #     for i in range(3):
-        #         DISPLAY = True
-        #         path = os.path.join('../exp_results/109', 'run1', 'type' + str(j) + '_' + str(i) + '.npy')
-        #         ind = np.load(path, allow_pickle=True)
-        #         res = evaluation_function(ind)
-        #         before = res[2]['binary goal']
-        #         print(before)
-        #         res_2 = evaluation_function(ind)
-        #         after = res_2[2]['binary goal']
-        #         assert(before == after)
-
-        # case 4: error is triggered at j=5, i=0, before=False, after=True, logical
-        # for j in [0, 1, 2, 3, 4, 5]:
-        #     for i in range(3):
-        #         DISPLAY = True
-        #         path = os.path.join('../exp_results/109', 'run1', 'type' + str(j) + '_' + str(i) + '.npy')
-        #         ind = np.load(path, allow_pickle=True)
-        #         res = evaluation_function(ind)
-        #         before = res[2]['binary goal']
-        #         print(before)
-        #         res_2 = evaluation_function(ind)
-        #         after = res_2[2]['binary goal']
-        #         assert(before == after)
         for j in range(4):
             for i in range(3):
                 path = os.path.join('../exp_results/106', 'run11', 'type' + str(j) + '_' + str(i) + '.npy')

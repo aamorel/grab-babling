@@ -7,7 +7,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 from deap import base, creator
 
-EXAMPLE = False
 DISPLAY = False
 PARALLELIZE = True
 GEN = 200
@@ -60,51 +59,38 @@ def evaluate_individual(individual):
         tuple: tuple of behavior (list) and fitness(tuple)
     """
     info = {}
-    if EXAMPLE:
-        # example: behavior is juste genotype
-        behavior = individual.copy()
-        # example: Rastrigin function
-        dim = len(individual)
-        A = 10
-        fitness = 0
-        for i in range(dim):
-            fitness += individual[i]**2 - A * math.cos(2 * math.pi * individual[i])
-        fitness += A * dim
-        return (behavior, (fitness,), info)
-    else:
-        env = gym.make('FastsimSimpleNavigation-v0')
-        env.reset()
+
+    env = gym.make('FastsimSimpleNavigation-v0')
+    env.reset()
+    if(DISPLAY):
+        env.enable_display()
+
+    action = [0, 0]
+
+    for i in range(1500):
+        env.render()
+        # apply previously chosen action
+        o, r, eo, info = env.step(action)
+        # normalize observations from sensor
+        o[0] = o[0] / env.maxSensorRange
+        o[1] = o[1] / env.maxSensorRange
+        o[2] = o[2] / env.maxSensorRange
+
+        # CONTROLLER
+        # 5 inputs, 2 outputs
+        individual = np.array(individual)
+        o = np.array(o)
+        action[0] = np.sum(np.multiply(individual[0:5], o)) + individual[5]
+        action[1] = np.sum(np.multiply(individual[6:11], o)) + individual[11]
+
         if(DISPLAY):
-            env.enable_display()
-
-        action = [0, 0]
-
-        for i in range(1500):
-            env.render()
-            # apply previously chosen action
-            o, r, eo, info = env.step(action)
-            # normalize observations from sensor
-            o[0] = o[0] / env.maxSensorRange
-            o[1] = o[1] / env.maxSensorRange
-            o[2] = o[2] / env.maxSensorRange
-
-            # CONTROLLER
-            # 5 inputs, 2 outputs
-            individual = np.array(individual)
-            o = np.array(o)
-            action[0] = np.sum(np.multiply(individual[0:5], o)) + individual[5]
-            action[1] = np.sum(np.multiply(individual[6:11], o)) + individual[11]
-
-            # print("Step %d Obs=%s  reward=%f  dist. to objective=%f  robot position=%s  End of ep=%s" % (i, str(o), r,
-            #     info["dist_obj"], str(info["robot_pos"]), str(eo)))
-            if(DISPLAY):
-                time.sleep(0.01)
-            if eo:
-                break
-        # use last info to compute behavior and fitness
-        behavior = [info["robot_pos"][0], info["robot_pos"][1]]
-        fitness = info["dist_obj"]
-        return (behavior, (fitness,), info)
+            time.sleep(0.01)
+        if eo:
+            break
+    # use last info to compute behavior and fitness
+    behavior = [info["robot_pos"][0], info["robot_pos"][1]]
+    fitness = info["dist_obj"]
+    return (behavior, (fitness,), info)
 
 
 if __name__ == "__main__":
