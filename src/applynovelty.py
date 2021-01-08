@@ -12,7 +12,7 @@ import math
 
 DISPLAY = False
 PARALLELIZE = True
-GEN = 1000
+GEN = 2000
 POP_SIZE = 100
 ARCHIVE_LIMIT = 200
 NB_CELLS = 100
@@ -21,7 +21,7 @@ ALGO = 'ns_rand'
 PLOT = False
 ARCHIVE_ANALYSIS = False
 NOVELTY_ANALYSIS = False
-SIMPLE_RUN = True
+SIMPLE_RUN = False
 ENV_NAME = 'slime'
 
 if ENV_NAME == 'maze':
