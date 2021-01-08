@@ -8,20 +8,20 @@ from deap import base, creator
 
 DISPLAY = False
 PARALLELIZE = True
-GEN = 10
+GEN = 200
 POP_SIZE = 10
 ARCHIVE_LIMIT = 200
 NB_CELLS = 100
 BD_BOUNDS = [[0, 600], [0, 600]]
 INITIAL_GENOTYPE_SIZE = 12
-N_EXP = 2
+N_EXP = 30
 MINI = True
 
 ALGO = 'ns_rand'
-PLOT = True
+PLOT = False
 ARCHIVE_ANALYSIS = False
 NOVELTY_ANALYSIS = False
-SIMPLE_RUN = True
+SIMPLE_RUN = False
 
 if PARALLELIZE:
     # container for behavior descriptor
@@ -160,13 +160,15 @@ if __name__ == "__main__":
 
             mean_cov = np.mean(coverages, 0)
             std_cov = [np.percentile(coverages, 25, 0), np.percentile(coverages, 75, 0)]
+            sig_cov = [np.std(coverages, 0) - mean_cov, np.std(coverages, 0) + mean_cov]
             mean_uni = np.mean(uniformities, 0)
             std_uni = [np.percentile(uniformities, 25, 0), np.percentile(uniformities, 75, 0)]
+            sig_uni = [np.std(uniformities, 0) - mean_uni, np.std(uniformities, 0) + mean_uni]
 
             ax[0].plot(mean_cov, label='classic ns', lw=2, color='grey')
-            ax[0].fill_between(list(range(GEN)), std_cov[0], std_cov[1], facecolor='grey', alpha=0.5)
+            ax[0].fill_between(list(range(GEN)), sig_cov[0], sig_cov[1], facecolor='grey', alpha=0.5)
             ax[1].plot(mean_uni, label='classic ns', lw=2, color='grey')
-            ax[1].fill_between(list(range(GEN)), std_uni[0], std_uni[1], facecolor='grey', alpha=0.5)
+            ax[1].fill_between(list(range(GEN)), sig_uni[0], sig_uni[1], facecolor='grey', alpha=0.5)
 
             # adding a run for no archive ns
             coverages = []
@@ -186,13 +188,15 @@ if __name__ == "__main__":
 
             mean_cov = np.mean(coverages, 0)
             std_cov = [np.percentile(coverages, 25, 0), np.percentile(coverages, 75, 0)]
+            sig_cov = [np.std(coverages, 0) - mean_cov, np.std(coverages, 0) + mean_cov]
             mean_uni = np.mean(uniformities, 0)
             std_uni = [np.percentile(uniformities, 25, 0), np.percentile(uniformities, 75, 0)]
+            sig_uni = [np.std(uniformities, 0) - mean_uni, np.std(uniformities, 0) + mean_uni]
 
             ax[0].plot(mean_cov, label='no archive', lw=2, color='green')
-            ax[0].fill_between(list(range(GEN)), std_cov[0], std_cov[1], facecolor='green', alpha=0.5)
+            ax[0].fill_between(list(range(GEN)), sig_cov[0], sig_cov[1], facecolor='green', alpha=0.5)
             ax[1].plot(mean_uni, label='no archive', lw=2, color='green')
-            ax[1].fill_between(list(range(GEN)), std_uni[0], std_uni[1], facecolor='green', alpha=0.5)
+            ax[1].fill_between(list(range(GEN)), sig_uni[0], sig_uni[1], facecolor='green', alpha=0.5)
 
             # adding a run for random search
             coverages = []
@@ -212,13 +216,15 @@ if __name__ == "__main__":
 
             mean_cov = np.mean(coverages, 0)
             std_cov = [np.percentile(coverages, 25, 0), np.percentile(coverages, 75, 0)]
+            sig_cov = [np.std(coverages, 0) - mean_cov, np.std(coverages, 0) + mean_cov]
             mean_uni = np.mean(uniformities, 0)
             std_uni = [np.percentile(uniformities, 25, 0), np.percentile(uniformities, 75, 0)]
+            sig_uni = [np.std(uniformities, 0) - mean_uni, np.std(uniformities, 0) + mean_uni]
 
             ax[0].plot(mean_cov, label='random search', lw=2, color='orange')
-            ax[0].fill_between(list(range(GEN)), std_cov[0], std_cov[1], facecolor='orange', alpha=0.5)
+            ax[0].fill_between(list(range(GEN)), sig_cov[0], sig_cov[1], facecolor='orange', alpha=0.5)
             ax[1].plot(mean_uni, label='random search', lw=2, color='orange')
-            ax[1].fill_between(list(range(GEN)), std_uni[0], std_uni[1], facecolor='orange', alpha=0.5)
+            ax[1].fill_between(list(range(GEN)), sig_uni[0], sig_uni[1], facecolor='orange', alpha=0.5)
 
             # generating the plot
             ax[0].set_xlabel("Generations", labelpad=15, fontsize=12, color="#333533")
