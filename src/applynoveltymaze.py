@@ -1,7 +1,6 @@
 import gym
 import gym_fastsim  # must still be imported
 import noveltysearch
-import math
 import time
 import numpy as np
 import matplotlib.pyplot as plt
@@ -9,7 +8,7 @@ from deap import base, creator
 
 DISPLAY = False
 PARALLELIZE = True
-GEN = 200
+GEN = 10
 POP_SIZE = 10
 ARCHIVE_LIMIT = 200
 NB_CELLS = 100
@@ -22,7 +21,7 @@ ALGO = 'ns_rand'
 PLOT = True
 ARCHIVE_ANALYSIS = False
 NOVELTY_ANALYSIS = False
-SIMPLE_RUN = False
+SIMPLE_RUN = True
 
 if PARALLELIZE:
     # container for behavior descriptor
@@ -94,6 +93,18 @@ def evaluate_individual(individual):
 
 
 if __name__ == "__main__":
+    SMALL_SIZE = 8
+    MEDIUM_SIZE = 10
+    BIGGER_SIZE = 12
+
+    plt.rc('font', size=BIGGER_SIZE, weight='bold')          # controls default text sizes
+    plt.rc('axes', titlesize=BIGGER_SIZE, titleweight='bold')     # fontsize of the axes title
+    plt.rc('axes', labelsize=BIGGER_SIZE, labelweight='bold')    # fontsize of the x and y labels
+    plt.rc('xtick', labelsize=BIGGER_SIZE)    # fontsize of the tick labels
+    plt.rc('ytick', labelsize=BIGGER_SIZE)    # fontsize of the tick labels
+    plt.rc('legend', fontsize=BIGGER_SIZE)    # legend fontsize
+    plt.rc('figure', titlesize=BIGGER_SIZE, titleweight='bold')  # fontsize of the figure title
+
     if not ARCHIVE_ANALYSIS:
         if SIMPLE_RUN:
 
