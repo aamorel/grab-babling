@@ -1,6 +1,7 @@
 import gym
 import gym_fastsim  # must still be imported
 import noveltysearch
+import slimevolleygym  # must still be imported
 import time
 import numpy as np
 import matplotlib.pyplot as plt
@@ -12,7 +13,7 @@ import math
 DISPLAY = False
 PARALLELIZE = True
 GEN = 1000
-POP_SIZE = 10
+POP_SIZE = 100
 ARCHIVE_LIMIT = 200
 NB_CELLS = 100
 N_EXP = 60
@@ -20,8 +21,8 @@ ALGO = 'ns_rand'
 PLOT = False
 ARCHIVE_ANALYSIS = False
 NOVELTY_ANALYSIS = False
-SIMPLE_RUN = False
-ENV_NAME = 'maze'
+SIMPLE_RUN = True
+ENV_NAME = 'slime'
 
 if ENV_NAME == 'maze':
     BD_BOUNDS = [[0, 600], [0, 600]]
@@ -33,7 +34,8 @@ if ENV_NAME == 'slime':
     ENV = gym.make("SlimeVolley-v0")
     BD_BOUNDS = [[0, 1], [0, 1]]
     INITIAL_GENOTYPE_SIZE = 99
-    N_REPEAT = 10
+    # depends on the version of slimevolley (random or determinist)
+    N_REPEAT = 1
     MINI = False
 
 
@@ -206,17 +208,21 @@ def evaluate_maze(individual):
 
 
 if __name__ == "__main__":
-    SMALL_SIZE = 8
     MEDIUM_SIZE = 10
     BIGGER_SIZE = 25
 
-    plt.rc('font', size=BIGGER_SIZE, weight='bold')          # controls default text sizes
-    plt.rc('axes', titlesize=BIGGER_SIZE, titleweight='bold')     # fontsize of the axes title
-    plt.rc('axes', labelsize=BIGGER_SIZE, labelweight='bold')    # fontsize of the x and y labels
-    plt.rc('xtick', labelsize=BIGGER_SIZE)    # fontsize of the tick labels
-    plt.rc('ytick', labelsize=BIGGER_SIZE)    # fontsize of the tick labels
-    plt.rc('legend', fontsize=BIGGER_SIZE)    # legend fontsize
-    plt.rc('figure', titlesize=BIGGER_SIZE, titleweight='bold')  # fontsize of the figure title
+    if SIMPLE_RUN:
+        size = MEDIUM_SIZE
+    else:
+        size = BIGGER_SIZE
+
+    plt.rc('font', size=size, weight='bold')          # controls default text sizes
+    plt.rc('axes', titlesize=size, titleweight='bold')     # fontsize of the axes title
+    plt.rc('axes', labelsize=size, labelweight='bold')    # fontsize of the x and y labels
+    plt.rc('xtick', labelsize=size)    # fontsize of the tick labels
+    plt.rc('ytick', labelsize=size)    # fontsize of the tick labels
+    plt.rc('legend', fontsize=size)    # legend fontsize
+    plt.rc('figure', titlesize=size, titleweight='bold')  # fontsize of the figure title
 
     if ENV_NAME == 'maze':
         evaluate_individual = evaluate_maze
@@ -230,7 +236,6 @@ if __name__ == "__main__":
             
             pop, archive, hof, info = noveltysearch.novelty_algo(evaluate_individual, INITIAL_GENOTYPE_SIZE, BD_BOUNDS,
                                                                  mini=MINI, archive_limit_size=None,
-                                                                 archive_limit_strat=archive_strat,
                                                                  plot=PLOT, algo_type='ns_rand', nb_gen=GEN,
                                                                  parallelize=PARALLELIZE, bound_genotype=1,
                                                                  measures=True, pop_size=POP_SIZE, nb_cells=NB_CELLS)
@@ -267,6 +272,9 @@ if __name__ == "__main__":
                     ax.scatter(pop_behavior[:, 0], pop_behavior[:, 1], color='blue', label='Population')
                     ax.scatter(hof_behavior[:, 0], hof_behavior[:, 1], color='green', label='Hall of Fame')
                     plt.legend()
+                    plt.savefig('final_behavior.png')
+                    fig = info['figure']
+                    fig.savefig('exploration_slime.png')
                 
             plt.show()
         else:
