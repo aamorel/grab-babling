@@ -160,10 +160,10 @@ if __name__ == "__main__":
 
             mean_cov = np.mean(coverages, 0)
             std_cov = [np.percentile(coverages, 25, 0), np.percentile(coverages, 75, 0)]
-            sig_cov = [np.std(coverages, 0) - mean_cov, np.std(coverages, 0) + mean_cov]
+            sig_cov = [mean_cov - np.std(coverages, 0), mean_cov + np.std(coverages, 0)]
             mean_uni = np.mean(uniformities, 0)
             std_uni = [np.percentile(uniformities, 25, 0), np.percentile(uniformities, 75, 0)]
-            sig_uni = [np.std(uniformities, 0) - mean_uni, np.std(uniformities, 0) + mean_uni]
+            sig_uni = [mean_uni - np.std(uniformities, 0), mean_uni + np.std(uniformities, 0)]
 
             ax[0].plot(mean_cov, label='classic ns', lw=2, color='grey')
             ax[0].fill_between(list(range(GEN)), sig_cov[0], sig_cov[1], facecolor='grey', alpha=0.5)
@@ -188,10 +188,10 @@ if __name__ == "__main__":
 
             mean_cov = np.mean(coverages, 0)
             std_cov = [np.percentile(coverages, 25, 0), np.percentile(coverages, 75, 0)]
-            sig_cov = [np.std(coverages, 0) - mean_cov, np.std(coverages, 0) + mean_cov]
+            sig_cov = [mean_cov - np.std(coverages, 0), mean_cov + np.std(coverages, 0)]
             mean_uni = np.mean(uniformities, 0)
             std_uni = [np.percentile(uniformities, 25, 0), np.percentile(uniformities, 75, 0)]
-            sig_uni = [np.std(uniformities, 0) - mean_uni, np.std(uniformities, 0) + mean_uni]
+            sig_uni = [mean_uni - np.std(uniformities, 0), mean_uni + np.std(uniformities, 0)]
 
             ax[0].plot(mean_cov, label='no archive', lw=2, color='green')
             ax[0].fill_between(list(range(GEN)), sig_cov[0], sig_cov[1], facecolor='green', alpha=0.5)
@@ -216,10 +216,10 @@ if __name__ == "__main__":
 
             mean_cov = np.mean(coverages, 0)
             std_cov = [np.percentile(coverages, 25, 0), np.percentile(coverages, 75, 0)]
-            sig_cov = [np.std(coverages, 0) - mean_cov, np.std(coverages, 0) + mean_cov]
+            sig_cov = [mean_cov - np.std(coverages, 0), mean_cov + np.std(coverages, 0)]
             mean_uni = np.mean(uniformities, 0)
             std_uni = [np.percentile(uniformities, 25, 0), np.percentile(uniformities, 75, 0)]
-            sig_uni = [np.std(uniformities, 0) - mean_uni, np.std(uniformities, 0) + mean_uni]
+            sig_uni = [mean_uni - np.std(uniformities, 0), mean_uni + np.std(uniformities, 0)]
 
             ax[0].plot(mean_cov, label='random search', lw=2, color='orange')
             ax[0].fill_between(list(range(GEN)), sig_cov[0], sig_cov[1], facecolor='orange', alpha=0.5)
