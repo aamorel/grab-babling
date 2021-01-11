@@ -9,6 +9,8 @@ from scoop import futures
 import utils
 import math
 from sklearn import mixture
+import pandas
+import joypy
 
 
 creator = None
@@ -349,7 +351,7 @@ def operate_offsprings_diversity(offsprings, toolbox, bound_genotype, pop):
 
 def gen_plot(mean_hist, min_hist, max_hist, arch_size_hist, coverage_hist, uniformity_hist,
              mean_age_hist, max_age_hist, run_name, algo_type, full_cov_hist, full_uni_hist,
-             pop_cov_hist, pop_uni_hist):
+             pop_cov_hist, pop_uni_hist, novelty_distrib):
     """Plotting
 
     Args:
@@ -367,7 +369,7 @@ def gen_plot(mean_hist, min_hist, max_hist, arch_size_hist, coverage_hist, unifo
         full_uni_hist (list): history of uniformity of all generated individuals
         pop_cov_hist (list): history of coverage of all generated individuals
         pop_uni_hist (list): history of uniformity of all generated individuals
-
+        novelty_distrib (list): history of distributions of novelty across pop + offsprings
 
 
    """
@@ -435,9 +437,21 @@ def gen_plot(mean_hist, min_hist, max_hist, arch_size_hist, coverage_hist, unifo
     ax[2][0].legend()
 
     if run_name is not None:
-        plt.savefig(run_name + 'novelty_search_plots.png')
-    
-    return fig
+        fig.savefig(run_name + 'novelty_search_plots.png')
+
+    if algo_type == 'ns_rand_multi_bd':
+        pass  # TODO: deal with multi_bd for novelty distrib plot
+    else:
+        novelty_distrib = np.array(novelty_distrib)
+        df = novelty_distrib.reshape((novelty_distrib.shape[0], novelty_distrib.shape[1]))
+        df = df.transpose()
+        df = pandas.DataFrame(df, columns=list(range(df.shape[1])))
+        fig_2, ax_2 = joypy.joyplot(df, ylabels=False, grid='y',
+                                    title='Evolution of novelty distributions',
+                                    legend=False, kind='counts', bins=30, ylim='max',
+                                    figsize=(15, 15))
+
+    return fig, fig_2
 
 
 def add_to_grid(member, grid, cvt, measures, algo_type, bd_filters):
@@ -708,6 +722,7 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
     gen_stat_hist = []
     gen_stat_hist_off = []
     if measures:
+        novelty_distrib = []
         coverage_hist = []
         full_cov_hist = []
         pop_cov_hist = []
@@ -769,6 +784,8 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
         novelties = assess_novelties(current_pool, archive, algo_type, bd_bounds, bd_indexes, bd_filters,
                                      novelty_metric,
                                      altered=altered_novelty, degree=alteration_degree, info=details)
+        if measures:
+            novelty_distrib.append(np.array(novelties))
         for ind, nov in zip(current_pool, novelties):
             ind.novelty.values = nov
         # an individual with bd = None will have 0 novelty
@@ -1182,9 +1199,9 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
     details['uniformity'] = full_uni_hist
     details['ranking similarities'] = ranking_similarities
 
-    fig = gen_plot(mean_hist, min_hist, max_hist, arch_size_hist, coverage_hist, uniformity_hist,
-                   mean_age_hist, max_age_hist, run_name, algo_type, full_cov_hist, full_uni_hist,
-                   pop_cov_hist, pop_uni_hist)
+    fig, fig_2 = gen_plot(mean_hist, min_hist, max_hist, arch_size_hist, coverage_hist, uniformity_hist,
+                          mean_age_hist, max_age_hist, run_name, algo_type, full_cov_hist, full_uni_hist,
+                          pop_cov_hist, pop_uni_hist, novelty_distrib)
     
     details['figure'] = fig
     if plot:

@@ -12,17 +12,17 @@ import math
 
 DISPLAY = False
 PARALLELIZE = True
-GEN = 2000
-POP_SIZE = 100
-ARCHIVE_LIMIT = 200
+GEN = 1000
+POP_SIZE = 10
+ARCHIVE_LIMIT = 20
 NB_CELLS = 100
 N_EXP = 60
 ALGO = 'ns_rand'
 PLOT = False
-ARCHIVE_ANALYSIS = False
+ARCHIVE_ANALYSIS = True
 NOVELTY_ANALYSIS = False
 SIMPLE_RUN = False
-ENV_NAME = 'slime'
+ENV_NAME = 'maze'
 
 if ENV_NAME == 'maze':
     BD_BOUNDS = [[0, 600], [0, 600]]
@@ -415,23 +415,28 @@ if __name__ == "__main__":
                     rk_sim.append(ranking_similarities)
                 mean_cov = np.mean(coverages, 0)
                 std_cov = [np.percentile(coverages, 25, 0), np.percentile(coverages, 75, 0)]
+                sig_cov = [mean_cov - np.std(coverages, 0), mean_cov + np.std(coverages, 0)]
                 mean_uni = np.mean(uniformities, 0)
                 std_uni = [np.percentile(uniformities, 25, 0), np.percentile(uniformities, 75, 0)]
+                sig_uni = [mean_uni - np.std(uniformities, 0), mean_uni + np.std(uniformities, 0)]
                 mean_arch_cov = np.mean(arch_coverages, 0)
+                sig_arch_cov = [mean_arch_cov - np.std(arch_coverages, 0), mean_arch_cov + np.std(arch_coverages, 0)]
                 std_arch_cov = [np.percentile(arch_coverages, 25, 0), np.percentile(arch_coverages, 75, 0)]
                 mean_arch_uni = np.mean(arch_uniformities, 0)
                 std_arch_uni = [np.percentile(arch_uniformities, 25, 0), np.percentile(arch_uniformities, 75, 0)]
+                sig_arch_uni = [mean_arch_uni - np.std(arch_uniformities, 0),
+                                mean_arch_uni + np.std(arch_uniformities, 0)]
                 mean_rk_sim = np.mean(rk_sim, 0)
-                std_rk = [np.percentile(coverages, 25, 0), np.percentile(coverages, 75, 0)]
+
                 ax[0].plot(mean_cov, label=archive_strat, lw=2, color=colors[s])
-                ax[0].fill_between(list(range(GEN)), std_cov[0], std_cov[1], facecolor=colors[s], alpha=0.5)
+                ax[0].fill_between(list(range(GEN)), sig_cov[0], sig_cov[1], facecolor=colors[s], alpha=0.5)
                 ax[1].plot(mean_uni, label=archive_strat, lw=2, color=colors[s])
-                ax[1].fill_between(list(range(GEN)), std_uni[0], std_uni[1], facecolor=colors[s], alpha=0.5)
+                ax[1].fill_between(list(range(GEN)), sig_uni[0], sig_uni[1], facecolor=colors[s], alpha=0.5)
                 ax[2].plot(mean_rk_sim, label=archive_strat, lw=2, color=colors[s])
                 ax_2[0].plot(mean_arch_cov, label=archive_strat, lw=2, color=colors[s])
-                ax_2[0].fill_between(list(range(GEN)), std_arch_cov[0], std_arch_cov[1], facecolor=colors[s], alpha=0.5)
+                ax_2[0].fill_between(list(range(GEN)), sig_arch_cov[0], sig_arch_cov[1], facecolor=colors[s], alpha=0.5)
                 ax_2[1].plot(mean_arch_uni, label=archive_strat, lw=2, color=colors[s])
-                ax_2[1].fill_between(list(range(GEN)), std_arch_uni[0], std_arch_uni[1], facecolor=colors[s], alpha=0.5)
+                ax_2[1].fill_between(list(range(GEN)), sig_arch_uni[0], sig_arch_uni[1], facecolor=colors[s], alpha=0.5)
                 ax_2[2].plot(mean_rk_sim, label=archive_strat, lw=2, color=colors[s])
                 # ax[2].fill_between(list(range(len(mean_rk_sim))), std_rk[0], std_rk[1],
                 #                    facecolor=colors[s], alpha=0.5)
@@ -461,21 +466,27 @@ if __name__ == "__main__":
 
             mean_cov = np.mean(coverages, 0)
             std_cov = [np.percentile(coverages, 25, 0), np.percentile(coverages, 75, 0)]
+            sig_cov = [mean_cov - np.std(coverages, 0), mean_cov + np.std(coverages, 0)]
             mean_uni = np.mean(uniformities, 0)
             std_uni = [np.percentile(uniformities, 25, 0), np.percentile(uniformities, 75, 0)]
+            sig_uni = [mean_uni - np.std(uniformities, 0), mean_uni + np.std(uniformities, 0)]
             mean_arch_cov = np.mean(arch_coverages, 0)
+            sig_arch_cov = [mean_arch_cov - np.std(arch_coverages, 0), mean_arch_cov + np.std(arch_coverages, 0)]
             std_arch_cov = [np.percentile(arch_coverages, 25, 0), np.percentile(arch_coverages, 75, 0)]
             mean_arch_uni = np.mean(arch_uniformities, 0)
             std_arch_uni = [np.percentile(arch_uniformities, 25, 0), np.percentile(arch_uniformities, 75, 0)]
+            sig_arch_uni = [mean_arch_uni - np.std(arch_uniformities, 0),
+                            mean_arch_uni + np.std(arch_uniformities, 0)]
+            mean_rk_sim = np.mean(rk_sim, 0)
 
             ax[0].plot(mean_cov, label='no archive limit', lw=2, color='gray')
-            ax[0].fill_between(list(range(GEN)), std_cov[0], std_cov[1], facecolor='gray', alpha=0.5)
+            ax[0].fill_between(list(range(GEN)), sig_cov[0], sig_cov[1], facecolor='gray', alpha=0.5)
             ax[1].plot(mean_uni, label='no archive limit', lw=2, color='gray')
-            ax[1].fill_between(list(range(GEN)), std_uni[0], std_uni[1], facecolor='gray', alpha=0.5)
+            ax[1].fill_between(list(range(GEN)), sig_uni[0], sig_uni[1], facecolor='gray', alpha=0.5)
             ax_2[0].plot(mean_arch_cov, label='no archive limit', lw=2, color='gray')
-            ax_2[0].fill_between(list(range(GEN)), std_arch_cov[0], std_arch_cov[1], facecolor='gray', alpha=0.5)
+            ax_2[0].fill_between(list(range(GEN)), sig_arch_cov[0], sig_arch_cov[1], facecolor='gray', alpha=0.5)
             ax_2[1].plot(mean_arch_uni, label='no archive limit', lw=2, color='gray')
-            ax_2[1].fill_between(list(range(GEN)), std_arch_uni[0], std_arch_uni[1], facecolor='gray', alpha=0.5)
+            ax_2[1].fill_between(list(range(GEN)), sig_arch_uni[0], sig_arch_uni[1], facecolor='gray', alpha=0.5)
 
             # adding a run for random search
             coverages = []
@@ -502,21 +513,27 @@ if __name__ == "__main__":
 
             mean_cov = np.mean(coverages, 0)
             std_cov = [np.percentile(coverages, 25, 0), np.percentile(coverages, 75, 0)]
+            sig_cov = [mean_cov - np.std(coverages, 0), mean_cov + np.std(coverages, 0)]
             mean_uni = np.mean(uniformities, 0)
             std_uni = [np.percentile(uniformities, 25, 0), np.percentile(uniformities, 75, 0)]
+            sig_uni = [mean_uni - np.std(uniformities, 0), mean_uni + np.std(uniformities, 0)]
             mean_arch_cov = np.mean(arch_coverages, 0)
+            sig_arch_cov = [mean_arch_cov - np.std(arch_coverages, 0), mean_arch_cov + np.std(arch_coverages, 0)]
             std_arch_cov = [np.percentile(arch_coverages, 25, 0), np.percentile(arch_coverages, 75, 0)]
             mean_arch_uni = np.mean(arch_uniformities, 0)
             std_arch_uni = [np.percentile(arch_uniformities, 25, 0), np.percentile(arch_uniformities, 75, 0)]
+            sig_arch_uni = [mean_arch_uni - np.std(arch_uniformities, 0),
+                            mean_arch_uni + np.std(arch_uniformities, 0)]
+            mean_rk_sim = np.mean(rk_sim, 0)
 
             ax[0].plot(mean_cov, label='random search', lw=2, color='orange')
-            ax[0].fill_between(list(range(GEN)), std_cov[0], std_cov[1], facecolor='orange', alpha=0.5)
+            ax[0].fill_between(list(range(GEN)), sig_cov[0], sig_cov[1], facecolor='orange', alpha=0.5)
             ax[1].plot(mean_uni, label='random search', lw=2, color='orange')
-            ax[1].fill_between(list(range(GEN)), std_uni[0], std_uni[1], facecolor='orange', alpha=0.5)
+            ax[1].fill_between(list(range(GEN)), sig_uni[0], sig_uni[1], facecolor='orange', alpha=0.5)
             ax_2[0].plot(mean_arch_cov, label='random search', lw=2, color='orange')
-            ax_2[0].fill_between(list(range(GEN)), std_arch_cov[0], std_arch_cov[1], facecolor='orange', alpha=0.5)
+            ax_2[0].fill_between(list(range(GEN)), sig_arch_cov[0], sig_arch_cov[1], facecolor='orange', alpha=0.5)
             ax_2[1].plot(mean_arch_uni, label='random search', lw=2, color='orange')
-            ax_2[1].fill_between(list(range(GEN)), std_arch_uni[0], std_arch_uni[1], facecolor='orange', alpha=0.5)
+            ax_2[1].fill_between(list(range(GEN)), sig_arch_uni[0], sig_arch_uni[1], facecolor='orange', alpha=0.5)
 
             # adding a run for fitness ea
             coverages = []
@@ -543,21 +560,27 @@ if __name__ == "__main__":
 
             mean_cov = np.mean(coverages, 0)
             std_cov = [np.percentile(coverages, 25, 0), np.percentile(coverages, 75, 0)]
+            sig_cov = [mean_cov - np.std(coverages, 0), mean_cov + np.std(coverages, 0)]
             mean_uni = np.mean(uniformities, 0)
             std_uni = [np.percentile(uniformities, 25, 0), np.percentile(uniformities, 75, 0)]
+            sig_uni = [mean_uni - np.std(uniformities, 0), mean_uni + np.std(uniformities, 0)]
             mean_arch_cov = np.mean(arch_coverages, 0)
+            sig_arch_cov = [mean_arch_cov - np.std(arch_coverages, 0), mean_arch_cov + np.std(arch_coverages, 0)]
             std_arch_cov = [np.percentile(arch_coverages, 25, 0), np.percentile(arch_coverages, 75, 0)]
             mean_arch_uni = np.mean(arch_uniformities, 0)
             std_arch_uni = [np.percentile(arch_uniformities, 25, 0), np.percentile(arch_uniformities, 75, 0)]
+            sig_arch_uni = [mean_arch_uni - np.std(arch_uniformities, 0),
+                            mean_arch_uni + np.std(arch_uniformities, 0)]
+            mean_rk_sim = np.mean(rk_sim, 0)
 
             ax[0].plot(mean_cov, label='fitness ea', lw=2, color='cyan')
-            ax[0].fill_between(list(range(GEN)), std_cov[0], std_cov[1], facecolor='cyan', alpha=0.5)
+            ax[0].fill_between(list(range(GEN)), sig_cov[0], sig_cov[1], facecolor='cyan', alpha=0.5)
             ax[1].plot(mean_uni, label='fitness ea', lw=2, color='cyan')
-            ax[1].fill_between(list(range(GEN)), std_uni[0], std_uni[1], facecolor='cyan', alpha=0.5)
+            ax[1].fill_between(list(range(GEN)), sig_uni[0], sig_uni[1], facecolor='cyan', alpha=0.5)
             ax_2[0].plot(mean_arch_cov, label='fitness ea', lw=2, color='cyan')
-            ax_2[0].fill_between(list(range(GEN)), std_arch_cov[0], std_arch_cov[1], facecolor='cyan', alpha=0.5)
+            ax_2[0].fill_between(list(range(GEN)), sig_arch_cov[0], sig_arch_cov[1], facecolor='cyan', alpha=0.5)
             ax_2[1].plot(mean_arch_uni, label='fitness ea', lw=2, color='cyan')
-            ax_2[1].fill_between(list(range(GEN)), std_arch_uni[0], std_arch_uni[1], facecolor='cyan', alpha=0.5)
+            ax_2[1].fill_between(list(range(GEN)), sig_arch_uni[0], sig_arch_uni[1], facecolor='cyan', alpha=0.5)
 
             # generating the plot
             ax[0].set_xlabel("Generations", labelpad=15, color="#333533")
@@ -628,23 +651,28 @@ if __name__ == "__main__":
                     rk_sim.append(ranking_similarities)
                 mean_cov = np.mean(coverages, 0)
                 std_cov = [np.percentile(coverages, 25, 0), np.percentile(coverages, 75, 0)]
+                sig_cov = [mean_cov - np.std(coverages, 0), mean_cov + np.std(coverages, 0)]
                 mean_uni = np.mean(uniformities, 0)
                 std_uni = [np.percentile(uniformities, 25, 0), np.percentile(uniformities, 75, 0)]
+                sig_uni = [mean_uni - np.std(uniformities, 0), mean_uni + np.std(uniformities, 0)]
                 mean_arch_cov = np.mean(arch_coverages, 0)
+                sig_arch_cov = [mean_arch_cov - np.std(arch_coverages, 0), mean_arch_cov + np.std(arch_coverages, 0)]
                 std_arch_cov = [np.percentile(arch_coverages, 25, 0), np.percentile(arch_coverages, 75, 0)]
                 mean_arch_uni = np.mean(arch_uniformities, 0)
                 std_arch_uni = [np.percentile(arch_uniformities, 25, 0), np.percentile(arch_uniformities, 75, 0)]
+                sig_arch_uni = [mean_arch_uni - np.std(arch_uniformities, 0),
+                                mean_arch_uni + np.std(arch_uniformities, 0)]
                 mean_rk_sim = np.mean(rk_sim, 0)
-                std_rk = [np.percentile(coverages, 25, 0), np.percentile(coverages, 75, 0)]
+
                 ax[0].plot(mean_cov, label=archive_strat, lw=2, color=colors[s])
-                ax[0].fill_between(list(range(GEN)), std_cov[0], std_cov[1], facecolor=colors[s], alpha=0.5)
+                ax[0].fill_between(list(range(GEN)), sig_cov[0], sig_cov[1], facecolor=colors[s], alpha=0.5)
                 ax[1].plot(mean_uni, label=archive_strat, lw=2, color=colors[s])
-                ax[1].fill_between(list(range(GEN)), std_uni[0], std_uni[1], facecolor=colors[s], alpha=0.5)
+                ax[1].fill_between(list(range(GEN)), sig_uni[0], sig_uni[1], facecolor=colors[s], alpha=0.5)
                 ax[2].plot(mean_rk_sim, label=archive_strat, lw=2, color=colors[s])
                 ax_2[0].plot(mean_arch_cov, label=archive_strat, lw=2, color=colors[s])
-                ax_2[0].fill_between(list(range(GEN)), std_arch_cov[0], std_arch_cov[1], facecolor=colors[s], alpha=0.5)
+                ax_2[0].fill_between(list(range(GEN)), sig_arch_cov[0], sig_arch_cov[1], facecolor=colors[s], alpha=0.5)
                 ax_2[1].plot(mean_arch_uni, label=archive_strat, lw=2, color=colors[s])
-                ax_2[1].fill_between(list(range(GEN)), std_arch_uni[0], std_arch_uni[1], facecolor=colors[s], alpha=0.5)
+                ax_2[1].fill_between(list(range(GEN)), sig_arch_uni[0], sig_arch_uni[1], facecolor=colors[s], alpha=0.5)
                 ax_2[2].plot(mean_rk_sim, label=archive_strat, lw=2, color=colors[s])
                 # ax[2].fill_between(list(range(len(mean_rk_sim))), std_rk[0], std_rk[1],
                 #                    facecolor=colors[s], alpha=0.5)
@@ -674,21 +702,27 @@ if __name__ == "__main__":
 
             mean_cov = np.mean(coverages, 0)
             std_cov = [np.percentile(coverages, 25, 0), np.percentile(coverages, 75, 0)]
+            sig_cov = [mean_cov - np.std(coverages, 0), mean_cov + np.std(coverages, 0)]
             mean_uni = np.mean(uniformities, 0)
             std_uni = [np.percentile(uniformities, 25, 0), np.percentile(uniformities, 75, 0)]
+            sig_uni = [mean_uni - np.std(uniformities, 0), mean_uni + np.std(uniformities, 0)]
             mean_arch_cov = np.mean(arch_coverages, 0)
+            sig_arch_cov = [mean_arch_cov - np.std(arch_coverages, 0), mean_arch_cov + np.std(arch_coverages, 0)]
             std_arch_cov = [np.percentile(arch_coverages, 25, 0), np.percentile(arch_coverages, 75, 0)]
             mean_arch_uni = np.mean(arch_uniformities, 0)
             std_arch_uni = [np.percentile(arch_uniformities, 25, 0), np.percentile(arch_uniformities, 75, 0)]
+            sig_arch_uni = [mean_arch_uni - np.std(arch_uniformities, 0),
+                            mean_arch_uni + np.std(arch_uniformities, 0)]
+            mean_rk_sim = np.mean(rk_sim, 0)
 
             ax[0].plot(mean_cov, label='no alteration', lw=2, color='gray')
-            ax[0].fill_between(list(range(GEN)), std_cov[0], std_cov[1], facecolor='gray', alpha=0.5)
+            ax[0].fill_between(list(range(GEN)), sig_cov[0], sig_cov[1], facecolor='gray', alpha=0.5)
             ax[1].plot(mean_uni, label='no alteration', lw=2, color='gray')
-            ax[1].fill_between(list(range(GEN)), std_uni[0], std_uni[1], facecolor='gray', alpha=0.5)
+            ax[1].fill_between(list(range(GEN)), sig_uni[0], sig_uni[1], facecolor='gray', alpha=0.5)
             ax_2[0].plot(mean_arch_cov, label='no alteration', lw=2, color='gray')
-            ax_2[0].fill_between(list(range(GEN)), std_arch_cov[0], std_arch_cov[1], facecolor='gray', alpha=0.5)
+            ax_2[0].fill_between(list(range(GEN)), sig_arch_cov[0], sig_arch_cov[1], facecolor='gray', alpha=0.5)
             ax_2[1].plot(mean_arch_uni, label='no alteration', lw=2, color='gray')
-            ax_2[1].fill_between(list(range(GEN)), std_arch_uni[0], std_arch_uni[1], facecolor='gray', alpha=0.5)
+            ax_2[1].fill_between(list(range(GEN)), sig_arch_uni[0], sig_arch_uni[1], facecolor='gray', alpha=0.5)
 
             # adding a run for random search
             coverages = []
@@ -715,21 +749,27 @@ if __name__ == "__main__":
 
             mean_cov = np.mean(coverages, 0)
             std_cov = [np.percentile(coverages, 25, 0), np.percentile(coverages, 75, 0)]
+            sig_cov = [mean_cov - np.std(coverages, 0), mean_cov + np.std(coverages, 0)]
             mean_uni = np.mean(uniformities, 0)
             std_uni = [np.percentile(uniformities, 25, 0), np.percentile(uniformities, 75, 0)]
+            sig_uni = [mean_uni - np.std(uniformities, 0), mean_uni + np.std(uniformities, 0)]
             mean_arch_cov = np.mean(arch_coverages, 0)
+            sig_arch_cov = [mean_arch_cov - np.std(arch_coverages, 0), mean_arch_cov + np.std(arch_coverages, 0)]
             std_arch_cov = [np.percentile(arch_coverages, 25, 0), np.percentile(arch_coverages, 75, 0)]
             mean_arch_uni = np.mean(arch_uniformities, 0)
             std_arch_uni = [np.percentile(arch_uniformities, 25, 0), np.percentile(arch_uniformities, 75, 0)]
+            sig_arch_uni = [mean_arch_uni - np.std(arch_uniformities, 0),
+                            mean_arch_uni + np.std(arch_uniformities, 0)]
+            mean_rk_sim = np.mean(rk_sim, 0)
 
             ax[0].plot(mean_cov, label='random search', lw=2, color='orange')
-            ax[0].fill_between(list(range(GEN)), std_cov[0], std_cov[1], facecolor='orange', alpha=0.5)
+            ax[0].fill_between(list(range(GEN)), sig_cov[0], sig_cov[1], facecolor='orange', alpha=0.5)
             ax[1].plot(mean_uni, label='random search', lw=2, color='orange')
-            ax[1].fill_between(list(range(GEN)), std_uni[0], std_uni[1], facecolor='orange', alpha=0.5)
+            ax[1].fill_between(list(range(GEN)), sig_uni[0], sig_uni[1], facecolor='orange', alpha=0.5)
             ax_2[0].plot(mean_arch_cov, label='random search', lw=2, color='orange')
-            ax_2[0].fill_between(list(range(GEN)), std_arch_cov[0], std_arch_cov[1], facecolor='orange', alpha=0.5)
+            ax_2[0].fill_between(list(range(GEN)), sig_arch_cov[0], sig_arch_cov[1], facecolor='orange', alpha=0.5)
             ax_2[1].plot(mean_arch_uni, label='random search', lw=2, color='orange')
-            ax_2[1].fill_between(list(range(GEN)), std_arch_uni[0], std_arch_uni[1], facecolor='orange', alpha=0.5)
+            ax_2[1].fill_between(list(range(GEN)), sig_arch_uni[0], sig_arch_uni[1], facecolor='orange', alpha=0.5)
 
             # adding a run for fitness ea
             coverages = []
@@ -756,21 +796,27 @@ if __name__ == "__main__":
 
             mean_cov = np.mean(coverages, 0)
             std_cov = [np.percentile(coverages, 25, 0), np.percentile(coverages, 75, 0)]
+            sig_cov = [mean_cov - np.std(coverages, 0), mean_cov + np.std(coverages, 0)]
             mean_uni = np.mean(uniformities, 0)
             std_uni = [np.percentile(uniformities, 25, 0), np.percentile(uniformities, 75, 0)]
+            sig_uni = [mean_uni - np.std(uniformities, 0), mean_uni + np.std(uniformities, 0)]
             mean_arch_cov = np.mean(arch_coverages, 0)
+            sig_arch_cov = [mean_arch_cov - np.std(arch_coverages, 0), mean_arch_cov + np.std(arch_coverages, 0)]
             std_arch_cov = [np.percentile(arch_coverages, 25, 0), np.percentile(arch_coverages, 75, 0)]
             mean_arch_uni = np.mean(arch_uniformities, 0)
             std_arch_uni = [np.percentile(arch_uniformities, 25, 0), np.percentile(arch_uniformities, 75, 0)]
+            sig_arch_uni = [mean_arch_uni - np.std(arch_uniformities, 0),
+                            mean_arch_uni + np.std(arch_uniformities, 0)]
+            mean_rk_sim = np.mean(rk_sim, 0)
 
             ax[0].plot(mean_cov, label='fitness ea', lw=2, color='cyan')
-            ax[0].fill_between(list(range(GEN)), std_cov[0], std_cov[1], facecolor='cyan', alpha=0.5)
+            ax[0].fill_between(list(range(GEN)), sig_cov[0], sig_cov[1], facecolor='cyan', alpha=0.5)
             ax[1].plot(mean_uni, label='fitness ea', lw=2, color='cyan')
-            ax[1].fill_between(list(range(GEN)), std_uni[0], std_uni[1], facecolor='cyan', alpha=0.5)
+            ax[1].fill_between(list(range(GEN)), sig_uni[0], sig_uni[1], facecolor='cyan', alpha=0.5)
             ax_2[0].plot(mean_arch_cov, label='fitness ea', lw=2, color='cyan')
-            ax_2[0].fill_between(list(range(GEN)), std_arch_cov[0], std_arch_cov[1], facecolor='cyan', alpha=0.5)
+            ax_2[0].fill_between(list(range(GEN)), sig_arch_cov[0], sig_arch_cov[1], facecolor='cyan', alpha=0.5)
             ax_2[1].plot(mean_arch_uni, label='fitness ea', lw=2, color='cyan')
-            ax_2[1].fill_between(list(range(GEN)), std_arch_uni[0], std_arch_uni[1], facecolor='cyan', alpha=0.5)
+            ax_2[1].fill_between(list(range(GEN)), sig_arch_uni[0], sig_arch_uni[1], facecolor='cyan', alpha=0.5)
             
             ax[0].set_xlabel("Generations", labelpad=15, color="#333533")
             ax[1].set_xlabel("Generations", labelpad=15, color="#333533")
