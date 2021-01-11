@@ -432,7 +432,7 @@ def gen_plot(mean_hist, min_hist, max_hist, arch_size_hist, coverage_hist, unifo
     else:
         ax[2][0].plot(pop_cov_hist, color='blue', label='Coverage')
         ax[2][0].plot(pop_uni_hist, ls='--', color='blue', label='Uniformity')
-    ax[2][1].legend()
+    ax[2][0].legend()
 
     if run_name is not None:
         plt.savefig(run_name + 'novelty_search_plots.png')
@@ -1116,7 +1116,7 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
                 coverages = []
                 uniformities = []
                 # loop through all grids and compute measures for each grid
-                for gr in grid_hist:
+                for gr in grid_pop:
                     coverages.append(np.count_nonzero(gr) / nb_cells)
                     uniformities.append(utils.compute_uniformity(gr))
                 pop_uni_hist.append(uniformities)
