@@ -439,17 +439,19 @@ def gen_plot(mean_hist, min_hist, max_hist, arch_size_hist, coverage_hist, unifo
     if run_name is not None:
         fig.savefig(run_name + 'novelty_search_plots.png')
 
+    fig_2 = 0
     if algo_type == 'ns_rand_multi_bd':
         pass  # TODO: deal with multi_bd for novelty distrib plot
     else:
-        novelty_distrib = np.array(novelty_distrib)
-        df = novelty_distrib.reshape((novelty_distrib.shape[0], novelty_distrib.shape[1]))
-        df = df.transpose()
-        df = pandas.DataFrame(df, columns=list(range(df.shape[1])))
-        fig_2, ax_2 = joypy.joyplot(df, ylabels=False, grid='y',
-                                    title='Evolution of novelty distributions',
-                                    legend=False, kind='counts', bins=30, ylim='max',
-                                    figsize=(15, 15))
+        if len(novelty_distrib) < 100:
+            novelty_distrib = np.array(novelty_distrib)
+            df = novelty_distrib.reshape((novelty_distrib.shape[0], novelty_distrib.shape[1]))
+            df = df.transpose()
+            df = pandas.DataFrame(df, columns=list(range(df.shape[1])))
+            fig_2, ax_2 = joypy.joyplot(df, ylabels=False, grid='y',
+                                        title='Evolution of novelty distributions with respect to generations',
+                                        legend=False, kind='counts', bins=30, ylim='max',
+                                        figsize=(15, 15), color='red', linecolor='black')
 
     return fig, fig_2
 
@@ -1204,6 +1206,7 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
                           pop_cov_hist, pop_uni_hist, novelty_distrib)
     
     details['figure'] = fig
+    details['figure_2'] = fig_2
     if plot:
         # show all plots
         plt.show()

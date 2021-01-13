@@ -2,6 +2,9 @@ import gym
 import gym_fastsim  # must still be imported
 import noveltysearch
 import slimevolleygym  # must still be imported
+import ballbeam_gym  # must still be imported
+from gym_minigrid.wrappers import ImgObsWrapper  # must still be imported
+import gym_minigrid  # must still be imported
 import time
 import numpy as np
 import matplotlib.pyplot as plt
@@ -12,17 +15,18 @@ import math
 
 DISPLAY = False
 PARALLELIZE = True
-GEN = 1000
-POP_SIZE = 10
+GEN = 20
+POP_SIZE = 100
 ARCHIVE_LIMIT = 20
 NB_CELLS = 100
 N_EXP = 60
 ALGO = 'ns_rand'
-PLOT = False
-ARCHIVE_ANALYSIS = True
+PLOT = True
+ARCHIVE_ANALYSIS = False
 NOVELTY_ANALYSIS = False
-SIMPLE_RUN = False
-ENV_NAME = 'maze'
+SIMPLE_RUN = True
+ENV_NAME = 'bipedal'
+SHOW_HOF = False
 
 if ENV_NAME == 'maze':
     BD_BOUNDS = [[0, 600], [0, 600]]
@@ -38,6 +42,35 @@ if ENV_NAME == 'slime':
     N_REPEAT = 1
     MINI = False
 
+if ENV_NAME == 'beam':
+    # pass env arguments as kwargs
+    kwargs = {'timestep': 0.05,
+              'beam_length': 1.0,
+              'max_angle': 0.4,
+              'init_velocity': 0.0,
+              'max_timesteps': 500,
+              'action_mode': 'discrete'}
+
+    # create env
+    ENV = gym.make('BallBeamThrow-v0', **kwargs)
+    BD_BOUNDS = [[0, 3]]
+    INITIAL_GENOTYPE_SIZE = 11
+    MINI = False
+
+if ENV_NAME == 'grid':
+    # create env
+    ENV = ImgObsWrapper(gym.make('MiniGrid-Empty-8x8-v0'))
+    BD_BOUNDS = [[0, 7], [0, 7]]
+    NB_CELLS = 64
+    INITIAL_GENOTYPE_SIZE = 11
+    MINI = False
+
+if ENV_NAME == 'bipedal':
+    # global variable for the environment
+    ENV = gym.make('BipedalWalker-v3')
+    BD_BOUNDS = [[-1, 1], [0, 1]]
+    INITIAL_GENOTYPE_SIZE = 118
+    MINI = False
 
 if PARALLELIZE:
     # container for behavior descriptor
@@ -90,10 +123,6 @@ class ControllerNetSlime(nn.Module):
         action[2] = int(action[2] > 0.5)
 
         return action
-
-
-def sigmoid(x):
-    return 1 / (1 + math.exp(-x))
 
 
 def evaluate_slime(individual):
@@ -207,6 +236,189 @@ def evaluate_maze(individual):
     return (behavior, (fitness,), info)
 
 
+def evaluate_beam(individual):
+    """Evaluates an individual: computes its value in the behavior descriptor space,
+    and its fitness value.
+
+    Args:
+        individual (Individual): an individual
+
+    Returns:
+        tuple: tuple of behavior (list) and fitness(tuple)
+    """
+    info = {}
+
+    global ENV
+    ENV.reset()
+
+    action = 1
+    rew = 0
+
+    while True:
+        if DISPLAY:
+            ENV.render()
+        # apply previously chosen action
+        o, r, eo, info = ENV.step(action)
+
+        # CONTROLLER
+        # 3 inputs, 1 output
+        individual = np.array(individual)
+        o = np.array(o)
+        hid_0 = np.sum(np.multiply(individual[0:3], o)) + individual[3]
+        hid_1 = np.sum(np.multiply(individual[4:7], o)) + individual[7]
+        hid = np.array([hid_0, hid_1])
+        hid = 1 / (1 + np.exp(-hid))
+
+        res = np.sum(np.multiply(individual[8:10], hid) + individual[10])
+        res = 1 / (1 + np.exp(-res))
+        # res = random.random()
+        if res < 0.33:
+            action = 0
+        elif res < 0.66:
+            action = 1
+        else:
+            action = 2
+
+        rew += r
+        if eo:
+            break
+
+    behavior = [r]
+    fitness = r
+
+    return (behavior, (fitness,), info)
+
+
+def evaluate_grid(individual):
+    """Evaluates an individual: computes its value in the behavior descriptor space,
+    and its fitness value.
+
+    Args:
+        individual (Individual): an individual
+
+    Returns:
+        tuple: tuple of behavior (list) and fitness(tuple)
+    """
+    info = {}
+
+    global ENV
+    ENV.reset()
+
+    action = 0
+    rew = 0
+
+    for i in range(100):
+        if DISPLAY:
+            ENV.render()
+        # apply previously chosen action
+        o, r, eo, info = ENV.step(action)
+
+        # CONTROLLER
+        # 2 inputs, 1 output
+        individual = np.array(individual)
+        o = list(ENV.agent_pos)
+        o.append(ENV.agent_dir)
+        o = np.array(o)
+        hid_0 = np.sum(np.multiply(individual[0:3], o)) + individual[3]
+        hid_1 = np.sum(np.multiply(individual[4:7], o)) + individual[7]
+        hid = np.array([hid_0, hid_1])
+        hid = 1 / (1 + np.exp(-hid))
+
+        res = np.sum(np.multiply(individual[8:10], hid) + individual[10])
+        res = 1 / (1 + np.exp(-res))
+        # res = random.random()
+        if res < 0.33:
+            action = 0
+        elif res < 0.66:
+            action = 1
+        else:
+            action = 2
+
+        rew += r
+        if eo:
+            break
+
+    behavior = list(ENV.agent_pos)
+    fitness = r
+
+    return (behavior, (fitness,), info)
+
+
+class ControllerNetBipedal(nn.Module):
+
+    def __init__(self, params):
+        super(ControllerNetBipedal, self).__init__()
+        self.l1 = nn.Linear(14, 6)
+        weight_1 = nn.Parameter(torch.Tensor(params[:84]).reshape((6, 14)))
+        bias_1 = nn.Parameter(torch.Tensor(params[84:90]).reshape(6))
+        self.l1.weight = weight_1
+        self.l1.bias = bias_1
+        self.l2 = nn.Linear(6, 4)
+        weight_2 = nn.Parameter(torch.Tensor(params[90:114]).reshape((4, 6)))
+        bias_2 = nn.Parameter(torch.Tensor(params[114:118]).reshape(4))
+        self.l2.weight = weight_2
+        self.l2.bias = bias_2
+        self.r1 = nn.ReLU()
+        self.r2 = nn.Tanh()
+
+    def forward(self, obs):
+        obs = torch.Tensor(obs)
+        obs = self.r1(self.l1(obs))
+        action = self.r2(self.l2(obs)).numpy()
+
+        return action
+
+
+def evaluate_bipedal(individual):
+    """Evaluates an individual: computes its value in the behavior descriptor space,
+    and its fitness value.
+    Bipedal walker
+
+    Args:
+        individual (Individual): an individual
+
+    Returns:
+        tuple: tuple of behavior (list) and fitness(tuple)
+    """
+    global ENV
+    inf = {}
+
+    ENV.reset()
+
+    action = [0, 0, 0, 0]
+    eo = False
+    count = 0
+    reward = 0
+    behavior = []
+    initial_height = ENV.hull.position[1]
+    mean_diff_height = 0
+
+    # CONTROLLER
+    individual = np.array(individual)
+    controller = ControllerNetBipedal(individual)
+    while not eo and count <= 500:
+        count += 1
+        if DISPLAY:
+            ENV.render()
+        # apply previously chosen action
+        o, r, eo, info = ENV.step(action)
+        reward += r
+
+        # stats
+        mean_diff_height += initial_height - ENV.hull.position[1]
+
+        with torch.no_grad():
+            action = controller.forward(o[:14])
+    
+    mean_diff_height = mean_diff_height / count
+    behavior.append(mean_diff_height)
+
+    x_final_pos = ENV.hull.position[0] / 200
+    behavior.append(x_final_pos)
+
+    return (behavior, (reward,), inf)
+
+
 if __name__ == "__main__":
     MEDIUM_SIZE = 10
     BIGGER_SIZE = 25
@@ -229,6 +441,15 @@ if __name__ == "__main__":
 
     if ENV_NAME == 'slime':
         evaluate_individual = evaluate_slime
+    
+    if ENV_NAME == 'beam':
+        evaluate_individual = evaluate_beam
+    
+    if ENV_NAME == 'grid':
+        evaluate_individual = evaluate_grid
+
+    if ENV_NAME == 'bipedal':
+        evaluate_individual = evaluate_bipedal
 
     if not ARCHIVE_ANALYSIS:
         if SIMPLE_RUN:
@@ -275,6 +496,26 @@ if __name__ == "__main__":
                     plt.savefig('final_behavior.png')
                     fig = info['figure']
                     fig.savefig('exploration_slime.png')
+
+                if ENV_NAME == 'bipedal':
+                    archive_behavior = np.array([ind.behavior_descriptor.values for ind in archive])
+                    pop_behavior = np.array([ind.behavior_descriptor.values for ind in pop])
+                    hof_behavior = np.array([ind.behavior_descriptor.values for ind in hof])
+                    fig, ax = plt.subplots(figsize=(5, 5))
+                    ax.set(title='Final Archive', xlabel='Mean height difference', ylabel='Final x position')
+                    ax.scatter(archive_behavior[:, 0], archive_behavior[:, 1], color='red', label='Archive')
+                    ax.scatter(pop_behavior[:, 0], pop_behavior[:, 1], color='blue', label='Population')
+                    ax.scatter(hof_behavior[:, 0], hof_behavior[:, 1], color='green', label='Hall of Fame')
+                    plt.legend()
+                    plt.savefig('final_behavior.png')
+                    fig = info['figure']
+                    fig.savefig('exploration_bipedal.png')
+
+            if SHOW_HOF:
+                DISPLAY = True
+                for ind in hof:
+                    print(ind.behavior_descriptor.values)
+                    evaluate_individual(ind)
                 
             plt.show()
         else:
@@ -382,7 +623,7 @@ if __name__ == "__main__":
             # ################################## ARCHIVE MANAGEMENT ANALYSIS ####################################
             possible_strats = ['random', 'least_novel', 'oldest', 'grid', 'grid_density', 'gmm', 'newest',
                                'least_novel_iter']
-            colors = ['blue', 'red', 'yellow', 'green', 'pink', 'brown', 'purple', 'light_green']
+            colors = ['blue', 'red', 'yellow', 'green', 'pink', 'brown', 'purple', '#92F680']
             fig, ax = plt.subplots(3, 1, figsize=(20, 15))
             fig_2, ax_2 = plt.subplots(3, 1, figsize=(20, 15))
 
