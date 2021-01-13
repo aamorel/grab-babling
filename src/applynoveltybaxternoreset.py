@@ -11,7 +11,7 @@ import os
 import json
 
 DISPLAY = False
-PARALLELIZE = True
+PARALLELIZE = False
 PLOT = True
 DISPLAY_HOF = False
 DISPLAY_RAND = False
@@ -19,7 +19,7 @@ DISPLAY_TRIUMPHANTS = False
 EVAL_SUCCESSFULL = False
 
 # choose parameters
-POP_SIZE = 100
+POP_SIZE = 10
 NB_GEN = 300
 NB_KEYPOINTS = 3
 GENE_PER_KEYPOINTS = 7
@@ -401,7 +401,15 @@ def multi_full_behavior_descriptor(individual):
         if eo:
             break
         
-        if action[-1] == -1 and not grabbed:
+        # version 1: measure is done at grip_time
+        # if action[-1] == -1 and not grabbed:
+        #     # first action that orders the grabbing
+        #     measure_grip_time = diversity_measure(o)
+        #     grabbed = True
+
+        # version 2: measure is done at touch time
+        touch_time = len(inf['contact_points']) > 0
+        if touch_time and not grabbed:
             # first action that orders the grabbing
             measure_grip_time = diversity_measure(o)
             grabbed = True

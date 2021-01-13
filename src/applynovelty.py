@@ -1,31 +1,32 @@
 import gym
-import gym_fastsim  # must still be imported
 import noveltysearch
-import slimevolleygym  # must still be imported
-import ballbeam_gym  # must still be imported
-from gym_minigrid.wrappers import ImgObsWrapper  # must still be imported
-import gym_minigrid  # must still be imported
 import time
 import numpy as np
 import matplotlib.pyplot as plt
 from deap import base, creator
-import torch
-import torch.nn as nn
+import utils
 import math
 
-DISPLAY = False
-PARALLELIZE = True
-GEN = 20
-POP_SIZE = 100
+import gym_fastsim  # must still be imported
+import slimevolleygym  # must still be imported
+import ballbeam_gym  # must still be imported
+import gym_minigrid  # must still be imported
+from gym_minigrid.wrappers import ImgObsWrapper  # must still be imported
+
+
+DISPLAY = True
+PARALLELIZE = False
+GEN = 2
+POP_SIZE = 10
 ARCHIVE_LIMIT = 20
 NB_CELLS = 100
 N_EXP = 60
 ALGO = 'ns_rand'
-PLOT = True
+PLOT = False
 ARCHIVE_ANALYSIS = False
 NOVELTY_ANALYSIS = False
 SIMPLE_RUN = True
-ENV_NAME = 'bipedal'
+ENV_NAME = 'slime'
 SHOW_HOF = False
 
 if ENV_NAME == 'maze':
@@ -96,35 +97,6 @@ if PARALLELIZE:
     noveltysearch.set_creator(creator)
 
 
-class ControllerNetSlime(nn.Module):
-
-    def __init__(self, params):
-        super(ControllerNetSlime, self).__init__()
-        self.l1 = nn.Linear(12, 6)
-        weight_1 = nn.Parameter(torch.Tensor(params[:72]).reshape((6, 12)))
-        bias_1 = nn.Parameter(torch.Tensor(params[72:78]).reshape(6))
-        self.l1.weight = weight_1
-        self.l1.bias = bias_1
-        self.l2 = nn.Linear(6, 3)
-        weight_2 = nn.Parameter(torch.Tensor(params[78:96]).reshape((3, 6)))
-        bias_2 = nn.Parameter(torch.Tensor(params[96:99]).reshape(3))
-        self.l2.weight = weight_2
-        self.l2.bias = bias_2
-        self.r1 = nn.ReLU()
-        self.r2 = nn.Sigmoid()
-
-    def forward(self, ind):
-        ind = torch.Tensor(ind)
-        ind = self.r1(self.l1(ind))
-        action = self.r2(self.l2(ind)).numpy()
-        
-        action[0] = int(action[0] > 0.5)
-        action[1] = int(action[1] > 0.5)
-        action[2] = int(action[2] > 0.5)
-
-        return action
-
-
 def evaluate_slime(individual):
     """Evaluates an individual: computes its value in the behavior descriptor space,
     and its fitness value.
@@ -151,8 +123,9 @@ def evaluate_slime(individual):
         distance_player = 0
 
         # CONTROLLER
-        individual = np.array(individual)
-        controller = ControllerNetSlime(individual)
+        ind = np.array(individual)
+        controller = utils.NeuralAgentNumpy(12, 3, n_hidden_layers=1, n_neurons_per_hidden=6)
+        controller.set_weights(ind)
         while not eo:
             count += 1
             if DISPLAY:
@@ -160,8 +133,9 @@ def evaluate_slime(individual):
             # apply previously chosen action
             o, r, eo, info = ENV.step(action)
             reward += r
-            with torch.no_grad():
-                action = controller.forward(o)
+
+            action = controller.choose_action(o)
+            action = [int(a > 0) for a in action]
 
             dist_to_ball = math.sqrt((o[0] - o[4])**2 + (o[1] - o[5])**2)
             distance_ball += dist_to_ball
@@ -344,31 +318,6 @@ def evaluate_grid(individual):
     return (behavior, (fitness,), info)
 
 
-class ControllerNetBipedal(nn.Module):
-
-    def __init__(self, params):
-        super(ControllerNetBipedal, self).__init__()
-        self.l1 = nn.Linear(14, 6)
-        weight_1 = nn.Parameter(torch.Tensor(params[:84]).reshape((6, 14)))
-        bias_1 = nn.Parameter(torch.Tensor(params[84:90]).reshape(6))
-        self.l1.weight = weight_1
-        self.l1.bias = bias_1
-        self.l2 = nn.Linear(6, 4)
-        weight_2 = nn.Parameter(torch.Tensor(params[90:114]).reshape((4, 6)))
-        bias_2 = nn.Parameter(torch.Tensor(params[114:118]).reshape(4))
-        self.l2.weight = weight_2
-        self.l2.bias = bias_2
-        self.r1 = nn.ReLU()
-        self.r2 = nn.Tanh()
-
-    def forward(self, obs):
-        obs = torch.Tensor(obs)
-        obs = self.r1(self.l1(obs))
-        action = self.r2(self.l2(obs)).numpy()
-
-        return action
-
-
 def evaluate_bipedal(individual):
     """Evaluates an individual: computes its value in the behavior descriptor space,
     and its fitness value.
@@ -395,7 +344,8 @@ def evaluate_bipedal(individual):
 
     # CONTROLLER
     individual = np.array(individual)
-    controller = ControllerNetBipedal(individual)
+    controller = utils.NeuralAgentNumpy(14, 4, n_hidden_layers=1, n_neurons_per_hidden=6)
+    controller.set_weights(ind)
     while not eo and count <= 500:
         count += 1
         if DISPLAY:
@@ -407,8 +357,7 @@ def evaluate_bipedal(individual):
         # stats
         mean_diff_height += initial_height - ENV.hull.position[1]
 
-        with torch.no_grad():
-            action = controller.forward(o[:14])
+        action = controller.choose_action(o[:14])
     
     mean_diff_height = mean_diff_height / count
     behavior.append(mean_diff_height)
