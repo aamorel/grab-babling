@@ -9,9 +9,8 @@ from scoop import futures
 import utils
 import math
 from sklearn import mixture
-import pandas
-import joypy
-
+import plotting
+import tqdm
 
 creator = None
 
@@ -298,7 +297,7 @@ def genetic_stats(pop):
         for i, gene in enumerate(ind):
             gen_stats[i].append(gene)
     gen_stats = np.array(gen_stats)
-    std_genes = np.std(gen_stats, axis=1)
+    std_genes = np.std(gen_stats, axis=1).tolist()
     return std_genes
 
 
@@ -347,113 +346,6 @@ def operate_offsprings_diversity(offsprings, toolbox, bound_genotype, pop):
     # bound genotype to given constraints
     if bound_genotype is not None:
         bound(offsprings, bound_genotype)
-
-
-def gen_plot(mean_hist, min_hist, max_hist, arch_size_hist, coverage_hist, uniformity_hist,
-             mean_age_hist, max_age_hist, run_name, algo_type, full_cov_hist, full_uni_hist,
-             pop_cov_hist, pop_uni_hist, novelty_distrib):
-    """Plotting
-
-    Args:
-        mean_hist (list): history of mean population fitness
-        min_hist (list): history of min population fitness
-        max_hist (list): history of max population fitness
-        arch_size_hist (list): history of archive size
-        coverage_hist (list): history of coverage of archive
-        uniformity_hist (list): history of uniformity of archive
-        mean_age_hist (list): history of mean age of population
-        max_age_hist (list): history of max age of population
-        run_name (String): path of the run folder to save the figure
-        algo_type (String): name of the algo
-        full_cov_hist (list): history of coverage of all generated individuals
-        full_uni_hist (list): history of uniformity of all generated individuals
-        pop_cov_hist (list): history of coverage of all generated individuals
-        pop_uni_hist (list): history of uniformity of all generated individuals
-        novelty_distrib (list): history of distributions of novelty across pop + offsprings
-
-
-   """
-    mean_hist = np.array(mean_hist)
-    min_hist = np.array(min_hist)
-
-    # plot evolution
-    fig, ax = plt.subplots(nrows=3, ncols=2, figsize=(15, 10))
-    ax[0][0].set(title='Evolution of fitness in population', ylabel='Fitness')
-    ax[0][0].plot(mean_hist, label='Mean')
-    ax[0][0].plot(min_hist, label='Min')
-    ax[0][0].plot(max_hist, label='Max')
-    ax[0][0].legend()
-
-    # plot evolution
-    ax[1][0].set(title='Evolution of age in population', ylabel='Age')
-    ax[1][0].plot(mean_age_hist, label='Mean')
-    ax[1][0].plot(max_age_hist, label='Max')
-    ax[1][0].legend()
-
-    # plot evolution
-    ax[0][1].set(title='Evolution of archive size', ylabel='Archive size')
-    ax[0][1].plot(arch_size_hist)
-
-    # plot evolution
-    ax[1][1].set(title='Evolution of selected metrics in archive')
-    if algo_type == 'ns_rand_multi_bd':
-        coverage_hist = np.array(coverage_hist)
-        uniformity_hist = np.array(uniformity_hist)
-        for i in range(np.size(coverage_hist, 1)):
-            ax[1][1].plot(coverage_hist[:, i], color=utils.color_list[i], label='Coverage ' + str(i))
-            ax[1][1].plot(uniformity_hist[:, i], ls='--', color=utils.color_list[i], label='Uniformity ' + str(i))
-
-    else:
-        ax[1][1].plot(coverage_hist, color='blue', label='Coverage')
-        ax[1][1].plot(uniformity_hist, ls='--', color='blue', label='Uniformity')
-    ax[1][1].legend()
-
-    # plot evolution
-    ax[2][1].set(title='Evolution of selected metrics in historic of all individuals', xlabel='Generations')
-    if algo_type == 'ns_rand_multi_bd':
-        full_cov_hist = np.array(full_cov_hist)
-        full_uni_hist = np.array(full_uni_hist)
-        for i in range(np.size(full_cov_hist, 1)):
-            ax[2][1].plot(full_cov_hist[:, i], color=utils.color_list[i], label='Coverage ' + str(i))
-            ax[2][1].plot(full_uni_hist[:, i], ls='--', color=utils.color_list[i], label='Uniformity ' + str(i))
-
-    else:
-        ax[2][1].plot(full_cov_hist, color='blue', label='Coverage')
-        ax[2][1].plot(full_uni_hist, ls='--', color='blue', label='Uniformity')
-    ax[2][1].legend()
-
-    # plot evolution
-    ax[2][0].set(title='Evolution of selected metrics in population', xlabel='Generations')
-    if algo_type == 'ns_rand_multi_bd':
-        pop_cov_hist = np.array(pop_cov_hist)
-        pop_uni_hist = np.array(pop_uni_hist)
-        for i in range(np.size(pop_cov_hist, 1)):
-            ax[2][0].plot(pop_cov_hist[:, i], color=utils.color_list[i], label='Coverage ' + str(i))
-            ax[2][0].plot(pop_uni_hist[:, i], ls='--', color=utils.color_list[i], label='Uniformity ' + str(i))
-
-    else:
-        ax[2][0].plot(pop_cov_hist, color='blue', label='Coverage')
-        ax[2][0].plot(pop_uni_hist, ls='--', color='blue', label='Uniformity')
-    ax[2][0].legend()
-
-    if run_name is not None:
-        fig.savefig(run_name + 'novelty_search_plots.png')
-
-    fig_2 = 0
-    if algo_type == 'ns_rand_multi_bd':
-        pass  # TODO: deal with multi_bd for novelty distrib plot
-    else:
-        if len(novelty_distrib) < 100:
-            novelty_distrib = np.array(novelty_distrib)
-            df = novelty_distrib.reshape((novelty_distrib.shape[0], novelty_distrib.shape[1]))
-            df = df.transpose()
-            df = pandas.DataFrame(df, columns=list(range(df.shape[1])))
-            fig_2, ax_2 = joypy.joyplot(df, ylabels=False, grid='y',
-                                        title='Evolution of novelty distributions with respect to generations',
-                                        legend=False, kind='counts', bins=30, ylim='max',
-                                        figsize=(15, 15), color='red', linecolor='black')
-
-    return fig, fig_2
 
 
 def add_to_grid(member, grid, cvt, measures, algo_type, bd_filters):
@@ -678,9 +570,6 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
     if altered_novelty:
         details['ranking similarities novelty'] = []
 
-    # initialize generation counter
-    gen = 0
-
     # grid contains the current content of the archive
     grid = None
     # grid_hist contains all individuals that have been created
@@ -750,10 +639,7 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
         pop_uni_hist = []
 
     # begin evolution
-    while gen < nb_gen:
-        # a new generation
-        gen += 1
-        print('--Generation %i --' % gen)
+    for _ in tqdm.tqdm(range(nb_gen)):
 
         # ###################################### SELECT ############################################
         nb_offsprings_to_generate = int(pop_size * OFFSPRING_NB_COEFF)
@@ -804,7 +690,7 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
                                      novelty_metric,
                                      altered=altered_novelty, degree=alteration_degree, info=details)
         if measures:
-            novelty_distrib.append(np.array(novelties))
+            novelty_distrib.append(novelties)
         for ind, nov in zip(current_pool, novelties):
             ind.novelty.values = nov
         # an individual with bd = None will have 0 novelty
@@ -1180,7 +1066,7 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
         mean_hist.append(mean_fit)
         min_hist.append(np.min(fits))
         max_hist.append(np.max(fits))
-        max_age_hist.append(np.max(ages))
+        max_age_hist.append(int(np.max(ages)))
         mean_age_hist.append(mean_age)
 
         if algo_type == 'ns_rand_change_bd':
@@ -1227,13 +1113,13 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
     details['population uniformity'] = pop_uni_hist
     details['novelty distribution'] = novelty_distrib
 
-    fig, fig_2 = gen_plot(mean_hist, min_hist, max_hist, arch_size_hist, coverage_hist, uniformity_hist,
-                          mean_age_hist, max_age_hist, run_name, algo_type, full_cov_hist, full_uni_hist,
-                          pop_cov_hist, pop_uni_hist, novelty_distrib)
-    
-    details['figure'] = fig
-    details['figure_2'] = fig_2
     if plot:
+        fig, fig_2 = plotting.gen_plot(mean_hist, min_hist, max_hist, arch_size_hist, coverage_hist, uniformity_hist,
+                                       mean_age_hist, max_age_hist, run_name, algo_type, full_cov_hist, full_uni_hist,
+                                       pop_cov_hist, pop_uni_hist, novelty_distrib)
+    
+        details['figure'] = fig
+        details['figure_2'] = fig_2
         # show all plots
         plt.show()
 

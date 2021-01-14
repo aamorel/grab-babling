@@ -418,7 +418,7 @@ def multi_full_behavior_descriptor(individual):
         if touch:
             touch_id = inf['contact_points'][0][3]
             touch_idx.append(touch_id)
-        relevant_touch = touch and touch_id == 49
+        relevant_touch = touch and touch_id >= 49
         if relevant_touch and not grabbed:
             # first touch of object
             measure_grip_time = diversity_measure(o)
@@ -452,7 +452,6 @@ def multi_full_behavior_descriptor(individual):
     info['binary goal'] = binary_goal
 
     if binary_goal:
-        print(touch_idx)
         assert(measure_grip_time is not None)
         info['diversity_descriptor'] = measure_grip_time
         behavior[3] = measure_grip_time[0]  # Quat to array
