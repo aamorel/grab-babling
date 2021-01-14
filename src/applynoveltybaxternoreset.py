@@ -11,7 +11,7 @@ import os
 import json
 
 DISPLAY = False
-PARALLELIZE = False
+PARALLELIZE = True
 PLOT = True
 DISPLAY_HOF = False
 DISPLAY_RAND = False
@@ -19,8 +19,8 @@ DISPLAY_TRIUMPHANTS = False
 EVAL_SUCCESSFULL = False
 
 # choose parameters
-POP_SIZE = 10
-NB_GEN = 300
+POP_SIZE = 100
+NB_GEN = 100
 NB_KEYPOINTS = 3
 GENE_PER_KEYPOINTS = 7
 GENES = 343
@@ -38,7 +38,7 @@ ARCHIVE_LIMIT = 2500
 NB_CELLS = 100  # number of cells for measurement
 
 # choose controller type
-CONTROLLER = 'closed loop end pause grip'
+CONTROLLER = 'interpolate keypoints end pause grip'
 
 # choose diversity measure if gripping time is given by the controller
 DIV_MEASURE = 'gripper orientation'  # 'gripper orientation', 'gripper orientation difference'
@@ -382,6 +382,10 @@ def multi_full_behavior_descriptor(individual):
     # for measure at lag time
     lag_measured = False
 
+    measure_grip_time = None
+
+    touch_idx = []
+
     info = {}
 
     for i in range(NB_ITER):
@@ -408,9 +412,15 @@ def multi_full_behavior_descriptor(individual):
         #     grabbed = True
 
         # version 2: measure is done at touch time
-        touch_time = len(inf['contact_points']) > 0
-        if touch_time and not grabbed:
-            # first action that orders the grabbing
+
+        touch = len(inf['contact_points']) > 0
+        touch_id = 0
+        if touch:
+            touch_id = inf['contact_points'][0][3]
+            touch_idx.append(touch_id)
+        relevant_touch = touch and touch_id == 49
+        if relevant_touch and not grabbed:
+            # first touch of object
             measure_grip_time = diversity_measure(o)
             grabbed = True
         
@@ -442,6 +452,8 @@ def multi_full_behavior_descriptor(individual):
     info['binary goal'] = binary_goal
 
     if binary_goal:
+        print(touch_idx)
+        assert(measure_grip_time is not None)
         info['diversity_descriptor'] = measure_grip_time
         behavior[3] = measure_grip_time[0]  # Quat to array
         behavior[4] = measure_grip_time[1]

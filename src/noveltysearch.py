@@ -613,6 +613,26 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
                  archive_limit_strat='random', nb_cells=1000, analyze_archive=False, altered_novelty=False,
                  alteration_degree=None, novelty_metric='minkowski'):
 
+    # initialize details dictionnary
+    details = {}
+    details['evaluation function'] = evaluate_individual_list.__name__
+    details['genotype size'] = initial_gen_size
+    details['bd bounds'] = bd_bounds_list
+    details['minimization'] = mini
+    details['nb of generations'] = nb_gen
+    details['algo type'] = algo_type
+    details['genotype bounds'] = bound_genotype
+    details['pop size'] = pop_size
+    details['choose evaluate'] = choose_evaluate
+    details['bd indexes'] = bd_indexes
+    details['archive limit size'] = archive_limit_size
+    details['archive limit strat'] = archive_limit_strat
+    details['nb of cells'] = nb_cells
+    details['analyze archive'] = analyze_archive
+    details['altered novelty'] = altered_novelty
+    details['alteration degree'] = alteration_degree
+    details['novelty metric'] = novelty_metric
+
     # each individual will have a unique id
     global id_counter
 
@@ -653,9 +673,6 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
 
     # initialize the HOF
     hall_of_fame = tools.HallOfFame(HOF_SIZE)
-
-    # initialize details dictionnary
-    details = {}
 
     # if altered novelty experimental condition
     if altered_novelty:
@@ -1200,6 +1217,15 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
     details['coverage'] = full_cov_hist
     details['uniformity'] = full_uni_hist
     details['ranking similarities'] = ranking_similarities
+    details['mean fitness'] = mean_hist
+    details['min fitness'] = min_hist
+    details['max fitness'] = max_hist
+    details['archive size'] = arch_size_hist
+    details['mean age'] = mean_age_hist
+    details['max_age_hist'] = max_age_hist
+    details['population coverage'] = pop_cov_hist
+    details['population uniformity'] = pop_uni_hist
+    details['novelty distribution'] = novelty_distrib
 
     fig, fig_2 = gen_plot(mean_hist, min_hist, max_hist, arch_size_hist, coverage_hist, uniformity_hist,
                           mean_age_hist, max_age_hist, run_name, algo_type, full_cov_hist, full_uni_hist,
