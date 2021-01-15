@@ -162,7 +162,7 @@ def add_coverage_uniformity(data, df, legend):
     return df
 
 
-def plot_experiment(temoin_dict, variation_key, variation_colors, 
+def plot_experiment(temoin_dict, variation_key, variation_colors,
                     variation_possibilities, title, n_required, folder):
     fig, ax = plt.subplots(2, 1, figsize=(20, 15))
     df = pd.DataFrame(columns=['coverage', 'uniformity', 'legend'])

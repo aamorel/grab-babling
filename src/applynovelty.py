@@ -19,16 +19,16 @@ from gym_minigrid.wrappers import ImgObsWrapper  # must still be imported
 
 DISPLAY = False
 PARALLELIZE = True
-GEN = 5
-POP_SIZE = 10
-ARCHIVE_LIMIT = 20
+GEN = 500
+POP_SIZE = 100
+ARCHIVE_LIMIT = 50
 NB_CELLS = 100
-N_EXP = 2
+N_EXP = 5
 ALGO = 'ns_rand'
 PLOT = False
-CASE = 'archive importance'  # 'simple run', 'archive importance', 'novelty alteration', 'archive management'
-ENV_NAME = 'maze'
-SHOW_HOF = True
+CASE = 'archive management'  # 'simple run', 'archive importance', 'novelty alteration', 'archive management'
+ENV_NAME = 'bipedal'
+SHOW_HOF = False
 
 
 def evaluate_slime(individual):

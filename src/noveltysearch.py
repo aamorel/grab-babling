@@ -1,6 +1,5 @@
 import random
 import numpy as np
-import matplotlib.pyplot as plt
 from deap import tools, base
 from scipy.spatial import cKDTree as KDTree
 from sklearn.neighbors import NearestNeighbors as Nearest
