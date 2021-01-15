@@ -501,7 +501,7 @@ def choose_bd_strategy(inventory):
 
 def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, mini=True, plot=False, nb_gen=100,
                  algo_type='ns_nov', bound_genotype=5, pop_size=30, parallelize=False,
-                 measures=False, run_name=None, choose_evaluate=None, bd_indexes=None, archive_limit_size=None,
+                 measures=False, choose_evaluate=None, bd_indexes=None, archive_limit_size=None,
                  archive_limit_strat='random', nb_cells=1000, analyze_archive=False, altered_novelty=False,
                  alteration_degree=None, novelty_metric='minkowski'):
 
@@ -1114,13 +1114,9 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
     details['novelty distribution'] = novelty_distrib
 
     if plot:
-        fig, fig_2 = plotting.gen_plot(mean_hist, min_hist, max_hist, arch_size_hist, coverage_hist, uniformity_hist,
-                                       mean_age_hist, max_age_hist, run_name, algo_type, full_cov_hist, full_uni_hist,
-                                       pop_cov_hist, pop_uni_hist, novelty_distrib)
+        fig, fig_2 = plotting.plot_launch(details)
     
         details['figure'] = fig
         details['figure_2'] = fig_2
-        # show all plots
-        plt.show()
 
     return pop, archive, hall_of_fame, details

@@ -755,23 +755,13 @@ if __name__ == "__main__":
     run_name = 'runs/run%i/' % i
     os.mkdir(run_name)
 
-    # initialize run dict
-    run = {}
-    run['run id'] = i
-    run['algo'] = ALGO
-    run['behaviour descriptor'] = BD
-    run['controler'] = CONTROLLER
-    run['pop size'] = POP_SIZE
-    run['nb gen'] = NB_GEN
-    run['archive size limit'] = ARCHIVE_LIMIT
-    
-    pop, archive, hof, infs = noveltysearch.novelty_algo(evaluation_function, initial_genotype_size, BD_BOUNDS,
-                                                         mini=MINI, run_name=run_name,
-                                                         plot=PLOT, algo_type=ALGO, nb_gen=NB_GEN, bound_genotype=1,
-                                                         pop_size=POP_SIZE, parallelize=PARALLELIZE, measures=True,
-                                                         choose_evaluate=choose, bd_indexes=BD_INDEXES,
-                                                         archive_limit_size=ARCHIVE_LIMIT, nb_cells=NB_CELLS,
-                                                         novelty_metric=NOVELTY_METRIC)
+    pop, archive, hof, run = noveltysearch.novelty_algo(evaluation_function, initial_genotype_size, BD_BOUNDS,
+                                                        mini=MINI, plot=PLOT, algo_type=ALGO,
+                                                        nb_gen=NB_GEN, bound_genotype=1,
+                                                        pop_size=POP_SIZE, parallelize=PARALLELIZE, measures=True,
+                                                        choose_evaluate=choose, bd_indexes=BD_INDEXES,
+                                                        archive_limit_size=ARCHIVE_LIMIT, nb_cells=NB_CELLS,
+                                                        novelty_metric=NOVELTY_METRIC)
     
     # create triumphant archive
     triumphant_archive = []
@@ -782,14 +772,20 @@ if __name__ == "__main__":
     # analyze triumphant archive diversity
     coverage, uniformity, clustered_triumphants = analyze_triumphants(triumphant_archive, run_name)
 
+    # complete run dict
+    run['run id'] = i
+    run['controller'] = CONTROLLER
     if coverage is not None:
         run['successful'] = True
-        run['grabbing coverage'] = coverage
-        run['grabbing uniformity'] = uniformity
+        run['diversity coverage'] = coverage
+        run['diversity uniformity'] = uniformity
     else:
         run['successful'] = False
 
+    # direct plotting and saving figures
     if PLOT:
+        fig = run['fig']
+        fig.savefig(run_name + 'novelty_search_plots.png')
         if BD != 'change_bd':
             # plot final states
             archive_behavior = np.array([ind.behavior_descriptor.values for ind in archive])
@@ -816,8 +812,8 @@ if __name__ == "__main__":
             plt.savefig(run_name + 'bd_plot.png')
 
         # plot genetic diversity
-        gen_div_pop = np.array(infs['population genetic statistics'])
-        gen_div_off = np.array(infs['offsprings genetic statistics'])
+        gen_div_pop = np.array(run['population genetic statistics'])
+        gen_div_off = np.array(run['offsprings genetic statistics'])
         if len(gen_div_pop[0]) <= 25:
             fig, ax = plt.subplots(nrows=1, ncols=2, figsize=(15, 10))
             ax[0].set(title='Evolution of population genetic diversity', xlabel='Generations', ylabel='Std of gene')
@@ -849,12 +845,13 @@ if __name__ == "__main__":
                     ax[1].plot(gen_div_off[:, i], color=utils.color_list[color_index])
             ax[1].legend()
             plt.savefig(run_name + 'genetic_diversity_plot.png')
+        plt.show()
     
+    # saving the run
     with open(run_name + 'run.json', 'w') as fp:
         json.dump(run, fp)
 
-    plt.show()
-    
+    # display some individuals
     if DISPLAY_HOF:
         DISPLAY = True
         for ind in hof:

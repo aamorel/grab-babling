@@ -468,7 +468,7 @@ if __name__ == "__main__":
                       'parallelize': True, 'bound_genotype': BD_GENOTYPE,
                       'measures': True, 'pop_size': POP_SIZE,
                       'nb_cells': NB_CELLS}
-
+        
         # classic NS runs
         repeat_and_save(parameters)
 
