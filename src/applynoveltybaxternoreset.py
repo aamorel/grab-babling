@@ -755,13 +755,14 @@ if __name__ == "__main__":
     run_name = 'runs/run%i/' % i
     os.mkdir(run_name)
 
-    pop, archive, hof, run = noveltysearch.novelty_algo(evaluation_function, initial_genotype_size, BD_BOUNDS,
-                                                        mini=MINI, plot=PLOT, algo_type=ALGO,
-                                                        nb_gen=NB_GEN, bound_genotype=1,
-                                                        pop_size=POP_SIZE, parallelize=PARALLELIZE, measures=True,
-                                                        choose_evaluate=choose, bd_indexes=BD_INDEXES,
-                                                        archive_limit_size=ARCHIVE_LIMIT, nb_cells=NB_CELLS,
-                                                        novelty_metric=NOVELTY_METRIC)
+    pop, archive, hof, run, figures = noveltysearch.novelty_algo(evaluation_function, initial_genotype_size, BD_BOUNDS,
+                                                                 mini=MINI, plot=PLOT, algo_type=ALGO,
+                                                                 nb_gen=NB_GEN, bound_genotype=1,
+                                                                 pop_size=POP_SIZE, parallelize=PARALLELIZE,
+                                                                 measures=True,
+                                                                 choose_evaluate=choose, bd_indexes=BD_INDEXES,
+                                                                 archive_limit_size=ARCHIVE_LIMIT, nb_cells=NB_CELLS,
+                                                                 novelty_metric=NOVELTY_METRIC)
     
     # create triumphant archive
     triumphant_archive = []
@@ -784,7 +785,7 @@ if __name__ == "__main__":
 
     # direct plotting and saving figures
     if PLOT:
-        fig = run['figure']
+        fig = figures['figure']
         fig.savefig(run_name + 'novelty_search_plots.png')
         if BD != 'change_bd':
             # plot final states

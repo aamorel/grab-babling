@@ -382,7 +382,7 @@ if PARALLELIZE:
 
 def repeat_and_save(params):
     for i in tqdm.tqdm(range(N_EXP)):
-        pop, archive, hof, info = noveltysearch.novelty_algo(EVALUATE_INDIVIDUAL, INITIAL_GENOTYPE_SIZE,
+        pop, archive, hof, info, figures = noveltysearch.novelty_algo(EVALUATE_INDIVIDUAL, INITIAL_GENOTYPE_SIZE,
                                                              BD_BOUNDS, **params)
 
         i = 0
@@ -401,8 +401,9 @@ if __name__ == "__main__":
                       'parallelize': True, 'bound_genotype': BD_GENOTYPE,
                       'measures': True, 'pop_size': POP_SIZE,
                       'nb_cells': NB_CELLS}
-        pop, archive, hof, info = noveltysearch.novelty_algo(EVALUATE_INDIVIDUAL, INITIAL_GENOTYPE_SIZE, BD_BOUNDS,
-                                                             **parameters)
+        pop, archive, hof, info, figures = noveltysearch.novelty_algo(EVALUATE_INDIVIDUAL, INITIAL_GENOTYPE_SIZE,
+                                                                      BD_BOUNDS,
+                                                                      **parameters)
 
         if PLOT:
             if ENV_NAME == 'maze':
@@ -437,7 +438,7 @@ if __name__ == "__main__":
                 ax.scatter(hof_behavior[:, 0], hof_behavior[:, 1], color='green', label='Hall of Fame')
                 plt.legend()
                 plt.savefig('final_behavior.png')
-                fig = info['figure']
+                fig = figures['figure']
                 fig.savefig('exploration_slime.png')
 
             if ENV_NAME == 'bipedal':
@@ -451,7 +452,7 @@ if __name__ == "__main__":
                 ax.scatter(hof_behavior[:, 0], hof_behavior[:, 1], color='green', label='Hall of Fame')
                 plt.legend()
                 plt.savefig('final_behavior.png')
-                fig = info['figure']
+                fig = figures['figure']
                 fig.savefig('exploration_bipedal.png')
             plt.show()
 

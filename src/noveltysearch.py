@@ -1,5 +1,6 @@
 import random
 import numpy as np
+from numpy import linalg as LA
 from deap import tools, base
 from scipy.spatial import cKDTree as KDTree
 from sklearn.neighbors import NearestNeighbors as Nearest
@@ -613,8 +614,9 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
             grid_hist = np.zeros(nb_cells)
             cvt = utils.CVT(num_centroids=nb_cells, bounds=bd_bounds)
     
-    # initialize similarity list if analyzing the archive
+    # initialize ranking similarities and novelty differences lists if analyzing the archive
     ranking_similarities = []
+    novelty_differences = []
 
     # evaluate initial population
     evaluation_pop = list(toolbox.map(evaluate_individual, pop))
@@ -762,13 +764,15 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
         if archive_limit_size is not None:
             # implement archive size limitation strategy
             if len(archive) >= archive_limit_size:
+
                 if analyze_archive:
                     # monitor the change of ranking of novelties of population
                     novelties = assess_novelties(pop, pop + archive, algo_type, bd_bounds, bd_indexes, bd_filters,
                                                  novelty_metric)
-                    nov_n = np.array([nov[0] for nov in novelties])
-                    order = nov_n.argsort()
+                    nov_n_before = np.array([nov[0] for nov in novelties])
+                    order = nov_n_before.argsort()
                     ranking_before = order.argsort()
+
                 original_len = len(archive)
                 nb_ind_to_keep = int(original_len * ARCHIVE_DECREMENTAL_RATIO)
                 nb_ind_to_remove = original_len - nb_ind_to_keep
@@ -985,11 +989,13 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
                     # monitor the change of ranking of novelties of population
                     novelties = assess_novelties(pop, pop + archive, algo_type, bd_bounds, bd_indexes, bd_filters,
                                                  novelty_metric)
-                    nov_n = np.array([nov[0] for nov in novelties])
-                    order = nov_n.argsort()
+                    nov_n_after = np.array([nov[0] for nov in novelties])
+                    order = nov_n_after.argsort()
                     ranking_after = order.argsort()
                     ranking_similarity = stats.kendalltau(ranking_before, ranking_after)[0]
                     ranking_similarities.append(ranking_similarity)
+                    novelty_mean_difference = LA.norm(nov_n_before - nov_n_after)
+                    novelty_differences.append(novelty_mean_difference)
 
         # ###################################### MEASURE ############################################
         # increment age of the individuals in the population
@@ -1114,6 +1120,7 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
     details['coverage'] = full_cov_hist
     details['uniformity'] = full_uni_hist
     details['ranking similarities'] = ranking_similarities
+    details['novelty differences'] = novelty_differences
     details['mean fitness'] = mean_hist
     details['min fitness'] = min_hist
     details['max fitness'] = max_hist
@@ -1124,10 +1131,11 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
     details['population uniformity'] = pop_uni_hist
     details['novelty distribution'] = novelty_distrib
 
+    figures = {}
     if plot:
         fig, fig_2 = plotting.plot_launch(details)
     
-        details['figure'] = fig
-        details['figure_2'] = fig_2
+        figures['figure'] = fig
+        figures['figure_2'] = fig_2
 
-    return pop, archive, hall_of_fame, details
+    return pop, archive, hall_of_fame, details, figures
