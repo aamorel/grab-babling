@@ -279,7 +279,7 @@ def evaluate_bipedal(individual):
     # CONTROLLER
     individual = np.array(individual)
     controller = utils.NeuralAgentNumpy(14, 4, n_hidden_layers=1, n_neurons_per_hidden=6)
-    controller.set_weights(ind)
+    controller.set_weights(individual)
     while not eo and count <= 500:
         count += 1
         if DISPLAY:

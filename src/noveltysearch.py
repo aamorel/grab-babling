@@ -522,7 +522,19 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
     details['analyze archive'] = analyze_archive
     details['altered novelty'] = altered_novelty
     details['alteration degree'] = alteration_degree
-    details['novelty metric'] = novelty_metric
+    nov_metrics = []
+    if isinstance(novelty_metric, list):
+        for nov_met in novelty_metric:
+            if isinstance(nov_met, str):
+                nov_metrics.append(nov_met)
+            else:
+                nov_metrics.append(nov_met.__name__)
+    else:
+        if isinstance(novelty_metric, str):
+            nov_metrics = novelty_metric
+        else:
+            nov_metrics = novelty_metric.__name__
+    details['novelty metric'] = nov_metrics
 
     # each individual will have a unique id
     global id_counter

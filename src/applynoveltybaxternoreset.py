@@ -784,7 +784,7 @@ if __name__ == "__main__":
 
     # direct plotting and saving figures
     if PLOT:
-        fig = run['fig']
+        fig = run['figure']
         fig.savefig(run_name + 'novelty_search_plots.png')
         if BD != 'change_bd':
             # plot final states
