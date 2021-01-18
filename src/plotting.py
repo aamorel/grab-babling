@@ -234,10 +234,19 @@ def plot_archive_management(env, arch_size, pop, gen, nb_cells, n_required, fold
     ax[1].set_facecolor("#ffebb8")
     ax[1].legend(loc=3)
     fig.suptitle('Archive management strategies in ' + env)
-    plt.show()
 
     if savepath is not None:
-        fig.savefig(savepath)
+        fig.savefig(savepath + '_evo')
+
+    df_end = df[df['generation'] == gen]
+    fig, ax = plt.plot(figure=(10, 10))
+    sns.boxplot(x='legend', y='coverage', data=df_end, ax=ax, palette=variation_colors)
+    ax.set_facecolor("#ffebb8")
+    fig.suptitle('Final coverages in ' + env)
+    if savepath is not None:
+        fig.savefig(savepath + '_final')
+
+    plt.show()
 
 
 def prepare_and_plot_exp():

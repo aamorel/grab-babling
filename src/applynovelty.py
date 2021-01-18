@@ -29,6 +29,7 @@ PLOT = False
 CASE = 'simple run'  # 'simple run', 'archive importance', 'novelty alteration', 'archive management'
 ENV_NAME = 'bipedal'
 SHOW_HOF = False
+SAVE_ALL = False
 
 
 def evaluate_slime(individual):
@@ -389,6 +390,13 @@ def repeat_and_save(params):
         while os.path.isfile('results/launch%i.json' % i):
             i += 1
         lauch_name = 'results/launch%i.json' % i
+
+        # don't save some stuff
+        if not SAVE_ALL:
+            info['novelty distribution'] = None
+            info['population genetic statistics'] = None
+            info['offsprings genetic statistics'] = None
+
         with open(lauch_name, 'w') as fp:
             json.dump(info, fp, indent=4, sort_keys=True)
 
