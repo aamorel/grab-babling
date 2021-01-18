@@ -389,7 +389,7 @@ def repeat_and_save(params):
         pop, archive, hall_of_fame, details, figures, data = res
 
         i = 0
-        while os.path.isfile('results/launch%i' % i):
+        while os.path.isfile('results/launch%i_details.json' % i):
             i += 1
         lauch_name = 'results/launch%i' % i
 
