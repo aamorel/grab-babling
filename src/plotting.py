@@ -209,7 +209,7 @@ def plot_archive_management(env, arch_size, pop, gen, nb_cells, n_required, fold
     }
 
     # temoin
-    data = collect_launchs(temoin_dict, n_required[0], folder)
+    data = collect_launchs(temoin_dict, n_required, folder)
     df = add_coverage_uniformity(data, df, 'no limit')
 
     variation_possibilities = ['random', 'least_novel', 'oldest', 'grid', 'grid_density', 'gmm', 'newest',
@@ -221,7 +221,8 @@ def plot_archive_management(env, arch_size, pop, gen, nb_cells, n_required, fold
     variation_key = 'archive limit strat'
     for i, var in enumerate(variation_possibilities):
         temoin_dict[variation_key] = var
-        data = collect_launchs(temoin_dict, n_required[i + 1], folder)
+        print(temoin_dict)
+        data = collect_launchs(temoin_dict, n_required, folder)
         df = add_coverage_uniformity(data, df, temoin_dict[variation_key])
 
     df['generation'] = df.index
