@@ -208,9 +208,9 @@ def plot_archive_management(env, arch_size, pop, gen, nb_cells, n_required, fold
         'archive limit size': None
     }
 
-    # temoin
-    data = collect_launchs(temoin_dict, n_required, folder)
-    df = add_coverage_uniformity(data, df, 'no limit')
+    # # temoin
+    # data = collect_launchs(temoin_dict, n_required, folder)
+    # df = add_coverage_uniformity(data, df, 'no limit')
 
     variation_possibilities = ['random', 'least_novel', 'oldest', 'grid', 'grid_density', 'gmm', 'newest',
                                'least_novel_iter']
