@@ -7,7 +7,7 @@ import glob
 import json
 import seaborn as sns
 
-DEBUG = True
+DEBUG = False
 
 
 def plot_launch(details):
@@ -167,6 +167,16 @@ def add_coverage_uniformity(data, df, legend):
     return df
 
 
+def plot_end_cov_box(df, gen, colors, savepath):
+    df_end = df[df['generation'] == gen]
+    fig, ax = plt.subplots(figsize=(10, 10))
+    sns.boxplot(x='legend', y='coverage', data=df_end, ax=ax, palette=colors)
+    ax.set_facecolor("#ffebb8")
+    fig.suptitle('Final coverages')
+    if savepath is not None:
+        fig.savefig(savepath + '_final')
+
+
 def plot_experiment(temoin_dict, variation_key, variation_colors,
                     variation_possibilities, title, n_required, folder, savepath=None):
     fig, ax = plt.subplots(2, 1, figsize=(20, 15))
@@ -196,6 +206,8 @@ def plot_experiment(temoin_dict, variation_key, variation_colors,
 
     if savepath is not None:
         fig.savefig(savepath)
+    
+    plot_end_cov_box(df, temoin_dict['nb of generations'], variation_colors, savepath)
 
 
 def plot_archive_management(env, arch_size, pop, gen, nb_cells, n_required, folder, savepath=None):
@@ -243,13 +255,7 @@ def plot_archive_management(env, arch_size, pop, gen, nb_cells, n_required, fold
     if savepath is not None:
         fig.savefig(savepath + '_evo')
 
-    df_end = df[df['generation'] == gen]
-    fig, ax = plt.subplots(figsize=(10, 10))
-    sns.boxplot(x='legend', y='coverage', data=df_end, ax=ax, palette=variation_colors)
-    ax.set_facecolor("#ffebb8")
-    fig.suptitle('Final coverages in ' + env)
-    if savepath is not None:
-        fig.savefig(savepath + '_final')
+    plot_end_cov_box(df, gen, variation_colors, savepath)
 
     plt.show()
 
@@ -269,7 +275,7 @@ def prepare_and_plot_exp():
     temoin_dict = {
         'algo type': 'ns_rand',
         'evaluation function': 'evaluate_maze',
-        'nb of generations': 5,
+        'nb of generations': 200,
         'pop size': 10,
         'nb of cells': 100,
         'altered novelty': False,
@@ -278,7 +284,7 @@ def prepare_and_plot_exp():
     variation_key = 'algo type'
     variation_possibilities = ['ns_no_archive', 'random_search']
     variation_colors = ['green', 'orange']
-    n_required = [2, 2, 2]
+    n_required = [5, 5, 5]
     title = 'Archive importance in deceptive maze'
     exp_folder = 'results'
     
@@ -288,4 +294,4 @@ def prepare_and_plot_exp():
 
 if __name__ == "__main__":
     
-    plot_archive_management('evaluate_bipedal', 50, 100, 500, 100, 5, 'results', 'archive_management')
+    prepare_and_plot_exp()
