@@ -7,6 +7,8 @@ import glob
 import json
 import seaborn as sns
 
+DEBUG = True
+
 
 def plot_launch(details):
     """Plotting
@@ -138,6 +140,9 @@ def collect_launchs(conditions, number, folder):
             data = json.load(json_file)
         for cond_key in condition_keys:
             if data[cond_key] != conditions[cond_key]:
+                if DEBUG:
+                    print('required: ', conditions[cond_key])
+                    print('data: ', data[cond_key])
                 cond = False
                 break
         if cond:
@@ -239,7 +244,7 @@ def plot_archive_management(env, arch_size, pop, gen, nb_cells, n_required, fold
         fig.savefig(savepath + '_evo')
 
     df_end = df[df['generation'] == gen]
-    fig, ax = plt.plot(figure=(10, 10))
+    fig, ax = plt.subplots(figsize=(10, 10))
     sns.boxplot(x='legend', y='coverage', data=df_end, ax=ax, palette=variation_colors)
     ax.set_facecolor("#ffebb8")
     fig.suptitle('Final coverages in ' + env)
