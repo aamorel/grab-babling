@@ -10,12 +10,6 @@ import os
 import json
 import tqdm
 
-import gym_fastsim  # must still be imported
-import slimevolleygym  # must still be imported
-import ballbeam_gym  # must still be imported
-import gym_minigrid  # must still be imported
-from gym_minigrid.wrappers import ImgObsWrapper  # must still be imported
-
 
 DISPLAY = False
 PARALLELIZE = True
@@ -304,6 +298,7 @@ def evaluate_bipedal(individual):
 
 
 if ENV_NAME == 'maze':
+    import gym_fastsim  # must still be imported
     BD_BOUNDS = [[0, 600], [0, 600]]
     INITIAL_GENOTYPE_SIZE = 12
     MINI = True
@@ -311,6 +306,7 @@ if ENV_NAME == 'maze':
     BD_GENOTYPE = 1
 
 if ENV_NAME == 'slime':
+    import slimevolleygym  # must still be imported
     # global variable for the environment
     ENV = gym.make("SlimeVolley-v0")
     BD_BOUNDS = [[0, 1], [0, 1]]
@@ -322,6 +318,7 @@ if ENV_NAME == 'slime':
     BD_GENOTYPE = 1
 
 if ENV_NAME == 'beam':
+    import ballbeam_gym  # must still be imported
     # pass env arguments as kwargs
     kwargs = {'timestep': 0.05,
               'beam_length': 1.0,
@@ -339,6 +336,8 @@ if ENV_NAME == 'beam':
     BD_GENOTYPE = 1
 
 if ENV_NAME == 'grid':
+    import gym_minigrid  # must still be imported
+    from gym_minigrid.wrappers import ImgObsWrapper  # must still be imported
     # create env
     ENV = ImgObsWrapper(gym.make('MiniGrid-Empty-8x8-v0'))
     BD_BOUNDS = [[0, 7], [0, 7]]
