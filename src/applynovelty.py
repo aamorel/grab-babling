@@ -383,7 +383,7 @@ if PARALLELIZE:
 def repeat_and_save(params):
     for i in tqdm.tqdm(range(N_EXP)):
         pop, archive, hof, info, figures = noveltysearch.novelty_algo(EVALUATE_INDIVIDUAL, INITIAL_GENOTYPE_SIZE,
-                                                             BD_BOUNDS, **params)
+                                                                      BD_BOUNDS, **params)
 
         i = 0
         while os.path.isfile('results/launch%i.json' % i):

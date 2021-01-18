@@ -138,8 +138,6 @@ def collect_launchs(conditions, number, folder):
             data = json.load(json_file)
         for cond_key in condition_keys:
             if data[cond_key] != conditions[cond_key]:
-                print(data[cond_key])
-                print(conditions[cond_key])
                 cond = False
                 break
         if cond:
@@ -211,7 +209,6 @@ def plot_archive_management(env, arch_size, pop, gen, nb_cells, n_required, fold
     }
 
     # temoin
-    print(temoin_dict)
     data = collect_launchs(temoin_dict, n_required, folder)
     df = add_coverage_uniformity(data, df, 'no limit')
 
@@ -277,4 +274,4 @@ def prepare_and_plot_exp():
 
 if __name__ == "__main__":
     
-    plot_archive_management('evaluate_bidepal', 50, 100, 500, 100, 5, 'results', 'archive_management')
+    plot_archive_management('evaluate_bipedal', 50, 100, 500, 100, 5, 'results', 'archive_management')
