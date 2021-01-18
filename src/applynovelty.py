@@ -19,14 +19,14 @@ from gym_minigrid.wrappers import ImgObsWrapper  # must still be imported
 
 DISPLAY = False
 PARALLELIZE = True
-GEN = 500
-POP_SIZE = 100
+GEN = 2
+POP_SIZE = 20
 ARCHIVE_LIMIT = 50
 NB_CELLS = 100
 N_EXP = 5
 ALGO = 'ns_rand'
 PLOT = False
-CASE = 'archive management'  # 'simple run', 'archive importance', 'novelty alteration', 'archive management'
+CASE = 'simple run'  # 'simple run', 'archive importance', 'novelty alteration', 'archive management'
 ENV_NAME = 'bipedal'
 SHOW_HOF = False
 

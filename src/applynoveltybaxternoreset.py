@@ -17,6 +17,7 @@ DISPLAY_HOF = False
 DISPLAY_RAND = False
 DISPLAY_TRIUMPHANTS = False
 EVAL_SUCCESSFULL = False
+SAVE_ALL = False
 
 # choose parameters
 POP_SIZE = 100
@@ -782,6 +783,12 @@ if __name__ == "__main__":
         run['diversity uniformity'] = uniformity
     else:
         run['successful'] = False
+    
+    # don't save some stuff
+    if not SAVE_ALL:
+        run['novelty distribution'] = None
+        run['population genetic statistics'] = None
+        run['offsprings genetic statistics'] = None
 
     # direct plotting and saving figures
     if PLOT:
