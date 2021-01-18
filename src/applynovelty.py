@@ -19,15 +19,15 @@ from gym_minigrid.wrappers import ImgObsWrapper  # must still be imported
 
 DISPLAY = False
 PARALLELIZE = True
-GEN = 2
-POP_SIZE = 20
-ARCHIVE_LIMIT = 50
+GEN = 200
+POP_SIZE = 10
+ARCHIVE_LIMIT = 20
 NB_CELLS = 100
 N_EXP = 5
 ALGO = 'ns_rand'
 PLOT = False
-CASE = 'simple run'  # 'simple run', 'archive importance', 'novelty alteration', 'archive management'
-ENV_NAME = 'bipedal'
+CASE = 'archive importance'  # 'simple run', 'archive importance', 'novelty alteration', 'archive management'
+ENV_NAME = 'maze'
 SHOW_HOF = False
 SAVE_ALL = False
 
@@ -383,22 +383,27 @@ if PARALLELIZE:
 
 def repeat_and_save(params):
     for i in tqdm.tqdm(range(N_EXP)):
-        pop, archive, hof, info, figures = noveltysearch.novelty_algo(EVALUATE_INDIVIDUAL, INITIAL_GENOTYPE_SIZE,
-                                                                      BD_BOUNDS, **params)
+        res = noveltysearch.novelty_algo(EVALUATE_INDIVIDUAL, INITIAL_GENOTYPE_SIZE,
+                                         BD_BOUNDS, **params)
+        
+        pop, archive, hall_of_fame, details, figures, data = res
 
         i = 0
-        while os.path.isfile('results/launch%i.json' % i):
+        while os.path.isfile('results/launch%i' % i):
             i += 1
-        lauch_name = 'results/launch%i.json' % i
+        lauch_name = 'results/launch%i' % i
 
         # don't save some stuff
         if not SAVE_ALL:
-            info['novelty distribution'] = None
-            info['population genetic statistics'] = None
-            info['offsprings genetic statistics'] = None
+            data['novelty distribution'] = None
+            data['population genetic statistics'] = None
+            data['offsprings genetic statistics'] = None
 
-        with open(lauch_name, 'w') as fp:
-            json.dump(info, fp, indent=4, sort_keys=True)
+        with open(lauch_name + '_details.json', 'w') as fp:
+            json.dump(details, fp, indent=4, sort_keys=True)
+
+        with open(lauch_name + '_data.json', 'w') as fp:
+            json.dump(data, fp, indent=4, sort_keys=True)
 
 
 if __name__ == "__main__":

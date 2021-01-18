@@ -756,14 +756,16 @@ if __name__ == "__main__":
     run_name = 'runs/run%i/' % i
     os.mkdir(run_name)
 
-    pop, archive, hof, run, figures = noveltysearch.novelty_algo(evaluation_function, initial_genotype_size, BD_BOUNDS,
-                                                                 mini=MINI, plot=PLOT, algo_type=ALGO,
-                                                                 nb_gen=NB_GEN, bound_genotype=1,
-                                                                 pop_size=POP_SIZE, parallelize=PARALLELIZE,
-                                                                 measures=True,
-                                                                 choose_evaluate=choose, bd_indexes=BD_INDEXES,
-                                                                 archive_limit_size=ARCHIVE_LIMIT, nb_cells=NB_CELLS,
-                                                                 novelty_metric=NOVELTY_METRIC)
+    res = noveltysearch.novelty_algo(evaluation_function, initial_genotype_size, BD_BOUNDS,
+                                     mini=MINI, plot=PLOT, algo_type=ALGO,
+                                     nb_gen=NB_GEN, bound_genotype=1,
+                                     pop_size=POP_SIZE, parallelize=PARALLELIZE,
+                                     measures=True,
+                                     choose_evaluate=choose, bd_indexes=BD_INDEXES,
+                                     archive_limit_size=ARCHIVE_LIMIT, nb_cells=NB_CELLS,
+                                     novelty_metric=NOVELTY_METRIC)
+    
+    pop, archive, hall_of_fame, details, figures, data = res
     
     # create triumphant archive
     triumphant_archive = []
@@ -775,20 +777,20 @@ if __name__ == "__main__":
     coverage, uniformity, clustered_triumphants = analyze_triumphants(triumphant_archive, run_name)
 
     # complete run dict
-    run['run id'] = i
-    run['controller'] = CONTROLLER
+    details['run id'] = i
+    details['controller'] = CONTROLLER
     if coverage is not None:
-        run['successful'] = True
-        run['diversity coverage'] = coverage
-        run['diversity uniformity'] = uniformity
+        details['successful'] = True
+        details['diversity coverage'] = coverage
+        details['diversity uniformity'] = uniformity
     else:
-        run['successful'] = False
+        details['successful'] = False
     
     # don't save some stuff
     if not SAVE_ALL:
-        run['novelty distribution'] = None
-        run['population genetic statistics'] = None
-        run['offsprings genetic statistics'] = None
+        data['novelty distribution'] = None
+        data['population genetic statistics'] = None
+        data['offsprings genetic statistics'] = None
 
     # direct plotting and saving figures
     if PLOT:
@@ -856,8 +858,10 @@ if __name__ == "__main__":
         plt.show()
     
     # saving the run
-    with open(run_name + 'run.json', 'w') as fp:
-        json.dump(run, fp)
+    with open(run_name + 'run_details.json', 'w') as fp:
+        json.dump(details, fp)
+    with open(run_name + 'run_data.json', 'w') as fp:
+        json.dump(data, fp)
 
     # display some individuals
     if DISPLAY_HOF:

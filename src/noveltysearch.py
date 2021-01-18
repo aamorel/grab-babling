@@ -505,8 +505,11 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
                  archive_limit_strat='random', nb_cells=1000, analyze_archive=False, altered_novelty=False,
                  alteration_degree=None, novelty_metric='minkowski'):
 
-    # initialize details dictionnary
+    # initialize return dictionnaries
     details = {}
+    figures = {}
+    data = {}
+
     details['evaluation function'] = evaluate_individual_list.__name__
     details['genotype size'] = initial_gen_size
     details['bd bounds'] = bd_bounds_list
@@ -1113,29 +1116,28 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
                     grid = np.zeros(nb_cells)
                     cvt = utils.CVT(num_centroids=nb_cells, bounds=bd_bounds)
         
-    details['population genetic statistics'] = gen_stat_hist
-    details['offsprings genetic statistics'] = gen_stat_hist_off
-    details['archive coverage'] = coverage_hist
-    details['archive uniformity'] = uniformity_hist
-    details['coverage'] = full_cov_hist
-    details['uniformity'] = full_uni_hist
-    details['ranking similarities'] = ranking_similarities
-    details['novelty differences'] = novelty_differences
-    details['mean fitness'] = mean_hist
-    details['min fitness'] = min_hist
-    details['max fitness'] = max_hist
-    details['archive size'] = arch_size_hist
-    details['mean age'] = mean_age_hist
-    details['max_age_hist'] = max_age_hist
-    details['population coverage'] = pop_cov_hist
-    details['population uniformity'] = pop_uni_hist
-    details['novelty distribution'] = novelty_distrib
+    data['population genetic statistics'] = gen_stat_hist
+    data['offsprings genetic statistics'] = gen_stat_hist_off
+    data['archive coverage'] = coverage_hist
+    data['archive uniformity'] = uniformity_hist
+    data['coverage'] = full_cov_hist
+    data['uniformity'] = full_uni_hist
+    data['ranking similarities'] = ranking_similarities
+    data['novelty differences'] = novelty_differences
+    data['mean fitness'] = mean_hist
+    data['min fitness'] = min_hist
+    data['max fitness'] = max_hist
+    data['archive size'] = arch_size_hist
+    data['mean age'] = mean_age_hist
+    data['max_age_hist'] = max_age_hist
+    data['population coverage'] = pop_cov_hist
+    data['population uniformity'] = pop_uni_hist
+    data['novelty distribution'] = novelty_distrib
 
-    figures = {}
     if plot:
         fig, fig_2 = plotting.plot_launch(details)
     
         figures['figure'] = fig
         figures['figure_2'] = fig_2
 
-    return pop, archive, hall_of_fame, details, figures
+    return [pop, archive, hall_of_fame, details, figures, data]

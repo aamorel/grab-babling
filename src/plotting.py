@@ -6,6 +6,7 @@ import joypy
 import glob
 import json
 import seaborn as sns
+import re
 
 DEBUG = False
 
@@ -129,7 +130,7 @@ def plot_launch(details):
 
 def collect_launchs(conditions, number, folder):
 
-    exp_path = folder + '/*.json'
+    exp_path = folder + '/*details.json'
     all_jsons = glob.glob(exp_path)
     count = 0
     valid_launches = []
@@ -147,7 +148,7 @@ def collect_launchs(conditions, number, folder):
                 break
         if cond:
             count += 1
-            valid_launches.append(data)
+            valid_launches.append(launch)
     
     if len(valid_launches) != number:
         raise Exception('Not enough launches match your criteria')
@@ -158,7 +159,10 @@ def collect_launchs(conditions, number, folder):
 def add_coverage_uniformity(data, df, legend):
 
     for launch in data:
-        data = np.array([launch['coverage'], launch['uniformity']])
+        data_json_file = re.sub('detais', 'data', launch)
+        with open(data_json_file) as json_file:
+            json_data = json.load(json_file)
+        data = np.array([json_data['coverage'], json_data['uniformity']])
         data = np.transpose(data)
         df_temp = pd.DataFrame(data, columns=['coverage', 'uniformity'])
         df_temp['legend'] = data.shape[0] * [legend]
