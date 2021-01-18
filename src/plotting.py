@@ -138,6 +138,8 @@ def collect_launchs(conditions, number, folder):
             data = json.load(json_file)
         for cond_key in condition_keys:
             if data[cond_key] != conditions[cond_key]:
+                print(data[cond_key])
+                print(conditions[cond_key])
                 cond = False
                 break
         if cond:
@@ -208,9 +210,10 @@ def plot_archive_management(env, arch_size, pop, gen, nb_cells, n_required, fold
         'archive limit size': None
     }
 
-    # # temoin
-    # data = collect_launchs(temoin_dict, n_required, folder)
-    # df = add_coverage_uniformity(data, df, 'no limit')
+    # temoin
+    print(temoin_dict)
+    data = collect_launchs(temoin_dict, n_required, folder)
+    df = add_coverage_uniformity(data, df, 'no limit')
 
     variation_possibilities = ['random', 'least_novel', 'oldest', 'grid', 'grid_density', 'gmm', 'newest',
                                'least_novel_iter']
@@ -221,7 +224,6 @@ def plot_archive_management(env, arch_size, pop, gen, nb_cells, n_required, fold
     variation_key = 'archive limit strat'
     for i, var in enumerate(variation_possibilities):
         temoin_dict[variation_key] = var
-        print(temoin_dict)
         data = collect_launchs(temoin_dict, n_required, folder)
         df = add_coverage_uniformity(data, df, temoin_dict[variation_key])
 
