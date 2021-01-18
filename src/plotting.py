@@ -149,6 +149,8 @@ def collect_launchs(conditions, number, folder):
         if cond:
             count += 1
             valid_launches.append(launch)
+        if count == number:
+            break
     
     if len(valid_launches) != number:
         raise Exception('Not enough launches match your criteria')
@@ -159,7 +161,7 @@ def collect_launchs(conditions, number, folder):
 def add_coverage_uniformity(data, df, legend):
 
     for launch in data:
-        data_json_file = re.sub('detais', 'data', launch)
+        data_json_file = re.sub('details', 'data', launch)
         with open(data_json_file) as json_file:
             json_data = json.load(json_file)
         data = np.array([json_data['coverage'], json_data['uniformity']])
