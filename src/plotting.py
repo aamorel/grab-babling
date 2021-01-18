@@ -174,7 +174,7 @@ def add_coverage_uniformity(data, df, legend):
 
 
 def plot_end_cov_box(df, gen, colors, savepath):
-    df_end = df[df['generation'] == gen]
+    df_end = df[df['generation'] == gen - 1]
     fig, ax = plt.subplots(figsize=(10, 10))
     sns.boxplot(x='legend', y='coverage', data=df_end, ax=ax, palette=colors)
     ax.set_facecolor("#ffebb8")
@@ -189,14 +189,14 @@ def plot_experiment(temoin_dict, variation_key, variation_colors,
     df = pd.DataFrame(columns=['coverage', 'uniformity', 'legend'])
 
     # temoin
-    data = collect_launchs(temoin_dict, n_required[0], folder)
-    df = add_coverage_uniformity(data, df, temoin_dict[variation_key])
+    details = collect_launchs(temoin_dict, n_required[0], folder)
+    df = add_coverage_uniformity(details, df, temoin_dict[variation_key])
 
     # variations
     for i, var in enumerate(variation_possibilities):
         temoin_dict[variation_key] = var
-        data = collect_launchs(temoin_dict, n_required[i + 1], folder)
-        df = add_coverage_uniformity(data, df, temoin_dict[variation_key])
+        details = collect_launchs(temoin_dict, n_required[i + 1], folder)
+        df = add_coverage_uniformity(details, df, temoin_dict[variation_key])
 
     df['generation'] = df.index
     variation_colors.insert(0, 'grey')
@@ -208,15 +208,22 @@ def plot_experiment(temoin_dict, variation_key, variation_colors,
     ax[1].set_facecolor("#ffebb8")
     ax[1].legend(loc=3)
     fig.suptitle(title)
-    plt.show()
 
     if savepath is not None:
         fig.savefig(savepath)
     
-    plot_end_cov_box(df, temoin_dict['nb of generations'], variation_colors, savepath)
-
 
 def plot_archive_management(env, arch_size, pop, gen, nb_cells, n_required, folder, savepath=None):
+    size = 15
+
+    plt.rc('font', size=size, weight='bold')          # controls default text sizes
+    plt.rc('axes', titlesize=size, titleweight='bold')     # fontsize of the axes title
+    plt.rc('axes', labelsize=size, labelweight='bold')    # fontsize of the x and y labels
+    plt.rc('xtick', labelsize=size)    # fontsize of the tick labels
+    plt.rc('ytick', labelsize=size)    # fontsize of the tick labels
+    plt.rc('legend', fontsize=size)    # legend fontsize
+    plt.rc('figure', titlesize=size, titleweight='bold')  # fontsize of the figure title
+    
     fig, ax = plt.subplots(2, 1, figsize=(20, 15))
     df = pd.DataFrame(columns=['coverage', 'uniformity', 'legend'])
 
@@ -266,6 +273,65 @@ def plot_archive_management(env, arch_size, pop, gen, nb_cells, n_required, fold
     plt.show()
 
 
+def plot_archive_importance(env, pop, gen, nb_cells, n_required, folder, savepath=None):
+    size = 15
+
+    plt.rc('font', size=size, weight='bold')          # controls default text sizes
+    plt.rc('axes', titlesize=size, titleweight='bold')     # fontsize of the axes title
+    plt.rc('axes', labelsize=size, labelweight='bold')    # fontsize of the x and y labels
+    plt.rc('xtick', labelsize=size)    # fontsize of the tick labels
+    plt.rc('ytick', labelsize=size)    # fontsize of the tick labels
+    plt.rc('legend', fontsize=size)    # legend fontsize
+    plt.rc('figure', titlesize=size, titleweight='bold')  # fontsize of the figure title
+
+    # define experimental conditions
+    temoin_dict = {
+        'algo type': 'ns_rand',
+        'evaluation function': 'evaluate_maze',
+        'nb of generations': gen,
+        'pop size': pop,
+        'nb of cells': nb_cells,
+        'altered novelty': False,
+        'archive limit size': None
+    }
+    variation_key = 'algo type'
+    variation_possibilities = ['ns_no_archive', 'random_search']
+    variation_colors = ['green', 'orange']
+    n_required = [n_required, n_required, n_required]
+    title = 'Archive importance in deceptive maze'
+    folder = 'results'
+
+    fig, ax = plt.subplots(2, 1, figsize=(20, 15))
+    df = pd.DataFrame(columns=['coverage', 'uniformity', 'legend'])
+
+    # temoin
+    details = collect_launchs(temoin_dict, n_required[0], folder)
+    df = add_coverage_uniformity(details, df, temoin_dict[variation_key])
+
+    # variations
+    for i, var in enumerate(variation_possibilities):
+        temoin_dict[variation_key] = var
+        details = collect_launchs(temoin_dict, n_required[i + 1], folder)
+        df = add_coverage_uniformity(details, df, temoin_dict[variation_key])
+
+    df['generation'] = df.index
+    variation_colors.insert(0, 'grey')
+    sns.lineplot(data=df, x='generation', y='coverage', hue='legend', ax=ax[0], palette=variation_colors)
+    sns.lineplot(data=df, x='generation', y='uniformity', hue='legend', ax=ax[1], palette=variation_colors)
+
+    ax[0].set_facecolor("#ffebb8")
+    ax[0].legend(loc=4)
+    ax[1].set_facecolor("#ffebb8")
+    ax[1].legend(loc=3)
+    fig.suptitle(title)
+
+    if savepath is not None:
+        fig.savefig(savepath)
+    
+    plot_end_cov_box(df, temoin_dict['nb of generations'], variation_colors, savepath)
+    plt.show()
+
+
 def prepare_and_plot_exp():
     size = 15
 
@@ -300,4 +366,4 @@ def prepare_and_plot_exp():
 
 if __name__ == "__main__":
     
-    prepare_and_plot_exp()
+    plot_archive_importance('evaluate_maze', 10, 200, 100, 5, 'results')
