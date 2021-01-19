@@ -1135,7 +1135,7 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
     data['novelty distribution'] = novelty_distrib
 
     if plot:
-        fig, fig_2 = plotting.plot_launch(details)
+        fig, fig_2 = plotting.plot_launch(details, data)
     
         figures['figure'] = fig
         figures['figure_2'] = fig_2

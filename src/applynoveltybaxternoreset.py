@@ -793,7 +793,7 @@ if __name__ == "__main__":
                                      archive_limit_size=ARCHIVE_LIMIT, nb_cells=NB_CELLS,
                                      novelty_metric=NOVELTY_METRIC)
     
-    pop, archive, hall_of_fame, details, figures, data = res
+    pop, archive, hof, details, figures, data = res
     
     # create triumphant archive
     triumphant_archive = []
@@ -814,12 +814,6 @@ if __name__ == "__main__":
     else:
         details['successful'] = False
     
-    # don't save some stuff
-    if not SAVE_ALL:
-        data['novelty distribution'] = None
-        data['population genetic statistics'] = None
-        data['offsprings genetic statistics'] = None
-
     # direct plotting and saving figures
     if PLOT:
         fig = figures['figure']
@@ -850,8 +844,8 @@ if __name__ == "__main__":
             plt.savefig(run_name + 'bd_plot.png')
 
         # plot genetic diversity
-        gen_div_pop = np.array(run['population genetic statistics'])
-        gen_div_off = np.array(run['offsprings genetic statistics'])
+        gen_div_pop = np.array(data['population genetic statistics'])
+        gen_div_off = np.array(data['offsprings genetic statistics'])
         if len(gen_div_pop[0]) <= 25:
             fig, ax = plt.subplots(nrows=1, ncols=2, figsize=(15, 10))
             ax[0].set(title='Evolution of population genetic diversity', xlabel='Generations', ylabel='Std of gene')
@@ -884,7 +878,12 @@ if __name__ == "__main__":
             ax[1].legend()
             plt.savefig(run_name + 'genetic_diversity_plot.png')
         plt.show()
-    
+    # don't save some stuff
+    if not SAVE_ALL:
+        data['novelty distribution'] = None
+        data['population genetic statistics'] = None
+        data['offsprings genetic statistics'] = None
+
     # saving the run
     with open(run_name + 'run_details.json', 'w') as fp:
         json.dump(details, fp)

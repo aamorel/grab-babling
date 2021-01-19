@@ -11,7 +11,7 @@ import re
 DEBUG = False
 
 
-def plot_launch(details):
+def plot_launch(details, data):
     """Plotting
 
     Args:
@@ -33,19 +33,19 @@ def plot_launch(details):
 
 
    """
-    coverage_hist = details['archive coverage']
-    uniformity_hist = details['archive uniformity']
-    full_cov_hist = details['coverage']
-    full_uni_hist = details['uniformity']
-    mean_hist = details['mean fitness']
-    min_hist = details['min fitness']
-    max_hist = details['max fitness']
-    arch_size_hist = details['archive size']
-    mean_age_hist = details['mean age']
-    max_age_hist = details['max_age_hist']
-    pop_cov_hist = details['population coverage']
-    pop_uni_hist = details['population uniformity']
-    novelty_distrib = details['novelty distribution']
+    coverage_hist = data['archive coverage']
+    uniformity_hist = data['archive uniformity']
+    full_cov_hist = data['coverage']
+    full_uni_hist = data['uniformity']
+    mean_hist = data['mean fitness']
+    min_hist = data['min fitness']
+    max_hist = data['max fitness']
+    arch_size_hist = data['archive size']
+    mean_age_hist = data['mean age']
+    max_age_hist = data['max_age_hist']
+    pop_cov_hist = data['population coverage']
+    pop_uni_hist = data['population uniformity']
+    novelty_distrib = data['novelty distribution']
     algo_type = details['algo type']
 
     mean_hist = np.array(mean_hist)
@@ -287,7 +287,7 @@ def plot_archive_importance(env, pop, gen, nb_cells, n_required, folder, savepat
     # define experimental conditions
     temoin_dict = {
         'algo type': 'ns_rand',
-        'evaluation function': 'evaluate_maze',
+        'evaluation function': env,
         'nb of generations': gen,
         'pop size': pop,
         'nb of cells': nb_cells,
