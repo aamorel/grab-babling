@@ -223,6 +223,10 @@ def plot_archive_management(env, arch_size, pop, gen, nb_cells, n_required, fold
     plt.rc('ytick', labelsize=size)    # fontsize of the tick labels
     plt.rc('legend', fontsize=size)    # legend fontsize
     plt.rc('figure', titlesize=size, titleweight='bold')  # fontsize of the figure title
+
+    param_dict = {'pop_size': pop, 'gen_nb': gen, 'env': env, 'n_cells': nb_cells, 'arch_size': arch_size}
+    with open(savepath + '_params.json', 'w') as fp:
+        json.dump(param_dict, fp)
     
     fig, ax = plt.subplots(2, 1, figsize=(20, 15))
     df = pd.DataFrame(columns=['coverage', 'uniformity', 'legend'])
@@ -284,6 +288,10 @@ def plot_archive_importance(env, pop, gen, nb_cells, n_required, folder, savepat
     plt.rc('legend', fontsize=size)    # legend fontsize
     plt.rc('figure', titlesize=size, titleweight='bold')  # fontsize of the figure title
 
+    param_dict = {'pop_size': pop, 'gen_nb': gen, 'env': env, 'n_cells': nb_cells}
+    with open(savepath + '_params.json', 'w') as fp:
+        json.dump(param_dict, fp)
+
     # define experimental conditions
     temoin_dict = {
         'algo type': 'ns_rand',
@@ -298,7 +306,7 @@ def plot_archive_importance(env, pop, gen, nb_cells, n_required, folder, savepat
     variation_possibilities = ['ns_no_archive', 'random_search']
     variation_colors = ['green', 'orange']
     n_required = [n_required, n_required, n_required]
-    title = 'Archive importance in deceptive maze'
+    title = 'Archive importance in ' + env
     folder = 'results'
 
     fig, ax = plt.subplots(2, 1, figsize=(20, 15))
@@ -329,6 +337,7 @@ def plot_archive_importance(env, pop, gen, nb_cells, n_required, folder, savepat
         fig.savefig(savepath)
     
     plot_end_cov_box(df, temoin_dict['nb of generations'], variation_colors, savepath)
+
     plt.show()
 
 
@@ -365,5 +374,5 @@ def prepare_and_plot_exp():
 
 
 if __name__ == "__main__":
-    
+
     plot_archive_importance('evaluate_maze', 10, 200, 100, 5, 'results')
