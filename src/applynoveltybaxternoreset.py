@@ -18,6 +18,8 @@ DISPLAY_RAND = False
 DISPLAY_TRIUMPHANTS = False
 EVAL_SUCCESSFULL = False
 SAVE_ALL = False
+RESET_MODE = True
+
 
 # choose parameters
 POP_SIZE = 100
@@ -37,7 +39,8 @@ COV_LIMIT = 0.1  # threshold for changing behavior descriptor in change_bd ns
 N_LAG = int(200 / NB_STEPS_TO_ROLLOUT)  # number of steps before the grip time used in the multi_full_info BD
 ARCHIVE_LIMIT = 2500
 NB_CELLS = 100  # number of cells for measurement
-RESET_MODE = True
+
+# if reset, create global env
 if RESET_MODE:
     ENV = gym.make('gym_baxter_grabbing:baxter_grabbing-v1', display=DISPLAY)
     ENV.set_steps_to_roll(NB_STEPS_TO_ROLLOUT)
@@ -255,7 +258,8 @@ def two_d_behavioral_descriptor(individual):
     fitness = utils.list_l2_norm(behavior, [0, 0])
 
     info = {}
-    ENV.close()
+    if not RESET_MODE:
+        ENV.close()
 
     return (behavior, (fitness,), info)
 
@@ -352,7 +356,8 @@ def three_d_behavioral_descriptor(individual):
             # difference:
             diff_or = obj_or.conjugate * grip_or
             info['diversity_descriptor'] = diff_or
-    ENV.close()
+    if not RESET_MODE:
+        ENV.close()
 
     return (behavior, (fitness,), info)
 
@@ -479,7 +484,8 @@ def multi_full_behavior_descriptor(individual):
     behavior.append(grip_or_lag[1])
     behavior.append(grip_or_lag[2])
 
-    ENV.close()
+    if not RESET_MODE:
+        ENV.close()
     
     return (behavior, (fitness,), info)
 
@@ -588,7 +594,8 @@ def multi_behavioral_descriptor(individual):
             behavior[5] = diff_or[2]
             behavior[6] = diff_or[3]
 
-    ENV.close()
+    if not RESET_MODE:
+        ENV.close()
     return (behavior, (fitness,), info)
 
 
@@ -692,7 +699,8 @@ def orientation_behavioral_descriptor(individual):
         # set behavior as None and deal with in novelty search
         behavior = None
 
-    ENV.close()
+    if not RESET_MODE:
+        ENV.close()
     return (behavior, (fitness,), info)
 
 
