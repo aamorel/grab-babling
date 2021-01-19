@@ -37,6 +37,10 @@ COV_LIMIT = 0.1  # threshold for changing behavior descriptor in change_bd ns
 N_LAG = int(200 / NB_STEPS_TO_ROLLOUT)  # number of steps before the grip time used in the multi_full_info BD
 ARCHIVE_LIMIT = 2500
 NB_CELLS = 100  # number of cells for measurement
+RESET_MODE = True
+if RESET_MODE:
+    ENV = gym.make('gym_baxter_grabbing:baxter_grabbing-v1', display=DISPLAY)
+    ENV.set_steps_to_roll(NB_STEPS_TO_ROLLOUT)
 
 # choose controller type
 CONTROLLER = 'interpolate keypoints end pause grip'
@@ -216,6 +220,9 @@ def two_d_behavioral_descriptor(individual):
     Returns:
         tuple: tuple of behavior (list) and fitness(tuple)
     """
+    if RESET_MODE:
+        global ENV
+        ENV.reset()
     ENV = gym.make('gym_baxter_grabbing:baxter_grabbing-v1', display=DISPLAY)
     ENV.set_steps_to_roll(NB_STEPS_TO_ROLLOUT)
     individual = np.around(np.array(individual), 3)
@@ -265,6 +272,9 @@ def three_d_behavioral_descriptor(individual):
     Returns:
         tuple: tuple of behavior (list) and fitness(tuple)
     """
+    if RESET_MODE:
+        global ENV
+        ENV.reset()
     ENV = gym.make('gym_baxter_grabbing:baxter_grabbing-v1', display=DISPLAY)
     ENV.set_steps_to_roll(NB_STEPS_TO_ROLLOUT)
     individual = np.around(np.array(individual), 3)
@@ -366,9 +376,13 @@ def multi_full_behavior_descriptor(individual):
     Returns:
         tuple: tuple of behavior (list) and fitness(tuple)
     """
-    ENV = gym.make('gym_baxter_grabbing:baxter_grabbing-v1', display=DISPLAY)
-    ENV.set_steps_to_roll(NB_STEPS_TO_ROLLOUT)
-    individual = np.around(np.array(individual), 3)
+    if RESET_MODE:
+        global ENV
+        ENV.reset()
+    else:
+        ENV = gym.make('gym_baxter_grabbing:baxter_grabbing-v1', display=DISPLAY)
+        ENV.set_steps_to_roll(NB_STEPS_TO_ROLLOUT)
+        individual = np.around(np.array(individual), 3)
 
     # initialize controller
     controller_info = controllers_info_dict[CONTROLLER]
@@ -483,6 +497,9 @@ def multi_behavioral_descriptor(individual):
     Returns:
         tuple: tuple of behavior (list) and fitness(tuple)
     """
+    if RESET_MODE:
+        global ENV
+        ENV.reset()
     ENV = gym.make('gym_baxter_grabbing:baxter_grabbing-v1', display=DISPLAY)
     ENV.set_steps_to_roll(NB_STEPS_TO_ROLLOUT)
     individual = np.around(np.array(individual), 3)
@@ -586,6 +603,9 @@ def orientation_behavioral_descriptor(individual):
     Returns:
         tuple: tuple of behavior (list) and fitness(tuple)
     """
+    if RESET_MODE:
+        global ENV
+        ENV.reset()
     ENV = gym.make('gym_baxter_grabbing:baxter_grabbing-v1', display=DISPLAY)
     ENV.set_steps_to_roll(NB_STEPS_TO_ROLLOUT)
     individual = np.around(np.array(individual), 3)
