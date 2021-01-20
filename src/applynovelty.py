@@ -30,6 +30,7 @@ def evaluate_slime(individual):
     """Evaluates an individual: computes its value in the behavior descriptor space,
     and its fitness value.
     Slime volley: modification of the env to make it deterministic
+    extended 4 dim bd version
 
     Args:
         individual (Individual): an individual
@@ -48,6 +49,7 @@ def evaluate_slime(individual):
         action = [0, 0, 0]
         eo = False
         count = 0
+        jump_count = 0
         reward = 0
         distance_ball = 0
         distance_player = 0
@@ -66,6 +68,8 @@ def evaluate_slime(individual):
 
             action = controller.choose_action(o)
             action = [int(a > 0) for a in action]
+            if action[2] == 1:
+                jump_count += 1
 
             dist_to_ball = math.sqrt((o[0] - o[4])**2 + (o[1] - o[5])**2)
             distance_ball += dist_to_ball
@@ -79,12 +83,8 @@ def evaluate_slime(individual):
         # use last info to compute behavior and fitness
         mean_distance_ball = distance_ball / (count * 4)
         
-        # variant 1: game duration + distance to ball
-        behavior_arr.append([count / 3000, mean_distance_ball])
-
-        # variant 2: distance to other player + distance to ball
-        # mean_distance_player = distance_player / (count * 4)
-        # behavior_arr.append([mean_distance_player, mean_distance_ball])
+        mean_distance_player = distance_player / (count * 4)
+        behavior_arr.append([count / 3000, mean_distance_player, mean_distance_ball, jump_count / count])
 
         fitness_arr.append(reward)
 
@@ -310,7 +310,7 @@ if ENV_NAME == 'slime':
     import slimevolleygym  # must still be imported
     # global variable for the environment
     ENV = gym.make("SlimeVolley-v0")
-    BD_BOUNDS = [[0, 1], [0, 1]]
+    BD_BOUNDS = [[0, 1], [0, 1], [0, 1], [0, 1]]
     INITIAL_GENOTYPE_SIZE = 99
     # depends on the version of slimevolley (random or determinist)
     N_REPEAT = 1
