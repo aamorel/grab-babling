@@ -29,6 +29,7 @@ SAVE_ALL = False
 def evaluate_slime(individual):
     """Evaluates an individual: computes its value in the behavior descriptor space,
     and its fitness value.
+    Slime volley: modification of the env to make it deterministic
 
     Args:
         individual (Individual): an individual
@@ -77,13 +78,13 @@ def evaluate_slime(individual):
 
         # use last info to compute behavior and fitness
         mean_distance_ball = distance_ball / (count * 4)
-        mean_distance_player = distance_player / (count * 4)
         
         # variant 1: game duration + distance to ball
-        # behavior_arr.append([count / 3000, mean_distance_ball])
+        behavior_arr.append([count / 3000, mean_distance_ball])
 
         # variant 2: distance to other player + distance to ball
-        behavior_arr.append([mean_distance_player, mean_distance_ball])
+        # mean_distance_player = distance_player / (count * 4)
+        # behavior_arr.append([mean_distance_player, mean_distance_ball])
 
         fitness_arr.append(reward)
 

@@ -224,9 +224,12 @@ def plot_archive_management(env, arch_size, pop, gen, nb_cells, n_required, fold
     plt.rc('legend', fontsize=size)    # legend fontsize
     plt.rc('figure', titlesize=size, titleweight='bold')  # fontsize of the figure title
 
-    param_dict = {'pop_size': pop, 'gen_nb': gen, 'env': env, 'n_cells': nb_cells, 'arch_size': arch_size}
-    with open(savepath + '_params.json', 'w') as fp:
-        json.dump(param_dict, fp)
+    if savepath:
+        param_dict = {'pop_size': pop, 'gen_nb': gen, 'env': env, 
+                      'n_cells': nb_cells, 'arch_size': arch_size,
+                      'n_rep': n_required}
+        with open(savepath + '_params.json', 'w') as fp:
+            json.dump(param_dict, fp)
     
     fig, ax = plt.subplots(2, 1, figsize=(20, 15))
     df = pd.DataFrame(columns=['coverage', 'uniformity', 'legend'])
@@ -288,9 +291,10 @@ def plot_archive_importance(env, pop, gen, nb_cells, n_required, folder, savepat
     plt.rc('legend', fontsize=size)    # legend fontsize
     plt.rc('figure', titlesize=size, titleweight='bold')  # fontsize of the figure title
 
-    param_dict = {'pop_size': pop, 'gen_nb': gen, 'env': env, 'n_cells': nb_cells}
-    with open(savepath + '_params.json', 'w') as fp:
-        json.dump(param_dict, fp)
+    if savepath:
+        param_dict = {'pop_size': pop, 'gen_nb': gen, 'env': env, 'n_cells': nb_cells, 'n_rep': n_required}
+        with open(savepath + '_params.json', 'w') as fp:
+            json.dump(param_dict, fp)
 
     # define experimental conditions
     temoin_dict = {
@@ -373,6 +377,33 @@ def prepare_and_plot_exp():
                     variation_possibilities, title, n_required, exp_folder)
 
 
-if __name__ == "__main__":
+def print_details(folder):
+    exp_path = folder + '/*details.json'
+    all_jsons = glob.glob(exp_path)
+    with open(all_jsons[0]) as json_file:
+        data = json.load(json_file)
+    data['bd bounds'] = None
+    df = pd.DataFrame(list(data.items())).transpose()
+    df = df.rename(columns=df.iloc[0])
+    df = df.drop(0)
+    all_jsons.pop(0)
+    for launch in all_jsons:
+        with open(launch) as json_file:
+            data = json.load(json_file)
+        data['bd bounds'] = None
+        df_temp = pd.DataFrame(list(data.items())).transpose()
+        df_temp = df_temp.rename(columns=df_temp.iloc[0])
+        df_temp = df_temp.drop(0)
+        df = df.append(df_temp)
+    for col in df.columns:
+        uniques = df[col].unique()
+        print('')
+        print('Column: ', str(col))
+        for unique in uniques:
+            print(unique, ': ', (df[col] == unique).sum())
 
-    plot_archive_importance('evaluate_maze', 10, 200, 100, 5, 'results')
+
+if __name__ == "__main__":
+    folder = 'results'
+    print_details(folder)
+    plot_archive_importance('evaluate_maze', 10, 200, 100, 5, folder)
