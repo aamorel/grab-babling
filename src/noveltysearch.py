@@ -986,6 +986,30 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
                     for member in members_to_remove:
                         remove_from_grid(member, grid, cvt, measures, algo_type, bd_filters)
                     archive = archive[:nb_ind_to_keep]
+                
+                if archive_limit_strat == 'most_novel':
+                    # strategy 9: remove most novel individuals
+                    novelties = assess_novelties(archive, archive, algo_type, bd_bounds, bd_indexes, bd_filters,
+                                                 novelty_metric)
+                    nov_n = np.array([nov[0] for nov in novelties])
+                    removal_indices = np.argpartition(nov_n, -nb_ind_to_remove)[-nb_ind_to_remove:]
+                    for idx in removal_indices:
+                        remove_from_grid(archive[idx], grid, cvt, measures, algo_type, bd_filters)
+                    temp_archive = []
+                    for i in range(original_len):
+                        if i not in removal_indices:
+                            temp_archive.append(archive[i])
+                    archive = temp_archive
+
+                if archive_limit_strat == 'most_novel_iter':
+                    # strategy 10: remove most novel individual iteratively
+                    for _ in range(nb_ind_to_remove):
+                        novelties = assess_novelties(archive, archive, algo_type, bd_bounds, bd_indexes, bd_filters,
+                                                     novelty_metric)
+                        nov_n = np.array([nov[0] for nov in novelties])
+                        removal_idx = np.argmax(nov_n)
+                        remove_from_grid(archive[removal_idx], grid, cvt, measures, algo_type, bd_filters)
+                        archive.pop(removal_idx)
 
                 assert((original_len - len(archive)) == nb_ind_to_remove)
                 if analyze_archive:

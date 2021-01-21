@@ -120,6 +120,52 @@ def remove_ind(reference_pop, removal_size, removal_type):
         # plt.show()
 
         reference_pop = np.delete(reference_pop, removal_indices, 0)
+
+    if removal_type == 'most_novel':
+        # compute novelties of reference_pop inside reference_pop
+        novelties = assess_novelties(reference_pop, reference_pop)
+        removal_indices = np.argpartition(novelties, -removal_size)[-removal_size:]
+
+        # # plot the reference pop
+        # fig = plt.figure(figsize=(5, 5))
+        # ax = fig.add_subplot(111)
+        # ax.scatter(reference_pop[:, 0], reference_pop[:, 1], label='reference')
+        # ax.scatter(reference_pop[removal_indices, 0], reference_pop[removal_indices, 1], label='removed',
+        #            marker='x', color='red')
+        # ax.set_facecolor("#ffebb8")
+        # ax.set_title('Least novel removal', fontsize=15)
+        # plt.xlim(0, 1)
+        # plt.ylim(0, 1)
+        # plt.legend()
+        # plt.show()
+
+        reference_pop = np.delete(reference_pop, removal_indices, 0)
+    
+    if removal_type == 'most_novel_iter':
+        removal_indices = []
+        temp_ref_pop = copy.deepcopy(reference_pop)
+        for j in range(removal_size):
+            # compute novelties of reference_pop inside reference_pop
+            novelties = assess_novelties(temp_ref_pop, temp_ref_pop)
+            remov_idx = np.argmax(novelties)
+            remov_ind = temp_ref_pop[remov_idx]
+            removal_indices.append(np.where(reference_pop == remov_ind)[0][0])
+            temp_ref_pop = np.vstack((temp_ref_pop[:remov_idx], temp_ref_pop[remov_idx + 1:]))
+
+        # # plot the reference pop
+        # fig = plt.figure(figsize=(5, 5))
+        # ax = fig.add_subplot(111)
+        # ax.scatter(reference_pop[:, 0], reference_pop[:, 1], label='reference')
+        # ax.scatter(reference_pop[removal_indices, 0], reference_pop[removal_indices, 1], label='removed',
+        #            marker='x', color='red')
+        # ax.set_facecolor("#ffebb8")
+        # ax.set_title('Least novel removal', fontsize=15)
+        # plt.xlim(0, 1)
+        # plt.ylim(0, 1)
+        # plt.legend()
+        # plt.show()
+
+        reference_pop = np.delete(reference_pop, removal_indices, 0)
     
     if removal_type == 'gmm_sampling':
         # hypothesis: n_components equals generative number of components
@@ -507,23 +553,23 @@ pop_sizes = np.array([10, 20, 30, 40, 50, 60, 70, 80, 90]) * k
 pop_dim = 3
 n_exp = 100
 generation = 'mixture'
-methods = ['least_novel_iter', 'least_novel', 'random', 'gmm_sampling', 'grid', 'grid_density']
+methods = ['least_novel_iter', 'least_novel', 'random', 'gmm_sampling', 'grid', 'grid_density',
+           'most_novel', 'most_novel_iter']
 
 fig, ax = plt.subplots(3, 1, sharex=True, figsize=(20, 10))
 for i, method in enumerate(methods):
     add_method(ax, ref_pop_size, pop_sizes, pop_dim, utils.color_list[i], method, n_exp, i)
 
 ax[2].set_xlabel("Population size", labelpad=15, fontsize=12, color="#333533")
-ax[0].set_ylabel("Kendall Tau similarity between rankings", labelpad=15, fontsize=12, color="#333533")
 ax[0].set_facecolor("#ffebb8")
-ax[0].set_title('Ranking difference with respect to population size', fontsize=15)
+ax[0].set_title("Kendall Tau similarity between rankings", fontsize=15)
 ax[0].legend(loc=4)
-ax[1].set_ylabel("Euclidean distance between novelty values", labelpad=15, fontsize=12, color="#333533")
 ax[1].set_facecolor("#ffebb8")
-ax[1].set_title('Novelty values distances with respect to population size', fontsize=15)
+ax[1].set_title("Euclidean distance between novelty values", fontsize=15)
 ax[1].legend(loc=4)
 ax[2].set_facecolor("#ffebb8")
-ax[2].set_ylabel("Removal computational time (s)", labelpad=15, fontsize=12, color="#333533")
-ax[2].set_title('Removal computational time with respect to population size', fontsize=15)
-ax[2].legend(loc=2)
+ax[2].set_ylabel("Time (s)", labelpad=15, fontsize=12, color="#333533")
+ax[2].set_title("Removal computational time", fontsize=15)
+ax[2].legend(loc=4)
+plt.title('Archive size: ' + str(ref_pop_size))
 plt.show()

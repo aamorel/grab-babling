@@ -175,7 +175,7 @@ def add_coverage_uniformity(data, df, legend):
 
 def plot_end_cov_box(df, gen, colors, savepath):
     df_end = df[df['generation'] == gen - 1]
-    fig, ax = plt.subplots(figsize=(10, 10))
+    fig, ax = plt.subplots(figsize=(15, 10))
     sns.boxplot(x='legend', y='coverage', data=df_end, ax=ax, palette=colors)
     ax.set_facecolor("#ffebb8")
     fig.suptitle('Final coverages')
@@ -250,8 +250,8 @@ def plot_archive_management(env, arch_size, pop, gen, nb_cells, n_required, fold
     df = add_coverage_uniformity(data, df, 'no limit')
 
     variation_possibilities = ['random', 'least_novel', 'oldest', 'grid', 'grid_density', 'gmm', 'newest',
-                               'least_novel_iter']
-    variation_colors = utils.color_list[:8]
+                               'least_novel_iter', 'most_novel', 'most_novel_iter']
+    variation_colors = utils.color_list[:10]
 
     # variations
     temoin_dict['archive limit size'] = arch_size

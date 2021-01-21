@@ -528,7 +528,7 @@ if __name__ == "__main__":
                       'measures': True, 'pop_size': POP_SIZE,
                       'nb_cells': NB_CELLS}
         possible_strats = ['random', 'least_novel', 'oldest', 'grid', 'grid_density', 'gmm', 'newest',
-                           'least_novel_iter']
+                           'least_novel_iter', 'most_novel', 'most_novel_iter']
 
         # alteration runs
         for strat in possible_strats:
@@ -546,3 +546,16 @@ if __name__ == "__main__":
         # fitness ea runs
         parameters['algo_type'] = 'classic_ea'
         repeat_and_save(parameters)
+
+    if CASE == 'most novel management':
+        parameters = {'mini': MINI, 'archive_limit_size': ARCHIVE_LIMIT,
+                      'plot': False, 'algo_type': 'ns_rand', 'nb_gen': GEN,
+                      'parallelize': True, 'bound_genotype': BD_GENOTYPE,
+                      'measures': True, 'pop_size': POP_SIZE,
+                      'nb_cells': NB_CELLS}
+        possible_strats = ['most_novel', 'most_novel_iter']
+
+        # alteration runs
+        for strat in possible_strats:
+            parameters['archive_limit_strat'] = strat
+            repeat_and_save(parameters)
