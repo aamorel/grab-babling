@@ -528,7 +528,7 @@ if __name__ == "__main__":
                       'measures': True, 'pop_size': POP_SIZE,
                       'nb_cells': NB_CELLS}
         possible_strats = ['random', 'least_novel', 'oldest', 'grid', 'grid_density', 'gmm', 'newest',
-                           'least_novel_iter', 'most_novel', 'most_novel_iter']
+                           'least_novel_iter', 'most_novel']
 
         # alteration runs
         for strat in possible_strats:
@@ -553,7 +553,7 @@ if __name__ == "__main__":
                       'parallelize': True, 'bound_genotype': BD_GENOTYPE,
                       'measures': True, 'pop_size': POP_SIZE,
                       'nb_cells': NB_CELLS}
-        possible_strats = ['most_novel', 'most_novel_iter']
+        possible_strats = ['most_novel']
 
         # alteration runs
         for strat in possible_strats:

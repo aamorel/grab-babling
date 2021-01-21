@@ -250,8 +250,8 @@ def plot_archive_management(env, arch_size, pop, gen, nb_cells, n_required, fold
     df = add_coverage_uniformity(data, df, 'no limit')
 
     variation_possibilities = ['random', 'least_novel', 'oldest', 'grid', 'grid_density', 'gmm', 'newest',
-                               'least_novel_iter', 'most_novel', 'most_novel_iter']
-    variation_colors = utils.color_list[:10]
+                               'least_novel_iter', 'most_novel']
+    variation_colors = utils.color_list[:9]
 
     # variations
     temoin_dict['archive limit size'] = arch_size
