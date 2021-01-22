@@ -135,7 +135,22 @@ class NeuralAgentNumpy():
         self.bias = None
         self.opt_state = None
         self.out = np.zeros(n_out)
-
+    
+    def randomize(self):
+        if self.n_hidden_layers > 0:
+            self.weights = [2 * np.random.random((self.dim_in, self.n_per_hidden)) - 1]
+            self.bias = [2 * np.random.random(self.n_per_hidden) - 1]  # In -> first hidden
+            for i in range(self.n_hidden_layers - 1):  # Hidden -> hidden
+                self.weights.append(2 * np.random.random((self.n_per_hidden, self.n_per_hidden)) - 1)
+                self.bias.append(2 * np.random.random(self.n_per_hidden) - 1)
+            self.weights.append(2 * np.random.random((self.n_per_hidden, self.dim_out)) - 1)  # -> last hidden -> out
+            self.bias.append(2 * np.random.random(self.dim_out) - 1)
+        else:
+            self.weights = [2 * np.random.random((self.dim_in, self.dim_out)) - 1]  # Single-layer perceptron
+            self.bias = [2 * np.random.random(self.dim_out) - 1]
+        n_weights_1 = np.sum([np.product(w.shape) for w in self.weights])
+        self.n_weights = n_weights_1 + np.sum([np.product(b.shape) for b in self.bias])
+        
     def get_weights(self):
         """
         Returns all network parameters as a single array

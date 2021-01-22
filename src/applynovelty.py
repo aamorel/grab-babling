@@ -56,7 +56,7 @@ def evaluate_slime(individual):
 
         # CONTROLLER
         ind = np.array(individual)
-        controller = utils.NeuralAgentNumpy(12, 3, n_hidden_layers=1, n_neurons_per_hidden=6)
+        controller = utils.NeuralAgentNumpy(12, 3, n_hidden_layers=2, n_neurons_per_hidden=6)
         controller.set_weights(ind)
         while not eo:
             count += 1
@@ -311,7 +311,7 @@ if ENV_NAME == 'slime':
     # global variable for the environment
     ENV = gym.make("SlimeVolley-v0")
     BD_BOUNDS = [[0, 1], [0, 1], [0, 1], [0, 1]]
-    INITIAL_GENOTYPE_SIZE = 99
+    INITIAL_GENOTYPE_SIZE = 141
     # depends on the version of slimevolley (random or determinist)
     N_REPEAT = 1
     MINI = False
