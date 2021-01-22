@@ -1,18 +1,33 @@
 import gym
 import gym_billiard
 import numpy as np
-import time
+import matplotlib.pyplot as plt
+
 env = gym.make('Billiard-v0')
 
-env.reset()
-for i in range(1000):
-    # Select the action right
-    action = np.random.rand(2) * 2 - 1
+print('Actions {}'.format(env.action_space))
+print('Obs {}'.format(env.observation_space))
 
-    # Take a step in the environment and store it in appropriate variables
-    obs, reward, done, info = env.step(action)
+action = env.action_space.sample()
+lim = 20
+total_act = np.array([0., 0.])
+for i in range(10):
+    obs = env.reset()
+    a = env.render(mode='rgb_array')
 
-    # Render the current state of the environment
-    env.render()
+    for t in range(10000):
+        if t < lim:
+            action = [0.5, 1.]
+            total_act += np.array(action)
 
-    time.sleep(0.01)
+        else:
+            action = [0., 0.]
+        img = env.render()
+        env.render(mode='human')
+
+        plt.imshow(img, interpolation='nearest')
+        plt.draw()
+        obs, reward, done, info = env.step(action)
+        if done:
+            break
+    print(info)

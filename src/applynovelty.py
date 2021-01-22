@@ -13,15 +13,15 @@ import tqdm
 
 DISPLAY = False
 PARALLELIZE = True
-GEN = 200
-POP_SIZE = 10
-ARCHIVE_LIMIT = 20
+GEN = 1000
+POP_SIZE = 100
+ARCHIVE_LIMIT = None
 NB_CELLS = 100
-N_EXP = 5
+N_EXP = 10
 ALGO = 'ns_rand'
 PLOT = False
 CASE = 'archive importance'  # 'simple run', 'archive importance', 'novelty alteration', 'archive management'
-ENV_NAME = 'maze'
+ENV_NAME = 'billiard'
 SHOW_HOF = False
 SAVE_ALL = False
 
@@ -298,6 +298,44 @@ def evaluate_bipedal(individual):
     return (behavior, (reward,), inf)
 
 
+def evaluate_billiard(individual):
+    """Evaluates an individual: computes its value in the behavior descriptor space,
+    and its fitness value.
+    Bipedal walker
+
+    Args:
+        individual (Individual): an individual
+
+    Returns:
+        tuple: tuple of behavior (list) and fitness(tuple)
+    """
+    global ENV
+    inf = {}
+
+    o = ENV.reset()
+
+    eo = False
+    count = 0
+    reward = 0
+
+    # CONTROLLER
+    individual = np.array(individual)
+    controller = utils.NeuralAgentNumpy(6, 2, n_hidden_layers=2, n_neurons_per_hidden=4)
+    controller.set_weights(individual)
+    while not eo and count <= 5000:
+        count += 1
+
+        action = controller.choose_action(o)
+
+        # apply previously chosen action
+        o, r, eo, info = ENV.step(action)
+        reward += r
+
+    behavior = o[:2]
+
+    return (behavior, (reward,), inf)
+
+
 if ENV_NAME == 'maze':
     import gym_fastsim  # must still be imported
     BD_BOUNDS = [[0, 600], [0, 600]]
@@ -357,6 +395,16 @@ if ENV_NAME == 'bipedal':
     EVALUATE_INDIVIDUAL = evaluate_bipedal
     BD_GENOTYPE = 1
 
+if ENV_NAME == 'billiard':
+    import gym_billiard
+    # global variable for the environment
+    ENV = gym.make('Billiard-v0')
+    BD_BOUNDS = [[-1.5, 1.5], [-1.5, 1.5]]
+    INITIAL_GENOTYPE_SIZE = 58
+    MINI = False
+    EVALUATE_INDIVIDUAL = evaluate_billiard
+    BD_GENOTYPE = 1
+
 if PARALLELIZE:
     # container for behavior descriptor
     creator.create('BehaviorDescriptor', list)
@@ -414,9 +462,9 @@ if __name__ == "__main__":
                       'parallelize': True, 'bound_genotype': BD_GENOTYPE,
                       'measures': True, 'pop_size': POP_SIZE,
                       'nb_cells': NB_CELLS}
-        pop, archive, hof, info, figures = noveltysearch.novelty_algo(EVALUATE_INDIVIDUAL, INITIAL_GENOTYPE_SIZE,
-                                                                      BD_BOUNDS,
-                                                                      **parameters)
+        res = noveltysearch.novelty_algo(EVALUATE_INDIVIDUAL, INITIAL_GENOTYPE_SIZE,
+                                         BD_BOUNDS, **parameters)
+        pop, archive, hof, info, figures, data = res
 
         if PLOT:
             if ENV_NAME == 'maze':
@@ -467,6 +515,18 @@ if __name__ == "__main__":
                 plt.savefig('final_behavior.png')
                 fig = figures['figure']
                 fig.savefig('exploration_bipedal.png')
+            
+            if ENV_NAME == 'billiard':
+                archive_behavior = np.array([ind.behavior_descriptor.values for ind in archive])
+                pop_behavior = np.array([ind.behavior_descriptor.values for ind in pop])
+                hof_behavior = np.array([ind.behavior_descriptor.values for ind in hof])
+                fig, ax = plt.subplots(figsize=(5, 5))
+                ax.set(title='Final Archive', xlabel='x', ylabel='y')
+                ax.scatter(archive_behavior[:, 0], archive_behavior[:, 1], color='red', label='Archive')
+                ax.scatter(pop_behavior[:, 0], pop_behavior[:, 1], color='blue', label='Population')
+                ax.scatter(hof_behavior[:, 0], hof_behavior[:, 1], color='green', label='Hall of Fame')
+                plt.legend()
+
             plt.show()
 
         if SHOW_HOF:
