@@ -3,6 +3,8 @@ from sklearn.cluster import KMeans
 from scipy.spatial import cKDTree as KDTree
 from scipy.spatial import distance
 from numpy import linalg as LA
+import pybullet_envs
+import pybullet_envs.gym_locomotion_envs
 
 
 color_list = ["green", "blue", "red",
@@ -243,3 +245,13 @@ class NeuralAgentNumpy():
         self.__init__(dic["dim_in"], dic["dim_out"], dic["n_hidden_layers"], dic["n_per_hidden"])
         self.set_weights(dic["as_vector"])
         self.set_opt_state(dic["opt_state"])
+
+
+class DeterministicPybulletAnt(pybullet_envs.gym_locomotion_envs.AntBulletEnv):
+    def __init__(self, render=False, random_seed=0):
+        self.deterministic_random_seed = random_seed
+        pybullet_envs.gym_locomotion_envs.AntBulletEnv.__init__(self, render)
+
+    def reset(self):
+        self.seed(self.deterministic_random_seed)
+        return pybullet_envs.gym_locomotion_envs.AntBulletEnv.reset(self)

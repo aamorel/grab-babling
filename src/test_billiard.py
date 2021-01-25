@@ -11,7 +11,7 @@ print('Obs {}'.format(env.observation_space))
 action = env.action_space.sample()
 lim = 20
 total_act = np.array([0., 0.])
-for i in range(10):
+for i in range(1):
     obs = env.reset()
     a = env.render(mode='rgb_array')
 
