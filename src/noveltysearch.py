@@ -503,7 +503,7 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
                  algo_type='ns_nov', bound_genotype=5, pop_size=30, parallelize=False,
                  measures=False, choose_evaluate=None, bd_indexes=None, archive_limit_size=None,
                  archive_limit_strat='random', nb_cells=1000, analyze_archive=False, altered_novelty=False,
-                 alteration_degree=None, novelty_metric='minkowski'):
+                 alteration_degree=None, novelty_metric='minkowski', save_ind_cond=None):
 
     # initialize return dictionnaries
     details = {}
@@ -578,6 +578,9 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
     archive = []
     archive_nb = int(ARCHIVE_PB * pop_size * OFFSPRING_NB_COEFF)
 
+    # initialize the save_ind list
+    save_ind = []
+
     # initialize the HOF
     hall_of_fame = tools.HallOfFame(HOF_SIZE)
 
@@ -635,6 +638,17 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
                                  altered=altered_novelty, degree=alteration_degree, info=details)
     for ind, nov in zip(pop, novelties):
         ind.novelty.values = nov
+
+    # add initial individuals to historic and potentially to saved individuals
+    if save_ind_cond == 1:
+        save_ind.append(pop)
+    for member in pop:
+        add_to_grid(member, grid_hist, cvt, measures, algo_type, bd_filters)
+        if save_ind_cond is None:
+            pass
+        if isinstance(save_ind_cond, str):
+            if member.info.values[save_ind_cond]:
+                save_ind.append(member)
 
     # keep track of stats
     mean_hist = []
@@ -711,9 +725,16 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
             ind.novelty.values = nov
         # an individual with bd = None will have 0 novelty
 
-        # add all generated individuals to historic
+        # add all generated individuals to historic and potentially to saved individuals
+        if save_ind_cond == 1:
+            save_ind.append(offsprings)
         for member in offsprings:
             add_to_grid(member, grid_hist, cvt, measures, algo_type, bd_filters)
+            if save_ind_cond is None:
+                pass
+            if isinstance(save_ind_cond, str):
+                if member.info.values[save_ind_cond]:
+                    save_ind.append(member)
  
         # ###################################### FILL ARCHIVE ############################################
         # fill archive with individuals from the offsprings group (direct references to those individuals)
@@ -1164,4 +1185,4 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
         figures['figure'] = fig
         figures['figure_2'] = fig_2
 
-    return [pop, archive, hall_of_fame, details, figures, data]
+    return [pop, archive, hall_of_fame, details, figures, data, save_ind]

@@ -502,9 +502,8 @@ def analyze(ref_pop_size, pop_size, pop_dim, removal_size, removal_type, generat
     return ranking_distance, removal_time, nov_distance
 
 
-def add_method(ax, ref_pop_size, pop_sizes, pop_dim, color, method, n_exp, i):
+def add_method(ax, ref_pop_size, pop_sizes, pop_dim, color, method, n_exp, i, removal_ratio):
 
-    removal_ratio = 0.1
     removal_size = int(ref_pop_size * removal_ratio)
     ranking_distance_means = []
     ranking_distance_stds = []
@@ -547,7 +546,8 @@ def add_method(ax, ref_pop_size, pop_sizes, pop_dim, color, method, n_exp, i):
                label=method, color=color)
 
 
-k = 4
+k = 1
+removal_ratio = 0.3
 ref_pop_size = 50 * k
 pop_sizes = np.array([10, 20, 30, 40, 50, 60, 70, 80, 90]) * k
 pop_dim = 3
@@ -558,7 +558,7 @@ methods = ['least_novel_iter', 'least_novel', 'random', 'gmm_sampling', 'grid', 
 
 fig, ax = plt.subplots(3, 1, sharex=True, figsize=(20, 10))
 for i, method in enumerate(methods):
-    add_method(ax, ref_pop_size, pop_sizes, pop_dim, utils.color_list[i], method, n_exp, i)
+    add_method(ax, ref_pop_size, pop_sizes, pop_dim, utils.color_list[i], method, n_exp, i, removal_ratio)
 
 ax[2].set_xlabel("Population size", labelpad=15, fontsize=12, color="#333533")
 ax[0].set_facecolor("#ffebb8")
