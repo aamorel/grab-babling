@@ -14,7 +14,7 @@ import tqdm
 
 DISPLAY = False
 PARALLELIZE = False
-GEN = 3200
+GEN = 5000
 POP_SIZE = 20
 ARCHIVE_LIMIT = None
 NB_CELLS = 1000
@@ -22,7 +22,7 @@ N_EXP = 10
 ALGO = 'ns_rand'
 PLOT = True
 CASE = 'simple run'  # 'simple run', 'archive importance', 'novelty alteration', 'archive management'
-ENV_NAME = 'ant'
+ENV_NAME = 'bipedal'
 SHOW_HOF = False
 SAVE_ALL = False
 
@@ -561,7 +561,7 @@ if __name__ == "__main__":
                 ax.scatter(pop_behavior[:, 0], pop_behavior[:, 1], color='blue', label='Population')
                 ax.scatter(hof_behavior[:, 0], hof_behavior[:, 1], color='green', label='Hall of Fame')
                 plt.legend()
-                plt.savefig('final_behavior.png')
+                plt.savefig('final_behavior_bipedal.png')
                 fig = figures['figure']
                 fig.savefig('exploration_bipedal.png')
             
