@@ -8,5 +8,7 @@ runs/
 *.bullet
 *.zip
 results/
+past_results/
 *.mp4
 *.gif
+*.png

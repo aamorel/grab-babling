@@ -9,6 +9,8 @@ from scoop import futures
 import utils
 import math
 from sklearn import mixture
+import matplotlib.pyplot as plt
+import matplotlib.animation as animation
 import plotting
 import tqdm
 
@@ -38,7 +40,7 @@ N_CELLS = 20  # number of cells to try to generate in case of grid_density archi
 LIMIT_DENSITY_ITER = 100  # maximum number of iterations to find an individual in the cell not already chosen
 # in case of grid_density_archive_management
 N_COMP = 4  # number of GMM components in case of gmm sampling archive management
-
+GIF_LENGHT = 30  # length of gif in seconds
 
 id_counter = 0  # each individual will have a unique id
 
@@ -503,7 +505,7 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
                  algo_type='ns_nov', bound_genotype=5, pop_size=30, parallelize=False,
                  measures=False, choose_evaluate=None, bd_indexes=None, archive_limit_size=None,
                  archive_limit_strat='random', nb_cells=1000, analyze_archive=False, altered_novelty=False,
-                 alteration_degree=None, novelty_metric='minkowski', save_ind_cond=None):
+                 alteration_degree=None, novelty_metric='minkowski', save_ind_cond=None, plot_gif=False):
 
     # initialize return dictionnaries
     details = {}
@@ -641,7 +643,7 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
 
     # add initial individuals to historic and potentially to saved individuals
     if save_ind_cond == 1:
-        save_ind.append(pop)
+        save_ind.append(list(map(toolbox.clone, pop)))
     for member in pop:
         add_to_grid(member, grid_hist, cvt, measures, algo_type, bd_filters)
         if save_ind_cond is None:
@@ -668,8 +670,12 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
         full_uni_hist = []
         pop_uni_hist = []
 
+    if plot_gif:
+        fig_gif = plt.figure(figsize=(10, 10))
+        ims = []
+
     # begin evolution
-    for _ in tqdm.tqdm(range(nb_gen)):
+    for gen in tqdm.tqdm(range(nb_gen)):
 
         # ###################################### SELECT ############################################
         nb_offsprings_to_generate = int(pop_size * OFFSPRING_NB_COEFF)
@@ -735,7 +741,7 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
             if isinstance(save_ind_cond, str):
                 if member.info.values[save_ind_cond]:
                     save_ind.append(member)
- 
+
         # ###################################### FILL ARCHIVE ############################################
         # fill archive with individuals from the offsprings group (direct references to those individuals)
         # grid follows the archive
@@ -783,7 +789,7 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
             for i, ind in enumerate(pop):
                 if ind.info.values['binary goal']:
                     pop.pop(i)
-  
+
         # ###################################### MANAGE ARCHIVE ############################################
         if archive_limit_size is not None:
             # implement archive size limitation strategy
@@ -1161,6 +1167,25 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
                     grid = np.zeros(nb_cells)
                     cvt = utils.CVT(num_centroids=nb_cells, bounds=bd_bounds)
         
+        if plot_gif:
+            im_l = []
+            if save_ind_cond == 1:
+                bds = []
+                for i, layers in enumerate(save_ind):
+                    for member in layers:
+                        bds.append(member.behavior_descriptor.values)
+                bds_arr = np.array(bds)
+
+                im_l.append(plt.scatter(bds_arr[:, 0], bds_arr[:, 1], color='grey', label='Historic'))
+            archive_behavior = np.array([ind.behavior_descriptor.values for ind in archive])
+            if len(archive) > 0:
+                im_l.append(plt.scatter(archive_behavior[:, 0], archive_behavior[:, 1], color='red', label='Archive'))
+            pop_behavior = np.array([ind.behavior_descriptor.values for ind in pop])
+            hof_behavior = np.array([ind.behavior_descriptor.values for ind in hall_of_fame])
+            im_l.append(plt.scatter(pop_behavior[:, 0], pop_behavior[:, 1], color='blue', label='Population'))
+            im_l.append(plt.scatter(hof_behavior[:, 0], hof_behavior[:, 1], color='green', label='Hall of Fame'))
+            ims.append(im_l)
+
     data['population genetic statistics'] = gen_stat_hist
     data['offsprings genetic statistics'] = gen_stat_hist_off
     data['archive coverage'] = coverage_hist
@@ -1184,5 +1209,15 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
     
         figures['figure'] = fig
         figures['figure_2'] = fig_2
+    
+    if plot_gif:
+        interval = int(GIF_LENGHT * 1000 / len(ims))
+        if interval >= 1000:
+            interval = 1000
+        if interval <= 50:
+            interval = 50
+        ani = animation.ArtistAnimation(fig_gif, ims, interval=interval, blit=False,
+                                        repeat_delay=1000)
+        figures['gif'] = ani
 
     return [pop, archive, hall_of_fame, details, figures, data, save_ind]

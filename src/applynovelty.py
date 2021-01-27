@@ -13,16 +13,16 @@ import tqdm
 
 
 DISPLAY = False
-PARALLELIZE = False
-GEN = 5000
+PARALLELIZE = True
+GEN = 3200
 POP_SIZE = 20
 ARCHIVE_LIMIT = None
-NB_CELLS = 1000
+NB_CELLS = 100
 N_EXP = 10
 ALGO = 'ns_rand'
 PLOT = True
 CASE = 'simple run'  # 'simple run', 'archive importance', 'novelty alteration', 'archive management'
-ENV_NAME = 'bipedal'
+ENV_NAME = 'ant'
 SHOW_HOF = False
 SAVE_ALL = False
 
@@ -507,10 +507,10 @@ if __name__ == "__main__":
 
     if CASE == 'simple run':
         parameters = {'mini': MINI, 'archive_limit_size': ARCHIVE_LIMIT,
-                      'plot': False, 'algo_type': ALGO, 'nb_gen': GEN,
+                      'plot': PLOT, 'algo_type': ALGO, 'nb_gen': GEN,
                       'parallelize': PARALLELIZE, 'bound_genotype': BD_GENOTYPE,
                       'measures': True, 'pop_size': POP_SIZE,
-                      'nb_cells': NB_CELLS, 'save_ind_cond': 1}
+                      'nb_cells': NB_CELLS, 'save_ind_cond': 1, 'plot_gif': True}
         res = noveltysearch.novelty_algo(EVALUATE_INDIVIDUAL, INITIAL_GENOTYPE_SIZE,
                                          BD_BOUNDS, **parameters)
         pop, archive, hof, info, figures, data, saved_ind = res
@@ -577,29 +577,26 @@ if __name__ == "__main__":
                 plt.legend()
                 
             if ENV_NAME == 'ant':
+                bds = []
+                for offsprings in saved_ind:
+                    for member in offsprings:
+                        bds.append(member.behavior_descriptor.values)
+                bds_arr = np.array(bds)
+
                 archive_behavior = np.array([ind.behavior_descriptor.values for ind in archive])
                 pop_behavior = np.array([ind.behavior_descriptor.values for ind in pop])
                 hof_behavior = np.array([ind.behavior_descriptor.values for ind in hof])
                 fig, ax = plt.subplots(figsize=(5, 5))
                 ax.set(title='Final Archive', xlabel='x', ylabel='y')
+                ax.scatter(bds_arr[:, 0], bds_arr[:, 1], color='grey', label='Historic')
                 ax.scatter(archive_behavior[:, 0], archive_behavior[:, 1], color='red', label='Archive')
                 ax.scatter(pop_behavior[:, 0], pop_behavior[:, 1], color='blue', label='Population')
                 ax.scatter(hof_behavior[:, 0], hof_behavior[:, 1], color='green', label='Hall of Fame')
                 ax.legend()
-                fig.save('ant_exploration.png')
+                fig.savefig('ant_exploration.png')
 
-                fig = plt.figure()
-                bds = []
-                ims = []
-                for i, offsprings in enumerate(saved_ind):
-                    for member in offsprings:
-                        bds.append(member.behavior_descriptor.values)
-                    bds_arr = np.array(bds)
-                    im = plt.scatter(bds_arr[:, 0], bds_arr[:, 1], color='blue')
-                    ims.append([im])
-                ani = animation.ArtistAnimation(fig, ims, interval=200, blit=True,
-                                                repeat_delay=1000)
-                ani.save('ant_offsprings.gif')
+                gif = figures['gif']
+                gif.save('ant_gif.gif')
 
             plt.show()
 
