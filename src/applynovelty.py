@@ -13,16 +13,16 @@ import tqdm
 
 
 DISPLAY = False
-PARALLELIZE = True
-GEN = 3200
-POP_SIZE = 20
+PARALLELIZE = False
+GEN = 600
+POP_SIZE = 10
 ARCHIVE_LIMIT = None
 NB_CELLS = 100
 N_EXP = 10
 ALGO = 'ns_rand'
 PLOT = True
 CASE = 'simple run'  # 'simple run', 'archive importance', 'novelty alteration', 'archive management'
-ENV_NAME = 'ant'
+ENV_NAME = 'maze'
 SHOW_HOF = False
 SAVE_ALL = False
 
@@ -517,6 +517,12 @@ if __name__ == "__main__":
 
         if PLOT:
             if ENV_NAME == 'maze':
+                bds = []
+                for offsprings in saved_ind:
+                    for member in offsprings:
+                        bds.append(member.behavior_descriptor.values)
+                bds_arr = np.array(bds)
+
                 # plot final states
                 env = gym.make('FastsimSimpleNavigation-v0')
                 env.reset()
@@ -532,10 +538,16 @@ if __name__ == "__main__":
                 fig, ax = plt.subplots(figsize=(5, 5))
                 ax.set(title='Final Archive', xlabel='x1', ylabel='x2')
                 ax.imshow(maze)
+                ax.scatter(bds_arr[:, 0] / 3, bds_arr[:, 1] / 3, color='grey', label='Historic')
                 ax.scatter(archive_behavior[:, 0] / 3, archive_behavior[:, 1] / 3, color='red', label='Archive')
                 ax.scatter(pop_behavior[:, 0] / 3, pop_behavior[:, 1] / 3, color='blue', label='Population')
                 ax.scatter(hof_behavior[:, 0] / 3, hof_behavior[:, 1] / 3, color='green', label='Hall of Fame')
                 plt.legend()
+
+                fig.savefig('maze_exploration.png')
+
+                gif = figures['gif']
+                gif.save('maze_gif.gif')
             
             if ENV_NAME == 'slime':
                 archive_behavior = np.array([ind.behavior_descriptor.values for ind in archive])
