@@ -151,7 +151,7 @@ def assess_novelties(pop, archive, algo_type, bd_bounds, bd_indexes, bd_filters,
     Returns:
         list: list of novelties of current individuals
     """
-    if not archive or algo_type == 'ns_no_archive':
+    if not archive:
         # archive is empty --> only consider current population
         reference_pop = pop
     else:
@@ -745,30 +745,31 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
         # ###################################### FILL ARCHIVE ############################################
         # fill archive with individuals from the offsprings group (direct references to those individuals)
         # grid follows the archive
-        if archive_type == 'random':
-            # fill archive randomly
-            fill_arch_count = 0
-            idx_list = []
-            while fill_arch_count < archive_nb:
-                idx = random.randint(0, len(offsprings) - 1)
-                if idx not in idx_list:
-                    member = offsprings[idx]
-                    archive.append(member)
-                    add_to_grid(member, grid, cvt, measures, algo_type, bd_filters)
-                    idx_list.append(idx)
-                    fill_arch_count += 1
+        if algo_type != 'ns_no_archive':
+            if archive_type == 'random':
+                # fill archive randomly
+                fill_arch_count = 0
+                idx_list = []
+                while fill_arch_count < archive_nb:
+                    idx = random.randint(0, len(offsprings) - 1)
+                    if idx not in idx_list:
+                        member = offsprings[idx]
+                        archive.append(member)
+                        add_to_grid(member, grid, cvt, measures, algo_type, bd_filters)
+                        idx_list.append(idx)
+                        fill_arch_count += 1
 
-        if archive_type == 'novelty_based':
-            #  TODO: deal with multi-bd case
-            # fill archive with the most novel individuals
-            offsprings_novelties = novelties[pop_size:]
-            novel_n = np.array([nov[0] for nov in offsprings_novelties])
-            max_novelties_idx = np.argsort(-novel_n)[:archive_nb]
-            for i in max_novelties_idx:
-                if offsprings[i].behavior_descriptor.values is not None:
-                    member = offsprings[i]
-                    archive.append(member)
-                    add_to_grid(member, grid, cvt, measures, algo_type, bd_filters)
+            if archive_type == 'novelty_based':
+                #  TODO: deal with multi-bd case
+                # fill archive with the most novel individuals
+                offsprings_novelties = novelties[pop_size:]
+                novel_n = np.array([nov[0] for nov in offsprings_novelties])
+                max_novelties_idx = np.argsort(-novel_n)[:archive_nb]
+                for i in max_novelties_idx:
+                    if offsprings[i].behavior_descriptor.values is not None:
+                        member = offsprings[i]
+                        archive.append(member)
+                        add_to_grid(member, grid, cvt, measures, algo_type, bd_filters)
         
         # ###################################### REPLACE ############################################
         if algo_type == 'classic_ea':

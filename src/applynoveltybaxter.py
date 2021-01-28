@@ -18,7 +18,7 @@ DISPLAY_RAND = False
 DISPLAY_TRIUMPHANTS = False
 EVAL_SUCCESSFULL = False
 SAVE_ALL = False
-RESET_MODE = True
+RESET_MODE = False
 
 
 # choose parameters
@@ -32,7 +32,6 @@ PAUSE_FRAC = 0.66
 NB_STEPS_TO_ROLLOUT = 10
 NB_ITER = int(6000 / NB_STEPS_TO_ROLLOUT)  # 6000 divided by 10, where 10 is the nb_of_steps_to_roll in the gym env
 MINI = False  # maximization problem
-HEIGHT_THRESH = -0.08  # binary goal parameter
 DISTANCE_THRESH = 0.20  # binary goal parameter
 DIFF_OR_THRESH = 0.4  # threshold for clustering grasping orientations
 COV_LIMIT = 0.1  # threshold for changing behavior descriptor in change_bd ns
@@ -40,6 +39,12 @@ N_LAG = int(200 / NB_STEPS_TO_ROLLOUT)  # number of steps before the grip time u
 ARCHIVE_LIMIT = 2500
 NB_CELLS = 100  # number of cells for measurement
 OBJECT = 'cup'
+
+# set height thresh parameter
+if OBJECT == 'cube':
+    HEIGHT_THRESH = -0.08
+if OBJECT == 'cup':
+    HEIGHT_THRESH = -0.16
 
 # if reset, create global env
 if RESET_MODE:
