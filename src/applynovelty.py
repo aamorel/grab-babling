@@ -539,7 +539,8 @@ if __name__ == "__main__":
                 ax.set(title='Final Archive', xlabel='x1', ylabel='x2')
                 ax.imshow(maze)
                 ax.scatter(bds_arr[:, 0] / 3, bds_arr[:, 1] / 3, color='grey', label='Historic')
-                ax.scatter(archive_behavior[:, 0] / 3, archive_behavior[:, 1] / 3, color='red', label='Archive')
+                if len(archive_behavior) > 0:
+                    ax.scatter(archive_behavior[:, 0] / 3, archive_behavior[:, 1] / 3, color='red', label='Archive')
                 ax.scatter(pop_behavior[:, 0] / 3, pop_behavior[:, 1] / 3, color='blue', label='Population')
                 ax.scatter(hof_behavior[:, 0] / 3, hof_behavior[:, 1] / 3, color='green', label='Hall of Fame')
                 plt.legend()
