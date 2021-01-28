@@ -163,7 +163,7 @@ def assess_novelties(pop, archive, algo_type, bd_bounds, bd_indexes, bd_filters,
 
     if algo_type == 'ns_rand_multi_bd':
 
-        # create the different trees
+        # create the different trees with the reference pop
         b_descriptors = np.array(b_descriptors)
         bd_indexes = np.array(bd_indexes)
         nb_bd = len(np.unique(bd_indexes))

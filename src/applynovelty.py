@@ -13,16 +13,16 @@ import tqdm
 
 
 DISPLAY = False
-PARALLELIZE = False
-GEN = 600
-POP_SIZE = 10
+PARALLELIZE = True
+GEN = 1000
+POP_SIZE = 100
 ARCHIVE_LIMIT = None
 NB_CELLS = 100
 N_EXP = 10
 ALGO = 'ns_rand'
 PLOT = True
 CASE = 'simple run'  # 'simple run', 'archive importance', 'novelty alteration', 'archive management'
-ENV_NAME = 'maze'
+ENV_NAME = 'bipedal'
 SHOW_HOF = False
 SAVE_ALL = False
 
@@ -565,18 +565,26 @@ if __name__ == "__main__":
                 fig.savefig('exploration_slime.png')
 
             if ENV_NAME == 'bipedal':
+                bds = []
+                for offsprings in saved_ind:
+                    for member in offsprings:
+                        bds.append(member.behavior_descriptor.values)
+                bds_arr = np.array(bds)
+
                 archive_behavior = np.array([ind.behavior_descriptor.values for ind in archive])
                 pop_behavior = np.array([ind.behavior_descriptor.values for ind in pop])
                 hof_behavior = np.array([ind.behavior_descriptor.values for ind in hof])
                 fig, ax = plt.subplots(figsize=(5, 5))
                 ax.set(title='Final Archive', xlabel='Mean height difference', ylabel='Final x position')
+                ax.scatter(bds_arr[:, 0], bds_arr[:, 1], color='grey', label='Historic')
                 ax.scatter(archive_behavior[:, 0], archive_behavior[:, 1], color='red', label='Archive')
                 ax.scatter(pop_behavior[:, 0], pop_behavior[:, 1], color='blue', label='Population')
                 ax.scatter(hof_behavior[:, 0], hof_behavior[:, 1], color='green', label='Hall of Fame')
-                plt.legend()
-                plt.savefig('final_behavior_bipedal.png')
-                fig = figures['figure']
-                fig.savefig('exploration_bipedal.png')
+                ax.legend()
+                fig.savefig('bipedal_exploration.png')
+
+                gif = figures['gif']
+                gif.save('bipedal_gif.gif')
             
             if ENV_NAME == 'billiard':
                 archive_behavior = np.array([ind.behavior_descriptor.values for ind in archive])
