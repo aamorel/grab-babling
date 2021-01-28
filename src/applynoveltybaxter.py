@@ -39,10 +39,11 @@ COV_LIMIT = 0.1  # threshold for changing behavior descriptor in change_bd ns
 N_LAG = int(200 / NB_STEPS_TO_ROLLOUT)  # number of steps before the grip time used in the multi_full_info BD
 ARCHIVE_LIMIT = 2500
 NB_CELLS = 100  # number of cells for measurement
+OBJECT = 'cup'
 
 # if reset, create global env
 if RESET_MODE:
-    ENV = gym.make('gym_baxter_grabbing:baxter_grabbing-v1', display=DISPLAY)
+    ENV = gym.make('gym_baxter_grabbing:baxter_grabbing-v1', display=DISPLAY, obj=OBJECT)
     ENV.set_steps_to_roll(NB_STEPS_TO_ROLLOUT)
 
 # choose controller type
@@ -226,7 +227,7 @@ def two_d_behavioral_descriptor(individual):
     if RESET_MODE:
         global ENV
         ENV.reset()
-    ENV = gym.make('gym_baxter_grabbing:baxter_grabbing-v1', display=DISPLAY)
+    ENV = gym.make('gym_baxter_grabbing:baxter_grabbing-v1', display=DISPLAY, obj=OBJECT)
     ENV.set_steps_to_roll(NB_STEPS_TO_ROLLOUT)
     individual = np.around(np.array(individual), 3)
     # initialize controller
@@ -279,7 +280,7 @@ def three_d_behavioral_descriptor(individual):
     if RESET_MODE:
         global ENV
         ENV.reset()
-    ENV = gym.make('gym_baxter_grabbing:baxter_grabbing-v1', display=DISPLAY)
+    ENV = gym.make('gym_baxter_grabbing:baxter_grabbing-v1', display=DISPLAY, obj=OBJECT)
     ENV.set_steps_to_roll(NB_STEPS_TO_ROLLOUT)
     individual = np.around(np.array(individual), 3)
     
@@ -385,7 +386,7 @@ def multi_full_behavior_descriptor(individual):
         global ENV
         ENV.reset()
     else:
-        ENV = gym.make('gym_baxter_grabbing:baxter_grabbing-v1', display=DISPLAY)
+        ENV = gym.make('gym_baxter_grabbing:baxter_grabbing-v1', display=DISPLAY, obj=OBJECT)
         ENV.set_steps_to_roll(NB_STEPS_TO_ROLLOUT)
         individual = np.around(np.array(individual), 3)
 
@@ -506,7 +507,7 @@ def multi_behavioral_descriptor(individual):
     if RESET_MODE:
         global ENV
         ENV.reset()
-    ENV = gym.make('gym_baxter_grabbing:baxter_grabbing-v1', display=DISPLAY)
+    ENV = gym.make('gym_baxter_grabbing:baxter_grabbing-v1', display=DISPLAY, obj=OBJECT)
     ENV.set_steps_to_roll(NB_STEPS_TO_ROLLOUT)
     individual = np.around(np.array(individual), 3)
 
@@ -613,7 +614,7 @@ def orientation_behavioral_descriptor(individual):
     if RESET_MODE:
         global ENV
         ENV.reset()
-    ENV = gym.make('gym_baxter_grabbing:baxter_grabbing-v1', display=DISPLAY)
+    ENV = gym.make('gym_baxter_grabbing:baxter_grabbing-v1', display=DISPLAY, obj=OBJECT)
     ENV.set_steps_to_roll(NB_STEPS_TO_ROLLOUT)
     individual = np.around(np.array(individual), 3)
 
@@ -801,6 +802,7 @@ if __name__ == "__main__":
     # complete run dict
     details['run id'] = i
     details['controller'] = CONTROLLER
+    details['object'] = OBJECT
     if coverage is not None:
         details['successful'] = True
         details['diversity coverage'] = coverage
