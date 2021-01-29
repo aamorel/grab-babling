@@ -1193,9 +1193,9 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
             if GIF_TYPE == 'hist_color':
                 im_l = []
                 for i, layers in enumerate(save_ind):
+                    bds = []
                     for member in layers:
                         bds.append(member.behavior_descriptor.values)
-                    bds = []
 
                     bds_arr = np.array(bds)
                     color = CM(i / nb_gen)
