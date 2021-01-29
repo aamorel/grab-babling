@@ -444,7 +444,7 @@ def multi_full_behavior_descriptor(individual):
         if touch:
             touch_id = inf['contact_points'][0][3]
             touch_idx.append(touch_id)
-        relevant_touch = touch and touch_id >= 49
+        relevant_touch = touch and (touch_id in [47, 48, 49, 50, 51, 52])
         if relevant_touch and not grabbed:
             # first touch of object
             measure_grip_time = diversity_measure(o)

@@ -122,7 +122,7 @@ def getJointRanges(bodyId, includeFixed=False):
     # loop through all joints
     for i in range(numJoints):
         jointInfo = p.getJointInfo(bodyId, i)
-        print(jointInfo[0], jointInfo[1], jointInfo[2], jointInfo[3], jointInfo[8:10])
+        print(jointInfo[0], jointInfo[1], jointInfo[2], jointInfo[3], jointInfo[8:10], jointInfo[12])
         if includeFixed or jointInfo[3] > -1:
             # jointInfo[3] > -1 means that the joint is not fixed
             ll, ul = jointInfo[8:10]
@@ -189,7 +189,7 @@ def setMotors(bodyId, jointPoses):
 
 
 if __name__ == "__main__":
-    guiClient = p.connect(p.GUI)
+    guiClient = p.connect(p.DIRECT)
     p.resetDebugVisualizerCamera(2., 180, 0., [0.52, 0.2, np.pi / 4.])
 
     targetPosXId = p.addUserDebugParameter("targetPosX", -1, 1, 0.2)
@@ -212,7 +212,7 @@ if __name__ == "__main__":
     d_inf = p.getDynamicsInfo(obj_id, -1)
     print('mass:', d_inf[0], ', lateral friction:', d_inf[1])
 
-    p.getCameraImage(320, 200, renderer=p.ER_BULLET_HARDWARE_OPENGL)
+    # p.getCameraImage(320, 200, renderer=p.ER_BULLET_HARDWARE_OPENGL)
 
     # start simu iteration
     for i in range(maxIters):
