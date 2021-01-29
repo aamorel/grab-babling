@@ -13,7 +13,7 @@ import tqdm
 
 DISPLAY = False
 PARALLELIZE = True
-GEN = 1000
+GEN = 100
 POP_SIZE = 100
 ARCHIVE_LIMIT = None
 NB_CELLS = 100

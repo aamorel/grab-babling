@@ -1192,13 +1192,14 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
                 ims.append(im_l)
             if GIF_TYPE == 'hist_color':
                 im_l = []
-                bds = []
                 for i, layers in enumerate(save_ind):
                     for member in layers:
                         bds.append(member.behavior_descriptor.values)
-                bds_arr = np.array(bds)
-                color = CM(gen / nb_gen)
-                im_l.append(plt.scatter(bds_arr[:, 0], bds_arr[:, 1], color=color, label='Historic'))
+                    bds = []
+
+                    bds_arr = np.array(bds)
+                    color = CM(i / nb_gen)
+                    im_l.append(plt.scatter(bds_arr[:, 0], bds_arr[:, 1], color=color, label='Historic'))
                 ims.append(im_l)
     data['population genetic statistics'] = gen_stat_hist
     data['offsprings genetic statistics'] = gen_stat_hist_off
