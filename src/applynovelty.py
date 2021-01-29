@@ -3,7 +3,6 @@ import noveltysearch
 import time
 import numpy as np
 import matplotlib.pyplot as plt
-import matplotlib.animation as animation
 from deap import base, creator
 import utils
 import math

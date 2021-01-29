@@ -1199,6 +1199,7 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
                 bds_arr = np.array(bds)
                 color = CM(gen / nb_gen)
                 im_l.append(plt.scatter(bds_arr[:, 0], bds_arr[:, 1], color=color, label='Historic'))
+                ims.append(im_l)
     data['population genetic statistics'] = gen_stat_hist
     data['offsprings genetic statistics'] = gen_stat_hist_off
     data['archive coverage'] = coverage_hist
