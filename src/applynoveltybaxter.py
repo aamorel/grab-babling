@@ -23,7 +23,7 @@ RESET_MODE = False
 
 # choose parameters
 POP_SIZE = 100
-NB_GEN = 100
+NB_GEN = 2000
 NB_KEYPOINTS = 3
 GENE_PER_KEYPOINTS = 7
 GENES = 343
@@ -44,7 +44,7 @@ OBJECT = 'cup'
 if OBJECT == 'cube':
     HEIGHT_THRESH = -0.08
 if OBJECT == 'cup':
-    HEIGHT_THRESH = -0.16
+    HEIGHT_THRESH = -0.08
 
 # if reset, create global env
 if RESET_MODE:
