@@ -11,6 +11,7 @@ import math
 from sklearn import mixture
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
+from matplotlib import cm
 import plotting
 import tqdm
 
@@ -41,6 +42,8 @@ LIMIT_DENSITY_ITER = 100  # maximum number of iterations to find an individual i
 # in case of grid_density_archive_management
 N_COMP = 4  # number of GMM components in case of gmm sampling archive management
 GIF_LENGHT = 30  # length of gif in seconds
+GIF_TYPE = 'hist_color'  # 'full' or 'hist_color'
+CM = cm.get_cmap('viridis', 100)
 
 id_counter = 0  # each individual will have a unique id
 
@@ -1169,24 +1172,33 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
                     cvt = utils.CVT(num_centroids=nb_cells, bounds=bd_bounds)
         
         if plot_gif:
-            im_l = []
-            if save_ind_cond == 1:
+            if GIF_TYPE == 'full':
+                im_l = []
+                if save_ind_cond == 1:
+                    bds = []
+                    for i, layers in enumerate(save_ind):
+                        for member in layers:
+                            bds.append(member.behavior_descriptor.values)
+                    bds_arr = np.array(bds)
+
+                    im_l.append(plt.scatter(bds_arr[:, 0], bds_arr[:, 1], color='grey', label='Historic'))
+                archive_behavior = np.array([ind.behavior_descriptor.values for ind in archive])
+                if len(archive) > 0:
+                    im_l.append(plt.scatter(archive_behavior[:, 0], archive_behavior[:, 1], color='red', label='Archive'))
+                pop_behavior = np.array([ind.behavior_descriptor.values for ind in pop])
+                hof_behavior = np.array([ind.behavior_descriptor.values for ind in hall_of_fame])
+                im_l.append(plt.scatter(pop_behavior[:, 0], pop_behavior[:, 1], color='blue', label='Population'))
+                im_l.append(plt.scatter(hof_behavior[:, 0], hof_behavior[:, 1], color='green', label='Hall of Fame'))
+                ims.append(im_l)
+            if GIF_TYPE == 'hist_color':
+                im_l = []
                 bds = []
                 for i, layers in enumerate(save_ind):
                     for member in layers:
                         bds.append(member.behavior_descriptor.values)
                 bds_arr = np.array(bds)
-
-                im_l.append(plt.scatter(bds_arr[:, 0], bds_arr[:, 1], color='grey', label='Historic'))
-            archive_behavior = np.array([ind.behavior_descriptor.values for ind in archive])
-            if len(archive) > 0:
-                im_l.append(plt.scatter(archive_behavior[:, 0], archive_behavior[:, 1], color='red', label='Archive'))
-            pop_behavior = np.array([ind.behavior_descriptor.values for ind in pop])
-            hof_behavior = np.array([ind.behavior_descriptor.values for ind in hall_of_fame])
-            im_l.append(plt.scatter(pop_behavior[:, 0], pop_behavior[:, 1], color='blue', label='Population'))
-            im_l.append(plt.scatter(hof_behavior[:, 0], hof_behavior[:, 1], color='green', label='Hall of Fame'))
-            ims.append(im_l)
-
+                color = CM(gen / nb_gen)
+                im_l.append(plt.scatter(bds_arr[:, 0], bds_arr[:, 1], color=color, label='Historic'))
     data['population genetic statistics'] = gen_stat_hist
     data['offsprings genetic statistics'] = gen_stat_hist_off
     data['archive coverage'] = coverage_hist

@@ -22,7 +22,7 @@ N_EXP = 10
 ALGO = 'ns_rand'
 PLOT = True
 CASE = 'simple run'  # 'simple run', 'archive importance', 'novelty alteration', 'archive management'
-ENV_NAME = 'bipedal'
+ENV_NAME = 'maze'
 SHOW_HOF = False
 SAVE_ALL = False
 
