@@ -94,7 +94,7 @@ class InterpolateKeyPointsEndPauseGripAssumption():
         for i in range(info['NB_KEYPOINTS']):
             actions.append(individual[info['GENE_PER_KEYPOINTS'] * i:info['GENE_PER_KEYPOINTS'] * (i + 1)])
 
-        additional_genes = individual[-info['ADDITIONAL_GENES']:]
+        additional_genes = individual[-1]
 
         n_keypoints = len(actions)
         self.pause_time = info['pause_frac'] * info['n_iter']
@@ -127,7 +127,7 @@ class InterpolateKeyPointsEndPauseGripAssumption():
 class ClosedLoopEndPauseGripAssumption():
     def __init__(self, individual, info):
         self.pause_time = info['pause_frac'] * info['n_iter']
-        additional_genes = individual[-info['ADDITIONAL_GENES']:]
+        additional_genes = individual[-1]
         self.grip_time = math.floor((additional_genes[0] / 2 + 0.5) * self.pause_time)
         self.open_loop = False
         # for now, random
