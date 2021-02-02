@@ -11,7 +11,7 @@ import os
 import json
 
 DISPLAY = False
-PARALLELIZE = True
+PARALLELIZE = False
 PLOT = True
 DISPLAY_HOF = False
 DISPLAY_RAND = False
