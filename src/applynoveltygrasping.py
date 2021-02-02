@@ -11,7 +11,7 @@ import os
 import json
 
 DISPLAY = False
-PARALLELIZE = False
+PARALLELIZE = True
 PLOT = True
 DISPLAY_HOF = False
 DISPLAY_RAND = False
@@ -36,10 +36,13 @@ NB_KEYPOINTS = 3
 if ROBOT == 'baxter':
     GENE_PER_KEYPOINTS = 8  # baxter is controlled in the end-effector space: pos + orient + gripper openness
     LINK_ID_CONTACT = [47, 48, 49, 50, 51, 52]  # link ids that can have a grasping contact
+    NB_STEPS_TO_ROLLOUT = 10
+    NB_ITER = int(6000 / NB_STEPS_TO_ROLLOUT)  # 6000 divided by 10, where 10 is the nb_of_steps_to_roll in the gym env
 if ROBOT == 'pepper':
     GENE_PER_KEYPOINTS = 7  # pepper is controlled in joints space: 7 joints
     LINK_ID_CONTACT = list(range(36, 50))  # link ids that can have a grasping contact
-
+    NB_STEPS_TO_ROLLOUT = 1
+    NB_ITER = int(1000 / NB_STEPS_TO_ROLLOUT)  # 6000 divided by 10, where 10 is the nb_of_steps_to_roll in the gym env
 # for closed_loop control
 if ROBOT == 'baxter':
     GENES = 344
@@ -47,8 +50,6 @@ if ROBOT == 'baxter':
 
 # choose minor parameters
 PAUSE_FRAC = 0.66
-NB_STEPS_TO_ROLLOUT = 10
-NB_ITER = int(6000 / NB_STEPS_TO_ROLLOUT)  # 6000 divided by 10, where 10 is the nb_of_steps_to_roll in the gym env
 MINI = False  # maximization problem
 DISTANCE_THRESH = 0.20  # binary goal parameter
 DIFF_OR_THRESH = 0.4  # threshold for clustering grasping orientations
