@@ -42,7 +42,7 @@ if ROBOT == 'baxter':
     if OBJECT == 'cube':
         HEIGHT_THRESH = -0.08
     if OBJECT == 'cup':
-        HEIGHT_THRESH = -0.01
+        HEIGHT_THRESH = 0.02
 if ROBOT == 'pepper':
     GENE_PER_KEYPOINTS = 7  # pepper is controlled in joints space: 7 joints
     LINK_ID_CONTACT = list(range(36, 50))  # link ids that can have a grasping contact
