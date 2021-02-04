@@ -520,7 +520,7 @@ def multi_full_behavior_descriptor(individual):
 
     if binary_goal:
         if measure_grip_time is None:
-            print('Individual grasped without touching any contact links')
+            # print('Individual grasped without touching any contact links')
             info['binary goal'] = False
         else:
             info['diversity_descriptor'] = measure_grip_time
