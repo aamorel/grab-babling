@@ -38,16 +38,31 @@ if ROBOT == 'baxter':
     LINK_ID_CONTACT = [47, 48, 49, 50, 51, 52]  # link ids that can have a grasping contact
     NB_STEPS_TO_ROLLOUT = 10
     NB_ITER = int(6000 / NB_STEPS_TO_ROLLOUT)
+    # set height thresh parameter
+    if OBJECT == 'cube':
+        HEIGHT_THRESH = -0.08
+    if OBJECT == 'cup':
+        HEIGHT_THRESH = -0.01
 if ROBOT == 'pepper':
     GENE_PER_KEYPOINTS = 7  # pepper is controlled in joints space: 7 joints
     LINK_ID_CONTACT = list(range(36, 50))  # link ids that can have a grasping contact
     NB_STEPS_TO_ROLLOUT = 1
     NB_ITER = int(1000 / NB_STEPS_TO_ROLLOUT)
+    # set height thresh parameter
+    if OBJECT == 'cube':
+        HEIGHT_THRESH = -0.10
+    if OBJECT == 'cup':
+        HEIGHT_THRESH = -0.10
 if ROBOT == 'kuka':
     GENE_PER_KEYPOINTS = 9  # kuka is controlled in joints space: 7 joints
     LINK_ID_CONTACT = [8, 10, 11, 13]  # link ids that can have a grasping contact
     NB_STEPS_TO_ROLLOUT = 1
     NB_ITER = int(3000 / NB_STEPS_TO_ROLLOUT)
+    # set height thresh parameter
+    if OBJECT == 'cube':
+        HEIGHT_THRESH = -0.08
+    if OBJECT == 'cup':
+        HEIGHT_THRESH = -0.10
 
 # for closed_loop control
 if ROBOT == 'baxter':
@@ -65,11 +80,7 @@ ARCHIVE_LIMIT = 2500
 NB_CELLS = 100  # number of cells for measurement
 
 
-# set height thresh parameter
-if OBJECT == 'cube':
-    HEIGHT_THRESH = -0.08
-if OBJECT == 'cup':
-    HEIGHT_THRESH = -0.10
+
 
 # set env name
 if ROBOT == 'baxter':
