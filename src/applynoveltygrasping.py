@@ -25,7 +25,7 @@ RESET_MODE = False
 POP_SIZE = 100
 NB_GEN = 100
 OBJECT = 'cube'  # 'cube', 'cup'
-ROBOT = 'pepper'  # 'baxter', 'pepper'
+ROBOT = 'pepper'  # 'baxter', 'pepper', 'kuka'
 CONTROLLER = 'interpolate keypoints end pause grip'  # see controllers_dict for list
 ALGO = 'ns_rand_multi_bd'  # algorithm
 BD = 'multi_full_info'  # behavior descriptor type
@@ -69,7 +69,7 @@ NB_CELLS = 100  # number of cells for measurement
 if OBJECT == 'cube':
     HEIGHT_THRESH = -0.08
 if OBJECT == 'cup':
-    HEIGHT_THRESH = -0.08
+    HEIGHT_THRESH = -0.10
 
 # set env name
 if ROBOT == 'baxter':
