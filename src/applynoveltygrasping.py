@@ -508,12 +508,15 @@ def multi_full_behavior_descriptor(individual):
     info['binary goal'] = binary_goal
 
     if binary_goal:
-        assert(measure_grip_time is not None)
-        info['diversity_descriptor'] = measure_grip_time
-        behavior[3] = measure_grip_time[0]  # Quat to array
-        behavior[4] = measure_grip_time[1]
-        behavior[5] = measure_grip_time[2]
-        behavior[6] = measure_grip_time[3]
+        if measure_grip_time is None:
+            print('Individual grasped without touching any contact links')
+            info['binary goal'] = False
+        else:
+            info['diversity_descriptor'] = measure_grip_time
+            behavior[3] = measure_grip_time[0]  # Quat to array
+            behavior[4] = measure_grip_time[1]
+            behavior[5] = measure_grip_time[2]
+            behavior[6] = measure_grip_time[3]
     
     behavior.append(grip_or_lag[3])
     behavior.append(grip_or_lag[0])
