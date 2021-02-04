@@ -76,7 +76,7 @@ DISTANCE_THRESH = 0.20  # binary goal parameter
 DIFF_OR_THRESH = 0.4  # threshold for clustering grasping orientations
 COV_LIMIT = 0.1  # threshold for changing behavior descriptor in change_bd ns
 N_LAG = int(200 / NB_STEPS_TO_ROLLOUT)  # number of steps before the grip time used in the multi_full_info BD
-ARCHIVE_LIMIT = 2500
+ARCHIVE_LIMIT = 10000
 NB_CELLS = 100  # number of cells for measurement
 
 
