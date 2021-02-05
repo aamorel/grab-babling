@@ -505,10 +505,11 @@ def choose_bd_strategy(inventory):
 
 
 def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, mini=True, plot=False, nb_gen=100,
-                 algo_type='ns_nov', bound_genotype=5, pop_size=30, parallelize=False,
+                 algo_type='ns_nov', bound_genotype=1, pop_size=30, parallelize=False,
                  measures=False, choose_evaluate=None, bd_indexes=None, archive_limit_size=None,
                  archive_limit_strat='random', nb_cells=1000, analyze_archive=False, altered_novelty=False,
-                 alteration_degree=None, novelty_metric='minkowski', save_ind_cond=None, plot_gif=False):
+                 alteration_degree=None, novelty_metric='minkowski', save_ind_cond=None, plot_gif=False,
+                 bootstrap_individuals=None):
 
     # initialize return dictionnaries
     details = {}
@@ -564,6 +565,17 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
 
     # initialize population
     pop = toolbox.population()
+
+    # bootstrap if necessary
+    if bootstrap_individuals is not None:
+        # for each bootstrapping individual, change one individual from initial population
+        for i, new_ind in enumerate(bootstrap_individuals):
+            if len(new_ind != initial_gen_size):
+                raise Exception('One of the boostrapping individuals has no the required genotype length')
+            else:
+                for j, gene in enumerate(new_ind):
+                    pop[i][j] = gene
+
     for ind in pop:
         ind.gen_info.values = {}
         # attribute id to all individuals

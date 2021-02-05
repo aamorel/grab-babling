@@ -9,6 +9,7 @@ from sklearn.cluster import AgglomerativeClustering
 import controllers
 import os
 import json
+import glob
 
 DISPLAY = False
 PARALLELIZE = True
@@ -29,6 +30,7 @@ ROBOT = 'baxter'  # 'baxter', 'pepper', 'kuka'
 CONTROLLER = 'interpolate keypoints end pause grip'  # see controllers_dict for list
 ALGO = 'ns_rand_multi_bd'  # algorithm
 BD = 'multi_full_info'  # behavior descriptor type
+BOOTSTRAP_FOLDER = None
 
 # for keypoints controllers
 NB_KEYPOINTS = 3
@@ -830,6 +832,15 @@ if __name__ == "__main__":
     run_name = 'runs/run%i/' % i
     os.mkdir(run_name)
 
+    # deal with possible bootstrap
+    boostrap_inds = None
+    if BOOTSTRAP_FOLDER is not None:
+        bootstrap_files = glob.glob(BOOTSTRAP_FOLDER + '*.npy')
+        boostrap_inds = []
+        for ind_file in bootstrap_files:
+            ind = np.load(ind_file, allow_pickle=True)
+            boostrap_inds.append(ind)
+
     res = noveltysearch.novelty_algo(evaluation_function, initial_genotype_size, BD_BOUNDS,
                                      mini=MINI, plot=PLOT, algo_type=ALGO,
                                      nb_gen=NB_GEN, bound_genotype=1,
@@ -837,7 +848,8 @@ if __name__ == "__main__":
                                      measures=True,
                                      choose_evaluate=choose, bd_indexes=BD_INDEXES,
                                      archive_limit_size=ARCHIVE_LIMIT, nb_cells=NB_CELLS,
-                                     novelty_metric=NOVELTY_METRIC, save_ind_cond='binary goal')
+                                     novelty_metric=NOVELTY_METRIC, save_ind_cond='binary goal',
+                                     bootstrap_individuals=boostrap_inds)
     
     pop, archive, hof, details, figures, data, triumphant_archive = res
     
@@ -849,6 +861,7 @@ if __name__ == "__main__":
     details['controller'] = CONTROLLER
     details['object'] = OBJECT
     details['robot'] = ROBOT
+    details['bootstrap folder'] = BOOTSTRAP_FOLDER
     if coverage is not None:
         details['successful'] = True
         details['diversity coverage'] = coverage
