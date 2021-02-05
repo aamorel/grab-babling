@@ -583,13 +583,24 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
 
     # bootstrap if necessary
     if bootstrap_individuals is not None:
-        # for each bootstrapping individual, change one individual from initial population
-        for i, new_ind in enumerate(bootstrap_individuals):
-            if len(new_ind != initial_gen_size):
-                raise Exception('One of the boostrapping individuals has no the required genotype length')
-            else:
-                for j, gene in enumerate(new_ind):
-                    pop[i][j] = gene
+        count = 0
+        nb_to_boostrap = int(pop_size / 2)
+        # boostrap on half the population
+        cond = True
+        while cond:
+            # for each bootstrapping individual, change one individual from initial population
+            for new_ind in bootstrap_individuals:
+                if len(new_ind) != initial_gen_size:
+                    print('Required genotypic size: ', initial_gen_size)
+                    print('Given genotypic size: ', len(new_ind))
+                    raise Exception('One of the boostrapping individuals has no the required genotype length')
+                else:
+                    for j, gene in enumerate(new_ind):
+                        pop[count][j] = gene
+                    count += 1
+                    if count >= nb_to_boostrap:
+                        cond = False
+                        break
 
     for ind in pop:
         ind.gen_info.values = {}
