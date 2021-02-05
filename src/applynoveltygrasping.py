@@ -23,9 +23,9 @@ RESET_MODE = False
 
 # choose parameters
 POP_SIZE = 100
-NB_GEN = 100
-OBJECT = 'cube'  # 'cube', 'cup'
-ROBOT = 'pepper'  # 'baxter', 'pepper', 'kuka'
+NB_GEN = 400
+OBJECT = 'cup'  # 'cube', 'cup'
+ROBOT = 'baxter'  # 'baxter', 'pepper', 'kuka'
 CONTROLLER = 'interpolate keypoints end pause grip'  # see controllers_dict for list
 ALGO = 'ns_rand_multi_bd'  # algorithm
 BD = 'multi_full_info'  # behavior descriptor type
@@ -72,14 +72,12 @@ if ROBOT == 'baxter':
 # choose minor parameters
 PAUSE_FRAC = 0.66
 MINI = False  # maximization problem
-DISTANCE_THRESH = 0.20  # binary goal parameter
+DISTANCE_THRESH = 0.6  # binary goal parameter
 DIFF_OR_THRESH = 0.4  # threshold for clustering grasping orientations
 COV_LIMIT = 0.1  # threshold for changing behavior descriptor in change_bd ns
 N_LAG = int(200 / NB_STEPS_TO_ROLLOUT)  # number of steps before the grip time used in the multi_full_info BD
 ARCHIVE_LIMIT = 10000
-NB_CELLS = 100  # number of cells for measurement
-
-
+NB_CELLS = 1000  # number of cells for measurement
 
 
 # set env name
@@ -112,13 +110,13 @@ if BD == 'multi':
     BD_BOUNDS = [[-0.35, 0.35], [-0.15, 0.2], [-0.12, 0.5], [-1, 1], [-1, 1], [-1, 1], [-1, 1]]
     BD_INDEXES = [0, 0, 0, 1, 1, 1, 1]
     if ALGO == 'ns_rand_multi_bd':
-        NOVELTY_METRIC = ['minkowski', utils.quatmetric]
+        NOVELTY_METRIC = ['minkowski', 'minkowski']
 if BD == 'multi_full_info':
     BD_BOUNDS = [[-0.35, 0.35], [-0.15, 0.2], [-0.12, 0.5], [-1, 1], [-1, 1], [-1, 1], [-1, 1],
                  [-1, 1], [-1, 1], [-1, 1], [-1, 1]]
     BD_INDEXES = [0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2]
     if ALGO == 'ns_rand_multi_bd':
-        NOVELTY_METRIC = ['minkowski', utils.quatmetric, utils.quatmetric]
+        NOVELTY_METRIC = ['minkowski', 'minkowski', 'minkowski']
 if ALGO == 'ns_rand_change_bd':
     BD = 'change_bd'
     # list of 3D bd and orientation bd
@@ -501,8 +499,6 @@ def multi_full_behavior_descriptor(individual):
                 o[0][2]]  # last position of object
 
     utils.bound(behavior, BD_BOUNDS[0:3])
-    # set bd values between -1 and 1
-    utils.normalize(behavior, BD_BOUNDS[0:3])
 
     # append 4 times None to behavior in case no grabbing (modified later)
     for _ in range(4):
@@ -602,8 +598,6 @@ def multi_behavioral_descriptor(individual):
                 o[0][2]]  # last position of object
 
     utils.bound(behavior, BD_BOUNDS[0:3])
-    # set bd values between -1 and 1
-    utils.normalize(behavior, BD_BOUNDS[0:3])
 
     # append 4 times None to behavior in case no grabbing (modified later)
     for _ in range(4):
