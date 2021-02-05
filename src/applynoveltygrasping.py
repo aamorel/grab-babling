@@ -840,6 +840,7 @@ if __name__ == "__main__":
         for ind_file in bootstrap_files:
             ind = np.load(ind_file, allow_pickle=True)
             boostrap_inds.append(ind)
+        print('Novelty Search boostrapped with ', len(boostrap_inds), ' individuals.')
 
     res = noveltysearch.novelty_algo(evaluation_function, initial_genotype_size, BD_BOUNDS,
                                      mini=MINI, plot=PLOT, algo_type=ALGO,

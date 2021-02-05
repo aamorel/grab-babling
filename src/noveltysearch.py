@@ -2,7 +2,6 @@ import random
 import numpy as np
 from numpy import linalg as LA
 from deap import tools, base
-from scipy.spatial import cKDTree as KDTree
 from sklearn.neighbors import NearestNeighbors as Nearest
 import scipy.stats as stats
 from scoop import futures
@@ -123,24 +122,35 @@ def compute_average_distance(query, k_tree):
     Returns:
         float: average distance to the K nearest neighbours
     """
-    if isinstance(k_tree, KDTree):
-        # no used anymore but kept in case
-        # find K nearest neighbours and distances
-        neighbours_distances = k_tree.query(query, range(2, K + 2))[0]
-        # beware: if K > number of points in tree, missing neighbors are associated with infinite distances
-        # workaround:
-        real_neighbours_distances = neighbours_distances[neighbours_distances < INF]
-        # compute mean distance
-        avg_distance = np.mean(real_neighbours_distances)
-    if isinstance(k_tree, Nearest):
-        n_samples = k_tree.n_samples_fit_
-        query = np.array(query)
-        if n_samples >= K + 1:
-            neighbours_distances = k_tree.kneighbors(X=query.reshape(1, -1))[0][0][1:]
-        else:
-            neighbours_distances = k_tree.kneighbors(X=query.reshape(1, -1), n_neighbors=n_samples)[0][0][1:]
-        avg_distance = np.mean(neighbours_distances)
+    n_samples = k_tree.n_samples_fit_
+    query = np.array(query)
+    if n_samples >= K + 1:
+        neighbours_distances = k_tree.kneighbors(X=query.reshape(1, -1))[0][0][1:]
+    else:
+        neighbours_distances = k_tree.kneighbors(X=query.reshape(1, -1), n_neighbors=n_samples)[0][0][1:]
+    avg_distance = np.mean(neighbours_distances)
     return avg_distance,
+
+
+def compute_average_distance_array(query, k_tree):
+    """Finds K nearest neighbours and distances
+
+    Args:
+        query (List): behavioral descriptor of individual
+        k_tree (Nearest): tree in the behavior descriptor space
+
+    Returns:
+        float: average distance to the K nearest neighbours
+    """
+    n_samples = k_tree.n_samples_fit_
+    query = np.array(query)
+    if n_samples >= K + 1:
+        neighbours_distances = k_tree.kneighbors(X=query)[0][:, 1:]
+    else:
+        neighbours_distances = k_tree.kneighbors(X=query, n_neighbors=n_samples)[0][:, 1:]
+    avg_distances = np.mean(neighbours_distances, axis=1)
+    avg_distance_tuples = [(avg_dist,) for avg_dist in avg_distances]
+    return avg_distance_tuples
 
 
 def assess_novelties(pop, archive, algo_type, bd_bounds, bd_indexes, bd_filters, novelty_metric,
@@ -208,11 +218,16 @@ def assess_novelties(pop, archive, algo_type, bd_bounds, bd_indexes, bd_filters,
         k_tree = Nearest(n_neighbors=K + 1, metric=novelty_metric)
         k_tree.fit(b_ds)
         # compute novelty for current individuals (loop only on the pop)
-        for i in range(len(pop)):
-            if b_descriptors[i] is not None:
-                novelties.append(compute_average_distance(b_descriptors[i], k_tree))
-            else:
-                novelties.append((0.0,))
+        if algo_type == 'ns_rand_change_bd':
+            # behavior descriptors can be None
+            for i in range(len(pop)):
+                if b_descriptors[i] is not None:
+                    novelties.append(compute_average_distance(b_descriptors[i], k_tree))
+                else:
+                    novelties.append((0.0,))
+        else:
+            novelties = compute_average_distance_array(b_descriptors, k_tree)
+
         if altered:
             # experimental condition: alter the novelties
 
