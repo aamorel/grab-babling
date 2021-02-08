@@ -25,14 +25,14 @@ RESET_MODE = False
 
 # choose parameters
 POP_SIZE = 100
-NB_GEN = 400
-OBJECT = 'cup'  # 'cube', 'cup'
+NB_GEN = 200
+OBJECT = 'cube'  # 'cube', 'cup'
 ROBOT = 'baxter'  # 'baxter', 'pepper', 'kuka'
 CONTROLLER = 'interpolate keypoints end pause grip'  # see controllers_dict for list
 ALGO = 'ns_rand_multi_bd'  # algorithm
 BD = 'multi_full_info'  # behavior descriptor type
 BOOTSTRAP_FOLDER = None
-QUALITY = False
+QUALITY = True
 
 # for keypoints controllers
 NB_KEYPOINTS = 3
@@ -534,10 +534,10 @@ def multi_full_behavior_descriptor(individual):
     if not RESET_MODE:
         ENV.close()
 
-    if QUALITY:
+    if QUALITY and binary_goal:
         # re-evaluate with random initial positions to assess robustness as quality
         last_pos_obj = [[o[0][0], o[0][1], o[0][2]]]
-        for _ in N_REP_RAND:
+        for _ in range(N_REP_RAND):
             ENV = gym.make(ENV_NAME, display=DISPLAY, obj=OBJECT, random_obj=True)
             ENV.set_steps_to_roll(NB_STEPS_TO_ROLLOUT)
 
