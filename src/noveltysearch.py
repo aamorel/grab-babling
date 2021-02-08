@@ -459,10 +459,6 @@ def select_n_multi_bd(pop, n, putback=True):
 
 
 def select_n_multi_bd_tournsize(pop, n, tournsize, bd_filters, multi_quality, putback=True):
-    # decide if should use quality or not
-    use_quality = False
-    if multi_quality is not None:
-        use_quality = True
 
     selected = []
     unwanted_list = []  # in case of no putback
@@ -489,6 +485,9 @@ def select_n_multi_bd_tournsize(pop, n, tournsize, bd_filters, multi_quality, pu
         
         # choose the bd to use for comparison
         bd_idx = choose_bd_strategy(inventory)
+
+        # decide if should use quality or not for selection
+        use_quality = (multi_quality is not None) and (multi_quality[0][bd_idx] is not None)
 
         # find all the individuals that are evaluated inside the chosen bd and their novelties
         possible_individuals_idxs = []
