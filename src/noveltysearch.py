@@ -3,6 +3,7 @@ import numpy as np
 from numpy import linalg as LA
 from deap import tools, base
 from sklearn.neighbors import NearestNeighbors as Nearest
+from scipy.spatial import cKDTree as KDTree
 import scipy.stats as stats
 from scoop import futures
 import utils
@@ -122,13 +123,23 @@ def compute_average_distance(query, k_tree):
     Returns:
         float: average distance to the K nearest neighbours
     """
-    n_samples = k_tree.n_samples_fit_
-    query = np.array(query)
-    if n_samples >= K + 1:
-        neighbours_distances = k_tree.kneighbors(X=query.reshape(1, -1))[0][0][1:]
-    else:
-        neighbours_distances = k_tree.kneighbors(X=query.reshape(1, -1), n_neighbors=n_samples)[0][0][1:]
-    avg_distance = np.mean(neighbours_distances)
+    if isinstance(k_tree, KDTree):
+        # no used anymore but kept in case
+        # find K nearest neighbours and distances
+        neighbours_distances = k_tree.query(query, range(2, K + 2))[0]
+        # beware: if K > number of points in tree, missing neighbors are associated with infinite distances
+        # workaround:
+        real_neighbours_distances = neighbours_distances[neighbours_distances < INF]
+        # compute mean distance
+        avg_distance = np.mean(real_neighbours_distances)
+    if isinstance(k_tree, Nearest):
+        n_samples = k_tree.n_samples_fit_
+        query = np.array(query)
+        if n_samples >= K + 1:
+            neighbours_distances = k_tree.kneighbors(X=query.reshape(1, -1))[0][0][1:]
+        else:
+            neighbours_distances = k_tree.kneighbors(X=query.reshape(1, -1), n_neighbors=n_samples)[0][0][1:]
+        avg_distance = np.mean(neighbours_distances)
     return avg_distance,
 
 
@@ -447,7 +458,12 @@ def select_n_multi_bd(pop, n, putback=True):
     return selected
 
 
-def select_n_multi_bd_tournsize(pop, n, tournsize, bd_filters, putback=True):
+def select_n_multi_bd_tournsize(pop, n, tournsize, bd_filters, multi_quality, putback=True):
+    # decide if should use quality or not
+    use_quality = False
+    if multi_quality is not None:
+        use_quality = True
+
     selected = []
     unwanted_list = []  # in case of no putback
     pop_size = len(pop)
@@ -478,6 +494,10 @@ def select_n_multi_bd_tournsize(pop, n, tournsize, bd_filters, putback=True):
         possible_individuals_idxs = []
         possible_individuals_novelties = []
 
+        if use_quality:
+            possible_individuals_qualities = []
+            minimization = multi_quality[1][bd_idx] == 'min'
+
         for idx in tourn_idxs:
             ind = pop[idx]
             nov_list = list(ind.novelty.values)
@@ -485,10 +505,35 @@ def select_n_multi_bd_tournsize(pop, n, tournsize, bd_filters, putback=True):
             if nov_to_compare is not None:
                 possible_individuals_idxs.append(idx)
                 possible_individuals_novelties.append(nov_to_compare)
+                if use_quality:
+                    name_of_quality = multi_quality[0][bd_idx]
+                    quality_to_compare = ind.info.values[name_of_quality]
+                    possible_individuals_qualities.append(quality_to_compare)
         
         # find most novel individual and select it
+        # sanity check
+        assert(len(possible_individuals_novelties) > 0)
+
         possible_individuals_novelties = np.array(possible_individuals_novelties)
-        temp_idx = np.argmax(possible_individuals_novelties)
+        if not use_quality:
+            # simply choose the individual maximizing the novelty
+            temp_idx = np.argmax(possible_individuals_novelties)
+        else:
+            n_possible_inds = len(possible_individuals_novelties)
+            possible_individuals_qualities = np.array(possible_individuals_qualities)
+            novelties_order = possible_individuals_novelties.argsort()
+            novelties_ranking = novelties_order.argsort()  # 0 is the least novel, n_possible_inds - 1 is the most novel
+
+            qualities_order = possible_individuals_qualities.argsort()
+            qualities_ranking_temp = qualities_order.argsort()
+            if minimization:
+                qualities_ranking = [n_possible_inds - 1 - rk for rk in qualities_ranking_temp]
+                qualities_ranking = np.array(qualities_ranking)  # 0 is the least qualitative, n_possible_inds - 1 best
+            final_rankings = novelties_ranking + qualities_ranking
+
+            # choose the best one in terms of novelty ranking and quality ranking
+            temp_idx = np.argmax(final_rankings)
+
         ind_idx = possible_individuals_idxs[temp_idx]
         selected.append(pop[ind_idx])
         if not putback:
@@ -524,7 +569,7 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
                  measures=False, choose_evaluate=None, bd_indexes=None, archive_limit_size=None,
                  archive_limit_strat='random', nb_cells=1000, analyze_archive=False, altered_novelty=False,
                  alteration_degree=None, novelty_metric='minkowski', save_ind_cond=None, plot_gif=False,
-                 bootstrap_individuals=None):
+                 bootstrap_individuals=None, multi_quality=None):
 
     # initialize return dictionnaries
     details = {}
@@ -547,6 +592,7 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
     details['analyze archive'] = analyze_archive
     details['altered novelty'] = altered_novelty
     details['alteration degree'] = alteration_degree
+    details['multi quality'] = multi_quality
     nov_metrics = []
     if isinstance(novelty_metric, list):
         for nov_met in novelty_metric:
@@ -593,7 +639,7 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
                 if len(new_ind) != initial_gen_size:
                     print('Required genotypic size: ', initial_gen_size)
                     print('Given genotypic size: ', len(new_ind))
-                    raise Exception('One of the boostrapping individuals has no the required genotype length')
+                    raise Exception('One of the boostrapping individuals does not have the required genotype length')
                 else:
                     for j, gene in enumerate(new_ind):
                         pop[count][j] = gene
@@ -640,15 +686,23 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
     # cvt is the tool to attribute individuals to grid cells (used for both grid and grid_hist)
     cvt = None
     bd_filters = None
+
+    if algo_type == 'ns_rand_multi_bd':
+        bd_indexes = np.array(bd_indexes)
+        nb_bd = len(np.unique(bd_indexes))
+
+        if multi_quality is not None:
+            if len(multi_quality[0]) != nb_bd:
+                raise Exception('Number of quality measures not equal to number of behavioral descriptors.')
+
+        bd_filters = []  # will contain the boolean filters for the different bds
+        for idx in range(nb_bd):
+            bd_filters.append(bd_indexes == idx)
+
     if measures:
         # initialize the CVT grid
         if algo_type == 'ns_rand_multi_bd':
             # grid and cvt will be lists for each BD
-            bd_indexes = np.array(bd_indexes)
-            nb_bd = len(np.unique(bd_indexes))
-            bd_filters = []  # will contain the boolean filters for the different bds
-            for idx in range(nb_bd):
-                bd_filters.append(bd_indexes == idx)
             grid = []
             grid_hist = []
             cvt = []
@@ -726,7 +780,8 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
             offsprings = toolbox.select(pop, nb_offsprings_to_generate, fit_attr='fitness')
         elif algo_type == 'ns_rand_multi_bd':
             # use special selection for multi novelties
-            offsprings = select_n_multi_bd_tournsize(pop, nb_offsprings_to_generate, TOURNSIZE, bd_filters)
+            offsprings = select_n_multi_bd_tournsize(pop, nb_offsprings_to_generate, TOURNSIZE,
+                                                     bd_filters, multi_quality)
         elif algo_type == 'random_search':
             # for experimental baseline
             offsprings = random.sample(pop, nb_offsprings_to_generate)
@@ -818,7 +873,8 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
             pop[:] = toolbox.replace(current_pool, pop_size, fit_attr='fitness')
         elif algo_type == 'ns_rand_multi_bd':
             # replacement: keep the most novel individuals in case of multi novelties
-            pop[:] = select_n_multi_bd_tournsize(current_pool, pop_size, TOURNSIZE, bd_filters, putback=False)
+            pop[:] = select_n_multi_bd_tournsize(current_pool, pop_size, TOURNSIZE,
+                                                 bd_filters, multi_quality, putback=False)
         elif algo_type == 'random_search':
             pop[:] = random.sample(current_pool, pop_size)
         else:
@@ -1220,9 +1276,9 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
                     bds_arr = np.array(bds)
 
                     im_l.append(plt.scatter(bds_arr[:, 0], bds_arr[:, 1], color='grey', label='Historic'))
-                archive_behavior = np.array([ind.behavior_descriptor.values for ind in archive])
+                archive_b = np.array([ind.behavior_descriptor.values for ind in archive])
                 if len(archive) > 0:
-                    im_l.append(plt.scatter(archive_behavior[:, 0], archive_behavior[:, 1], color='red', label='Archive'))
+                    im_l.append(plt.scatter(archive_b[:, 0], archive_b[:, 1], color='red', label='Archive'))
                 pop_behavior = np.array([ind.behavior_descriptor.values for ind in pop])
                 hof_behavior = np.array([ind.behavior_descriptor.values for ind in hall_of_fame])
                 im_l.append(plt.scatter(pop_behavior[:, 0], pop_behavior[:, 1], color='blue', label='Population'))

@@ -37,6 +37,7 @@ BOOTSTRAP_FOLDER = None
 NB_KEYPOINTS = 3
 
 if ROBOT == 'baxter':
+    ENV_NAME = 'gym_baxter_grabbing:baxter_grasping-v0'
     GENE_PER_KEYPOINTS = 8  # baxter is controlled in the end-effector space: pos + orient + gripper openness
     LINK_ID_CONTACT = [47, 48, 49, 50, 51, 52]  # link ids that can have a grasping contact
     NB_STEPS_TO_ROLLOUT = 10
@@ -47,6 +48,7 @@ if ROBOT == 'baxter':
     if OBJECT == 'cup':
         HEIGHT_THRESH = 0.02
 if ROBOT == 'pepper':
+    ENV_NAME = 'gym_baxter_grabbing:pepper_grasping-v0'
     GENE_PER_KEYPOINTS = 7  # pepper is controlled in joints space: 7 joints
     LINK_ID_CONTACT = list(range(36, 50))  # link ids that can have a grasping contact
     NB_STEPS_TO_ROLLOUT = 1
@@ -57,6 +59,7 @@ if ROBOT == 'pepper':
     if OBJECT == 'cup':
         HEIGHT_THRESH = -0.10
 if ROBOT == 'kuka':
+    ENV_NAME = 'gym_baxter_grabbing:kuka_grasping-v0'
     GENE_PER_KEYPOINTS = 9  # kuka is controlled in joints space: 7 joints
     LINK_ID_CONTACT = [8, 10, 11, 13]  # link ids that can have a grasping contact
     NB_STEPS_TO_ROLLOUT = 1
@@ -83,17 +86,8 @@ ARCHIVE_LIMIT = 10000
 NB_CELLS = 1000  # number of cells for measurement
 
 
-# set env name
-if ROBOT == 'baxter':
-    ENV_NAME = 'gym_baxter_grabbing:baxter_grabbing-v1'
-
-if ROBOT == 'pepper':
-    ENV_NAME = 'gym_baxter_grabbing:pepper_grasping-v0'
-
-if ROBOT == 'kuka':
-    ENV_NAME = 'gym_baxter_grabbing:kuka_grasping-v0'
-
 # if reset, create global env
+# TODO: debug, for now RESET_MODE should be False
 if RESET_MODE:
     ENV = gym.make(ENV_NAME, display=DISPLAY, obj=OBJECT)
     ENV.set_steps_to_roll(NB_STEPS_TO_ROLLOUT)
