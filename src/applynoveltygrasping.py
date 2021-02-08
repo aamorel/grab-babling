@@ -32,6 +32,7 @@ CONTROLLER = 'interpolate keypoints end pause grip'  # see controllers_dict for 
 ALGO = 'ns_rand_multi_bd'  # algorithm
 BD = 'multi_full_info'  # behavior descriptor type
 BOOTSTRAP_FOLDER = None
+QUALITY = False
 
 # for keypoints controllers
 NB_KEYPOINTS = 3
@@ -84,6 +85,7 @@ COV_LIMIT = 0.1  # threshold for changing behavior descriptor in change_bd ns
 N_LAG = int(200 / NB_STEPS_TO_ROLLOUT)  # number of steps before the grip time used in the multi_full_info BD
 ARCHIVE_LIMIT = 10000
 NB_CELLS = 1000  # number of cells for measurement
+N_REP_RAND = 2
 
 
 # if reset, create global env
@@ -99,6 +101,7 @@ DIV_MEASURE = 'gripper orientation'  # 'gripper orientation', 'gripper orientati
 NOVELTY_METRIC = 'minkowski'
 
 BD_INDEXES = None
+MULTI_QUALITY_MEASURES = None
 if BD == '2D':
     BD_BOUNDS = [[-0.35, 0.35], [-0.15, 0.2]]
 if BD == '3D':
@@ -114,6 +117,8 @@ if BD == 'multi_full_info':
     BD_INDEXES = [0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2]
     if ALGO == 'ns_rand_multi_bd':
         NOVELTY_METRIC = ['minkowski', 'minkowski', 'minkowski']
+        if QUALITY:
+            MULTI_QUALITY_MEASURES = [[None, 'std random pos', None], [None, 'min', None]]
 if ALGO == 'ns_rand_change_bd':
     BD = 'change_bd'
     # list of 3D bd and orientation bd
@@ -528,6 +533,40 @@ def multi_full_behavior_descriptor(individual):
 
     if not RESET_MODE:
         ENV.close()
+
+    if QUALITY:
+        # re-evaluate with random initial positions to assess robustness as quality
+        last_pos_obj = [[o[0][0], o[0][1], o[0][2]]]
+        for _ in N_REP_RAND:
+            ENV = gym.make(ENV_NAME, display=DISPLAY, obj=OBJECT, random_obj=True)
+            ENV.set_steps_to_roll(NB_STEPS_TO_ROLLOUT)
+
+            # initialize controller
+            controller_info = controllers_info_dict[CONTROLLER]
+            controller = controllers_dict[CONTROLLER](individual, controller_info)
+            action = controller.initial_action
+            for i in range(NB_ITER):
+                ENV.render()
+                # apply previously chosen action
+                o, r, eo, inf = ENV.step(action)
+
+                # choose action
+                if controller.open_loop:
+                    action = controller.get_action(i)
+                else:
+                    action = controller.get_action(i, o)
+
+                if i == 0:
+                    initial_object_position = o[0]
+
+                if eo:
+                    break
+            last_pos_obj.append([o[0][0], o[0][1], o[0][2]])
+
+        last_pos_obj = np.array(last_pos_obj)
+        std = np.std(last_pos_obj, axis=0)
+        mean_std = np.mean(std)
+        info['std random pos'] = mean_std
     
     return (behavior, (fitness,), info)
 
@@ -844,7 +883,7 @@ if __name__ == "__main__":
                                      choose_evaluate=choose, bd_indexes=BD_INDEXES,
                                      archive_limit_size=ARCHIVE_LIMIT, nb_cells=NB_CELLS,
                                      novelty_metric=NOVELTY_METRIC, save_ind_cond='binary goal',
-                                     bootstrap_individuals=boostrap_inds)
+                                     bootstrap_individuals=boostrap_inds, multi_quality=MULTI_QUALITY_MEASURES)
     
     pop, archive, hof, details, figures, data, triumphant_archive = res
     
