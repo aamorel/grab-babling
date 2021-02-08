@@ -10,6 +10,7 @@ import controllers
 import os
 import json
 import glob
+import random
 
 DISPLAY = False
 PARALLELIZE = True
@@ -183,10 +184,9 @@ def analyze_triumphants(triumphant_archive, run_name):
     # analyze the triumphants following the diversity descriptor
     measure = 'diversity_descriptor'
 
-    # # sample the triumphant archive to reduce computational cost
-    # no need since the archive size is now bounded
-    # while len(triumphant_archive) >= 1000:
-    #     triumphant_archive.pop(random.randint(0, len(triumphant_archive) - 1))
+    # sample the triumphant archive to reduce computational cost
+    while len(triumphant_archive) >= 3000:
+        triumphant_archive.pop(random.randint(0, len(triumphant_archive) - 1))
     
     nb_of_triumphants = len(triumphant_archive)
 
