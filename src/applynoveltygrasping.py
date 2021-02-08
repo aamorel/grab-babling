@@ -907,6 +907,11 @@ if __name__ == "__main__":
     if PLOT:
         fig = figures['figure']
         fig.savefig(run_name + 'novelty_search_plots.png')
+
+        if MULTI_QUALITY_MEASURES is not None:
+            fig_3 = figures['figure_3']
+            fig_3.savefig(run_name + 'qualities.png')
+            
         if BD != 'change_bd':
             # plot final states
             archive_behavior = np.array([ind.behavior_descriptor.values for ind in archive])

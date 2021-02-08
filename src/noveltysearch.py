@@ -573,6 +573,25 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
                  alteration_degree=None, novelty_metric='minkowski', save_ind_cond=None, plot_gif=False,
                  bootstrap_individuals=None, multi_quality=None):
 
+    # keep track of stats
+    mean_hist = []
+    min_hist = []
+    max_hist = []
+    arch_size_hist = []
+    mean_age_hist = []
+    max_age_hist = []
+    gen_stat_hist = []
+    gen_stat_hist_off = []
+    if measures:
+        novelty_distrib = []
+        coverage_hist = []
+        full_cov_hist = []
+        pop_cov_hist = []
+        uniformity_hist = []
+        full_uni_hist = []
+        pop_uni_hist = []
+        multi_quality_hist = []
+
     # initialize return dictionnaries
     details = {}
     figures = {}
@@ -748,24 +767,6 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
         if isinstance(save_ind_cond, str):
             if member.info.values[save_ind_cond]:
                 save_ind.append(member)
-
-    # keep track of stats
-    mean_hist = []
-    min_hist = []
-    max_hist = []
-    arch_size_hist = []
-    mean_age_hist = []
-    max_age_hist = []
-    gen_stat_hist = []
-    gen_stat_hist_off = []
-    if measures:
-        novelty_distrib = []
-        coverage_hist = []
-        full_cov_hist = []
-        pop_cov_hist = []
-        uniformity_hist = []
-        full_uni_hist = []
-        pop_uni_hist = []
 
     if plot_gif:
         fig_gif = plt.figure(figsize=(10, 10))
@@ -1215,6 +1216,22 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
                 pop_uni_hist.append(uniformities)
                 pop_cov_hist.append(coverages)
 
+                # save the qualities
+                if multi_quality is not None:
+                    qualities = [[] for _ in range(len(multi_quality[0]))]
+                    for ind in offsprings:
+                        for i, quality in enumerate(multi_quality[0]):
+                            if (quality is not None) and (quality in ind.info.values):
+                                qualities[i].append(ind.info.values[quality])
+                    quality_means = []
+                    for quality_arr in qualities:
+                        quality_arr = np.array(quality_arr)
+                        if len(quality_arr) != 0:
+                            quality_means.append(np.mean(quality_arr))
+                        else:
+                            quality_means.append(0)
+                    multi_quality_hist.append(quality_means)
+
             else:
  
                 # compute coverage
@@ -1314,12 +1331,14 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
     data['population coverage'] = pop_cov_hist
     data['population uniformity'] = pop_uni_hist
     data['novelty distribution'] = novelty_distrib
+    data['qualities'] = multi_quality_hist
 
     if plot:
-        fig, fig_2 = plotting.plot_launch(details, data)
+        fig, fig_2, fig_3 = plotting.plot_launch(details, data)
     
         figures['figure'] = fig
         figures['figure_2'] = fig_2
+        figures['figure_3'] = fig_3
     
     if plot_gif:
         interval = int(GIF_LENGHT * 1000 / len(ims))

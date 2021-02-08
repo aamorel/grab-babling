@@ -30,6 +30,7 @@ def plot_launch(details, data):
         pop_cov_hist (list): history of coverage of all generated individuals
         pop_uni_hist (list): history of uniformity of all generated individuals
         novelty_distrib (list): history of distributions of novelty across pop + offsprings
+        qualities (list): history of qualities if measured
 
 
    """
@@ -47,6 +48,8 @@ def plot_launch(details, data):
     pop_uni_hist = data['population uniformity']
     novelty_distrib = data['novelty distribution']
     algo_type = details['algo type']
+    qualities = data['qualities']
+    multi_qual = details['multi quality']
 
     mean_hist = np.array(mean_hist)
     min_hist = np.array(min_hist)
@@ -124,8 +127,18 @@ def plot_launch(details, data):
                                         title='Evolution of novelty distributions with respect to generations',
                                         legend=False, kind='counts', bins=30, ylim='max',
                                         figsize=(15, 15), color='red', linecolor='black')
+    
+    fig_3 = 0
+    if multi_qual is not None:
+        qualities = np.array(qualities)
+        fig_3, ax_3 = plt.subplots()
+        for i, qual in enumerate(multi_qual[0]):
+            if qual is not None:
+                ax_3.plot(qualities[:, i], color=utils.color_list[i], label=qual)
+        ax_3.legend()
+        ax_3.set(title='Evolution of mean qualities in offsprings', xlabel='Generations')
 
-    return fig, fig_2
+    return fig, fig_2, fig_3
 
 
 def collect_launchs(conditions, number, folder):
