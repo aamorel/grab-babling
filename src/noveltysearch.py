@@ -139,7 +139,10 @@ def compute_average_distance(query, k_tree):
             neighbours_distances = k_tree.kneighbors(X=query.reshape(1, -1))[0][0][1:]
         else:
             neighbours_distances = k_tree.kneighbors(X=query.reshape(1, -1), n_neighbors=n_samples)[0][0][1:]
-        avg_distance = np.mean(neighbours_distances)
+        if len(neighbours_distances) == 0:
+            avg_distance = INF
+        else:
+            avg_distance = np.mean(neighbours_distances)
     return avg_distance,
 
 
