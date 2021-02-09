@@ -563,6 +563,8 @@ def multi_full_behavior_descriptor(individual):
                     break
             last_pos_obj.append([o[0][0], o[0][1], o[0][2]])
 
+            ENV.close()
+
         last_pos_obj = np.array(last_pos_obj)
         std = np.std(last_pos_obj, axis=0)
         mean_std = np.mean(std)
