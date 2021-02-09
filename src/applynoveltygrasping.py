@@ -454,6 +454,7 @@ def multi_full_behavior_descriptor(individual):
 
     # to compute quality for B1
     mean_dist_gripper_obj = 0
+    prev_obj_grip_vec = None
 
     info = {}
 
@@ -497,7 +498,6 @@ def multi_full_behavior_descriptor(individual):
             grip_or_lag = o[3]
             lag_measured = True
 
-        prev_obj_grip_vec = None
         if QUALITY and i >= controller.grip_time:
             
             # only done one step after entering the if
