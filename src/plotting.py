@@ -131,12 +131,17 @@ def plot_launch(details, data):
     fig_3 = 0
     if multi_qual is not None:
         qualities = np.array(qualities)
-        fig_3, ax_3 = plt.subplots()
+        count = 0
         for i, qual in enumerate(multi_qual[0]):
             if qual is not None:
-                ax_3.plot(qualities[:, i], color=utils.color_list[i], label=qual)
-        ax_3.legend()
-        ax_3.set(title='Evolution of mean qualities in offsprings', xlabel='Generations')
+                count += 1
+        fig_3, ax_3 = plt.subplots(nrows=count)
+        count = 0
+        for i, qual in enumerate(multi_qual[0]):
+            if qual is not None:
+                ax_3[count].plot(qualities[:, i], color=utils.color_list[i])
+                ax_3[count].set(title='Evolution of mean ' + qual + ' in offsprings', xlabel='Generations')
+                count += 1
 
     return fig, fig_2, fig_3
 
