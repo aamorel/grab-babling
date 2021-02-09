@@ -118,7 +118,7 @@ if BD == 'multi_full_info':
     if ALGO == 'ns_rand_multi_bd':
         NOVELTY_METRIC = ['minkowski', 'minkowski', 'minkowski']
         if QUALITY:
-            MULTI_QUALITY_MEASURES = [[None, 'std random pos', None], [None, 'min', None]]
+            MULTI_QUALITY_MEASURES = [['mean differential dist', 'std random pos', None], ['min', 'min', None]]
 if ALGO == 'ns_rand_change_bd':
     BD = 'change_bd'
     # list of 3D bd and orientation bd
@@ -452,6 +452,9 @@ def multi_full_behavior_descriptor(individual):
 
     touch_idx = []
 
+    # to compute quality for B1
+    mean_dist_gripper_obj = 0
+
     info = {}
 
     for i in range(NB_ITER):
@@ -472,13 +475,12 @@ def multi_full_behavior_descriptor(individual):
             break
         
         # version 1: measure is done at grip_time
-        # if action[-1] == -1 and not grabbed:
+        # if i >= controller.grip_time and not grabbed:
         #     # first action that orders the grabbing
         #     measure_grip_time = diversity_measure(o)
         #     grabbed = True
 
         # version 2: measure is done at touch time
-
         touch = len(inf['contact_points']) > 0
         touch_id = 0
         if touch:
@@ -494,6 +496,17 @@ def multi_full_behavior_descriptor(individual):
             # gripper orientation
             grip_or_lag = o[3]
             lag_measured = True
+
+        prev_obj_grip_vec = None
+        if QUALITY and i >= controller.grip_time:
+            
+            # only done one step after entering the if
+            if i >= controller.grip_time + 1:
+                new_obj_grip_vec = [o[0][0] - o[2][0], o[0][1] - o[2][1], o[0][2] - o[2][2]]
+                differential_dist = utils.list_l2_norm(new_obj_grip_vec, prev_obj_grip_vec)
+                mean_dist_gripper_obj += differential_dist
+            
+            prev_obj_grip_vec = [o[0][0] - o[2][0], o[0][1] - o[2][1], o[0][2] - o[2][2]]
 
     # use last info to compute behavior and fitness
     behavior = [o[0][0] - initial_object_position[0], o[0][1] - initial_object_position[1],
@@ -533,6 +546,9 @@ def multi_full_behavior_descriptor(individual):
 
     if not RESET_MODE:
         ENV.close()
+
+    if QUALITY:
+        info['mean differential dist'] = mean_dist_gripper_obj / (NB_ITER - controller.grip_time)
 
     if QUALITY and binary_goal:
         # re-evaluate with random initial positions to assess robustness as quality
