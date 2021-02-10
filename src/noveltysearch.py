@@ -470,12 +470,19 @@ def select_n_multi_bd_tournsize(pop, n, tournsize, bd_filters, multi_quality, pu
     for i in range(n):
         # prepare the tournament
         # make sure selected individuals are different
-        if putback:
-            tourn_idxs = random.sample(range(pop_size), tournsize)
+        if tournsize == 'max':
+            if putback:
+                tourn_idxs = list(range(pop_size))
+            else:
+                tourn_idxs = [i for i in list(range(pop_size)) if i not in unwanted_list]
+        
         else:
-            list_of_available_idxs = [i for i in list(range(pop_size)) if i not in unwanted_list]
-            random.shuffle(list_of_available_idxs)
-            tourn_idxs = list_of_available_idxs[:tournsize]
+            if putback:
+                tourn_idxs = random.sample(range(pop_size), tournsize)
+            else:
+                list_of_available_idxs = [i for i in list(range(pop_size)) if i not in unwanted_list]
+                random.shuffle(list_of_available_idxs)
+                tourn_idxs = list_of_available_idxs[:tournsize]
 
         # make the inventory of the bds in the tournament
         inventory = np.zeros(nb_of_bd)
@@ -876,7 +883,8 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
             pop[:] = toolbox.replace(current_pool, pop_size, fit_attr='fitness')
         elif algo_type == 'ns_rand_multi_bd':
             # replacement: keep the most novel individuals in case of multi novelties
-            pop[:] = select_n_multi_bd_tournsize(current_pool, pop_size, TOURNSIZE,
+            # have a highly pressurized selection: tournament size = max
+            pop[:] = select_n_multi_bd_tournsize(current_pool, pop_size, 'max',
                                                  bd_filters, multi_quality, putback=False)
         elif algo_type == 'random_search':
             pop[:] = random.sample(current_pool, pop_size)
