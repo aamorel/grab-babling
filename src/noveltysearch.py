@@ -578,7 +578,7 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
                  measures=False, choose_evaluate=None, bd_indexes=None, archive_limit_size=None,
                  archive_limit_strat='random', nb_cells=1000, analyze_archive=False, altered_novelty=False,
                  alteration_degree=None, novelty_metric='minkowski', save_ind_cond=None, plot_gif=False,
-                 bootstrap_individuals=None, multi_quality=None):
+                 bootstrap_individuals=None, multi_quality=None, monitor_print=False):
 
     # keep track of stats
     mean_hist = []
@@ -598,6 +598,11 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
         full_uni_hist = []
         pop_uni_hist = []
         multi_quality_hist = []
+    if monitor_print:
+        t_eval = tqdm.tqdm(total=float('inf'), leave=False, desc='Number of evaluations',
+                           bar_format='{desc}: {n_fmt}')
+        t_success = tqdm.tqdm(total=float('inf'), leave=False, desc='Number of successful individuls',
+                              bar_format='{desc}: {n_fmt}')
 
     # initialize return dictionnaries
     details = {}
@@ -758,6 +763,10 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
         ind.behavior_descriptor.values = bd
         ind.info.values = inf
         ind.fitness.values = fit
+        if monitor_print:
+            t_eval.update()
+            if inf['binary goal']:
+                t_success.update()
 
     novelties = assess_novelties(pop, archive, algo_type, bd_bounds, bd_indexes, bd_filters, novelty_metric,
                                  altered=altered_novelty, degree=alteration_degree, info=details)
@@ -826,6 +835,11 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
             ind.behavior_descriptor.values = bd  # can be None in the change_bd case
             ind.info.values = inf
             ind.fitness.values = fit
+
+            if monitor_print:
+                t_eval.update()
+                if inf['binary goal']:
+                    t_success.update()
 
         # compute novelty for all current individuals (novelty of population may have changed)
         novelties = assess_novelties(current_pool, archive, algo_type, bd_bounds, bd_indexes, bd_filters,
@@ -1322,6 +1336,7 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
                     color = CM(i / nb_gen)
                     im_l.append(plt.scatter(bds_arr[:, 0], bds_arr[:, 1], color=color, label='Historic'))
                 ims.append(im_l)
+    
     data['population genetic statistics'] = gen_stat_hist
     data['offsprings genetic statistics'] = gen_stat_hist_off
     data['archive coverage'] = coverage_hist
