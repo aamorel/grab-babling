@@ -8,6 +8,7 @@ from deap import base, creator
 from sklearn.cluster import AgglomerativeClustering
 import controllers
 import os
+import tqdm
 import json
 import glob
 import random
@@ -25,7 +26,7 @@ RESET_MODE = False
 
 # choose parameters
 POP_SIZE = 100
-NB_GEN = 200
+NB_GEN = 100
 OBJECT = 'cube'  # 'cube', 'cup'
 ROBOT = 'baxter'  # 'baxter', 'pepper', 'kuka'
 CONTROLLER = 'interpolate keypoints end pause grip'  # see controllers_dict for list
@@ -123,6 +124,18 @@ if ALGO == 'ns_rand_change_bd':
     BD = 'change_bd'
     # list of 3D bd and orientation bd
     BD_BOUNDS = [[[-0.35, 0.35], [-0.15, 0.2], [-0.12, 0.5]], [[-1, 1], [-1, 1], [-1, 1], [-1, 1]]]
+
+
+t_eval = tqdm.tqdm(total=float('inf'), leave=False, desc='Number of evaluations',
+                   bar_format='{desc}: {n_fmt}')
+t_success = tqdm.tqdm(total=float('inf'), leave=False, desc='Number of successful individuls',
+                      bar_format='{desc}: {n_fmt}')
+
+# eval counter
+EVAL_COUNT = 0
+
+# successful counter
+SUCCESS_COUNT = 0
 
 # deal with Scoop parallelization
 if PARALLELIZE:
@@ -427,6 +440,8 @@ def multi_full_behavior_descriptor(individual):
     Returns:
         tuple: tuple of behavior (list) and fitness(tuple)
     """
+    global EVAL_COUNT
+    global SUCCESS_COUNT
     if RESET_MODE:
         global ENV
         ENV.reset()
@@ -458,6 +473,8 @@ def multi_full_behavior_descriptor(individual):
 
     info = {}
 
+    EVAL_COUNT += 1
+    t_eval.update()
     for i in range(NB_ITER):
         ENV.render()
         # apply previously chosen action
@@ -529,6 +546,8 @@ def multi_full_behavior_descriptor(individual):
     info['binary goal'] = binary_goal
 
     if binary_goal:
+        t_success.update()
+        SUCCESS_COUNT += 1
         if measure_grip_time is None:
             # print('Individual grasped without touching any contact links')
             info['binary goal'] = False
@@ -561,6 +580,8 @@ def multi_full_behavior_descriptor(individual):
             controller_info = controllers_info_dict[CONTROLLER]
             controller = controllers_dict[CONTROLLER](individual, controller_info)
             action = controller.initial_action
+            t_eval.update()
+            EVAL_COUNT += 1
             for i in range(NB_ITER):
                 ENV.render()
                 # apply previously chosen action
