@@ -13,7 +13,7 @@ import glob
 import random
 
 DISPLAY = False
-PARALLELIZE = False
+PARALLELIZE = True
 PLOT = True
 DISPLAY_HOF = False
 DISPLAY_RAND = False
@@ -32,7 +32,7 @@ CONTROLLER = 'interpolate keypoints end pause grip'  # see controllers_dict for 
 ALGO = 'ns_rand_multi_bd'  # algorithm
 BD = 'multi_full_info'  # behavior descriptor type
 BOOTSTRAP_FOLDER = None
-QUALITY = True
+QUALITY = False
 
 # for keypoints controllers
 NB_KEYPOINTS = 3
