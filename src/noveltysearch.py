@@ -770,7 +770,7 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
                 count_success += 1
     if monitor_print:
         t_eval.update(n=len(pop))
-        t_success(n=count_success)
+        t_success.update(n=count_success)
 
     novelties = assess_novelties(pop, archive, algo_type, bd_bounds, bd_indexes, bd_filters, novelty_metric,
                                  altered=altered_novelty, degree=alteration_degree, info=details)
@@ -847,7 +847,7 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
                     count_success += 1
         if monitor_print:
             t_eval.update(n=len(invalid_ind))
-            t_success(n=count_success)
+            t_success.update(n=count_success)
 
         # compute novelty for all current individuals (novelty of population may have changed)
         novelties = assess_novelties(current_pool, archive, algo_type, bd_bounds, bd_indexes, bd_filters,
