@@ -601,7 +601,7 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
     if monitor_print:
         t_eval = tqdm.tqdm(total=float('inf'), leave=False, desc='Number of evaluations',
                            bar_format='{desc}: {n_fmt}')
-        t_success = tqdm.tqdm(total=float('inf'), leave=False, desc='Number of successful individuls',
+        t_success = tqdm.tqdm(total=float('inf'), leave=False, desc='Number of successful individuals',
                               bar_format='{desc}: {n_fmt}')
 
     # initialize return dictionnaries
@@ -759,14 +759,18 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
     b_descriptors, fitnesses, infos = map(list, zip(*evaluation_pop))
 
     # attribute fitness and behavior descriptors to individuals
+    if monitor_print:
+        count_success = 0
     for ind, fit, bd, inf in zip(pop, fitnesses, b_descriptors, infos):
         ind.behavior_descriptor.values = bd
         ind.info.values = inf
         ind.fitness.values = fit
         if monitor_print:
-            t_eval.update()
             if inf['binary goal']:
-                t_success.update()
+                count_success += 1
+    if monitor_print:
+        t_eval.update(n=len(pop))
+        t_success(n=count_success)
 
     novelties = assess_novelties(pop, archive, algo_type, bd_bounds, bd_indexes, bd_filters, novelty_metric,
                                  altered=altered_novelty, degree=alteration_degree, info=details)
@@ -831,15 +835,19 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
         inv_b_descriptors, inv_fitnesses, inv_infos = map(list, zip(*evaluation_pop))
 
         # attribute fitness and behavior descriptors to new individuals
+        if monitor_print:
+            count_success = 0
         for ind, fit, bd, inf in zip(invalid_ind, inv_fitnesses, inv_b_descriptors, inv_infos):
             ind.behavior_descriptor.values = bd  # can be None in the change_bd case
             ind.info.values = inf
             ind.fitness.values = fit
 
             if monitor_print:
-                t_eval.update()
                 if inf['binary goal']:
-                    t_success.update()
+                    count_success += 1
+        if monitor_print:
+            t_eval.update(n=len(invalid_ind))
+            t_success(n=count_success)
 
         # compute novelty for all current individuals (novelty of population may have changed)
         novelties = assess_novelties(current_pool, archive, algo_type, bd_bounds, bd_indexes, bd_filters,
