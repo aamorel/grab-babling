@@ -13,7 +13,7 @@ import glob
 import random
 
 DISPLAY = False
-PARALLELIZE = True
+PARALLELIZE = False
 PLOT = True
 DISPLAY_HOF = False
 DISPLAY_RAND = False
@@ -32,7 +32,9 @@ CONTROLLER = 'interpolate keypoints end pause grip'  # see controllers_dict for 
 ALGO = 'ns_rand_multi_bd'  # algorithm
 BD = 'multi_full_info'  # behavior descriptor type
 BOOTSTRAP_FOLDER = None
-QUALITY = False
+QUALITY = True
+NB_CELLS = 100  # number of cells for measurement
+
 
 # for keypoints controllers
 NB_KEYPOINTS = 3
@@ -84,7 +86,6 @@ DIFF_OR_THRESH = 0.4  # threshold for clustering grasping orientations
 COV_LIMIT = 0.1  # threshold for changing behavior descriptor in change_bd ns
 N_LAG = int(200 / NB_STEPS_TO_ROLLOUT)  # number of steps before the grip time used in the multi_full_info BD
 ARCHIVE_LIMIT = 10000
-NB_CELLS = 1000  # number of cells for measurement
 N_REP_RAND = 2
 
 

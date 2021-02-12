@@ -22,7 +22,9 @@ def set_creator(cr):
     global creator
     creator = cr
 
+
 RANDOM_SEL_1 = True  # decide if selection is random or based on tournament
+LOCAL_QUALITY = True  # decide if quality, when used, should be local or global
 HOF_SIZE = 10  # number of individuals in hall of fame
 K = 15  # number of nearest neighbours for novelty computation
 INF = 1000000000  # for security against infinite distances in KDtree queries
@@ -41,6 +43,7 @@ N_CELLS = 20  # number of cells to try to generate in case of grid_density archi
 LIMIT_DENSITY_ITER = 100  # maximum number of iterations to find an individual in the cell not already chosen
 # in case of grid_density_archive_management
 N_COMP = 4  # number of GMM components in case of gmm sampling archive management
+MULTI_OBJ_SELECTION = 'pareto_based'  # 'rank_based', 'pareto_based'  how to operate the multi-objective selection
 GIF_LENGHT = 30  # length of gif in seconds
 GIF_TYPE = 'hist_color'  # 'full' or 'hist_color'
 CM = cm.get_cmap('viridis', 100)
@@ -122,11 +125,14 @@ def compute_average_distance(query, k_tree):
 
     Returns:
         float: average distance to the K nearest neighbours
+        list: indices of the K nearest neighbours
     """
     if isinstance(k_tree, KDTree):
         # no used anymore but kept in case
         # find K nearest neighbours and distances
-        neighbours_distances = k_tree.query(query, range(2, K + 2))[0]
+        search = k_tree.query(query, range(2, K + 2))
+        neighbours_distances = search[0]
+        neighbours_indices = search[1]
         # beware: if K > number of points in tree, missing neighbors are associated with infinite distances
         # workaround:
         real_neighbours_distances = neighbours_distances[neighbours_distances < INF]
@@ -136,14 +142,18 @@ def compute_average_distance(query, k_tree):
         n_samples = k_tree.n_samples_fit_
         query = np.array(query)
         if n_samples >= K + 1:
-            neighbours_distances = k_tree.kneighbors(X=query.reshape(1, -1))[0][0][1:]
+            search = k_tree.kneighbors(X=query.reshape(1, -1))
+            neighbours_distances = search[0][0][1:]
+            neighbours_indices = search[1][0][1:]
         else:
-            neighbours_distances = k_tree.kneighbors(X=query.reshape(1, -1), n_neighbors=n_samples)[0][0][1:]
+            search = k_tree.kneighbors(X=query.reshape(1, -1), n_neighbors=n_samples)
+            neighbours_distances = search[0][0][1:]
+            neighbours_indices = search[1][0][1:]
         if len(neighbours_distances) == 0:
             avg_distance = INF
         else:
             avg_distance = np.mean(neighbours_distances)
-    return avg_distance,
+    return avg_distance, neighbours_indices
 
 
 def compute_average_distance_array(query, k_tree):
@@ -167,7 +177,7 @@ def compute_average_distance_array(query, k_tree):
     return avg_distance_tuples
 
 
-def assess_novelties(pop, archive, algo_type, bd_bounds, bd_indexes, bd_filters, novelty_metric,
+def assess_novelties(pop, archive, algo_type, bd_bounds, bd_indexes, bd_filters, novelty_metric, multi_qual,
                      altered=False, degree=None, info=None):
     """Compute novelties of current population
 
@@ -210,7 +220,7 @@ def assess_novelties(pop, archive, algo_type, bd_bounds, bd_indexes, bd_filters,
                 k_trees.append(None)
 
         # compute novelties for the pop bds
-        for i in range(len(pop)):
+        for i, ind in enumerate(pop):
             # in that case, novelty will be a tupple of novelties for each bd
             bd = b_descriptors[i]
 
@@ -219,8 +229,27 @@ def assess_novelties(pop, archive, algo_type, bd_bounds, bd_indexes, bd_filters,
             for idx, bd_filter in enumerate(bd_filters):
                 bd_value = bd[bd_filter]
                 if not(None in bd_value):
-                    nov_bd = compute_average_distance(bd_value, k_trees[idx])[0]  # float
+                    search = compute_average_distance(bd_value, k_trees[idx])  # float
+                    nov_bd = search[0]  # float
                     novelty.append(nov_bd)
+
+                    neigh_indices = search[1]  # list of ref pop indices
+                    if multi_qual is not None and multi_qual[0][idx] is not None:
+                        # attribute local quality to individual
+                        if len(neigh_indices) == 0:
+                            local_qual = INF
+                        else:
+                            ind_qual = ind.info.values[multi_qual[0][idx]]
+                            quals = []
+                            for neigh_idx in neigh_indices:
+                                quals.append(reference_pop[neigh_idx].info.values[multi_qual[0][idx]])
+                            if multi_qual[1][idx] == 'max':
+                                absolute_local_qual = sum(1 if ind_qual > val else 0 for val in quals)
+                            else:
+                                absolute_local_qual = sum(0 if ind_qual > val else 1 for val in quals)
+
+                            local_qual = absolute_local_qual / len(neigh_indices)
+                        ind.info.values[multi_qual[0][idx] + '_local'] = local_qual
                 else:
                     novelty.append(None)
             novelty = tuple(novelty)
@@ -412,53 +441,52 @@ def remove_from_grid(member, grid, cvt, measures, algo_type, bd_filters):
             grid[grid_index] -= 1
 
 
-def select_n_multi_bd(pop, n, putback=True):
-    selected = []
-    unwanted_list = []  # in case of no putback
-    pop_size = len(pop)
-    for i in range(n):
-        # make sure two selected individuals are different
-        condition = True
-        while condition:
-            idx1 = random.randint(0, pop_size - 1)
-            idx2 = random.randint(0, pop_size - 1)
-            if putback:
-                condition = idx1 == idx2
+def is_pareto(costs, minimise=False):
+    """
+    :param costs: An (n_points, n_costs) array
+    :maximise: boolean. True for maximising, False for minimising
+    :return: A (n_points, ) boolean array, indicating whether each point is Pareto efficient
+    """
+    is_efficient = np.ones(costs.shape[0], dtype=bool)
+    for i, c in enumerate(costs):
+        if is_efficient[i]:
+            if minimise:
+                is_efficient[is_efficient] = np.any(costs[is_efficient] <= c, axis=1)  # Remove dominated points
             else:
-                condition = ((idx1 == idx2) or (idx1 in unwanted_list)) or (idx2 in unwanted_list)
-        ind1_nov = list(pop[idx1].novelty.values)
-        ind2_nov = list(pop[idx2].novelty.values)
+                is_efficient[is_efficient] = np.any(costs[is_efficient] >= c, axis=1)  # Remove dominated points
+    return is_efficient
 
-        # find common bds between the two individuals
-        common_bds = []
-        for i in range(len(ind1_nov)):
-            if (ind1_nov[i] is not None) and (ind2_nov[i] is not None):
-                common_bds.append(i)
-        nb_common_bds = len(common_bds)
-        if nb_common_bds == 0:
-            # no common bds
-            # hypothesis: choose one of the two individuals randomly
-            dice = random.randint(0, 1)
-            if dice:
-                selected.append(pop[idx1])
-                unwanted_list.append(idx1)
-            else:
-                selected.append(pop[idx2])
-                unwanted_list.append(idx2)
+
+def multi_objective_selection(novelties, qualities, minimization):
+    if MULTI_OBJ_SELECTION == 'rank_based':
+        n_possible_inds = len(novelties)
+        novelties_order = novelties.argsort()
+        novelties_ranking = novelties_order.argsort()  # 0 is the least novel, n_possible_inds - 1 is the most novel
+
+        qualities_order = qualities.argsort()
+        qualities_ranking_temp = qualities_order.argsort()
+        if minimization:
+            qualities_ranking = [n_possible_inds - 1 - rk for rk in qualities_ranking_temp]
+            qualities_ranking = np.array(qualities_ranking)  # 0 is the least qualitative, n_possible_inds - 1 best
         else:
-            # choose a random common bd
-            common_bd_idx = random.randint(0, nb_common_bds - 1)
-            bd_idx = common_bds[common_bd_idx]
-            ind1_nov_val = ind1_nov[bd_idx]
-            ind2_nov_val = ind2_nov[bd_idx]
-            if ind1_nov_val >= ind2_nov_val:
-                selected.append(pop[idx1])
-                unwanted_list.append(idx1)
-            else:
-                selected.append(pop[idx2])
-                unwanted_list.append(idx2)
-            
-    return selected
+            qualities_ranking = qualities_ranking_temp
+        final_rankings = novelties_ranking + qualities_ranking
+
+        # choose the best one in terms of novelty ranking and quality ranking
+        best_idx = np.argmax(final_rankings)
+
+    if MULTI_OBJ_SELECTION == 'pareto_based':
+        if len(novelties) > 1:
+            costs = np.concatenate(([novelties], [qualities]), axis=0)
+            costs = np.transpose(costs)
+            mask = is_pareto(costs, minimise=minimization)
+            indices = np.where(mask)[0]
+
+            # choose randomly between pareto efficient points
+            best_idx = random.choice(indices)
+        else:
+            best_idx = 0
+    return best_idx
 
 
 def select_n_multi_bd_tournsize(pop, n, tournsize, bd_filters, multi_quality, putback=True):
@@ -469,20 +497,28 @@ def select_n_multi_bd_tournsize(pop, n, tournsize, bd_filters, multi_quality, pu
     nb_of_bd = len(bd_filters)
     for i in range(n):
         # prepare the tournament
-        # make sure selected individuals are different
+        # make sure selected individuals are different and deal with empty tournament
+        empty = False
         if tournsize == 'max':
             if putback:
                 tourn_idxs = list(range(pop_size))
             else:
                 tourn_idxs = [i for i in list(range(pop_size)) if i not in unwanted_list]
+                if len(tourn_idxs) == 0:
+                    empty = True
         
         else:
             if putback:
                 tourn_idxs = random.sample(range(pop_size), tournsize)
             else:
                 list_of_available_idxs = [i for i in list(range(pop_size)) if i not in unwanted_list]
-                random.shuffle(list_of_available_idxs)
-                tourn_idxs = list_of_available_idxs[:tournsize]
+                if len(list_of_available_idxs) < tournsize:
+                    empty = True
+                else:
+                    random.shuffle(list_of_available_idxs)
+                    tourn_idxs = list_of_available_idxs[:tournsize]
+        if empty:
+            raise Exception('No enough individuals to generate no putback tournament')
 
         # make the inventory of the bds in the tournament
         inventory = np.zeros(nb_of_bd)
@@ -496,57 +532,58 @@ def select_n_multi_bd_tournsize(pop, n, tournsize, bd_filters, multi_quality, pu
         # choose the bd to use for comparison
         bd_idx = choose_bd_strategy(inventory)
 
-        # decide if should use quality or not for selection
-        use_quality = (multi_quality is not None) and (multi_quality[0][bd_idx] is not None)
-
-        # find all the individuals that are evaluated inside the chosen bd and their novelties
-        possible_individuals_idxs = []
-        possible_individuals_novelties = []
-
-        if use_quality:
-            possible_individuals_qualities = []
-            minimization = multi_quality[1][bd_idx] == 'min'
-
-        for idx in tourn_idxs:
-            ind = pop[idx]
-            nov_list = list(ind.novelty.values)
-            nov_to_compare = nov_list[bd_idx]
-            if nov_to_compare is not None:
-                possible_individuals_idxs.append(idx)
-                possible_individuals_novelties.append(nov_to_compare)
-                if use_quality:
-                    name_of_quality = multi_quality[0][bd_idx]
-                    quality_to_compare = ind.info.values[name_of_quality]
-                    possible_individuals_qualities.append(quality_to_compare)
-        
-        # find most novel individual and select it
-        # sanity check
-        assert(len(possible_individuals_novelties) > 0)
-
-        possible_individuals_novelties = np.array(possible_individuals_novelties)
-        if not use_quality:
-            # simply choose the individual maximizing the novelty
-            temp_idx = np.argmax(possible_individuals_novelties)
+        if bd_idx == 'empty_inventory':
+            # case where no individual from the tournament has any valid bd
+            # for now, just ignore and move to next tournament
+            pass
         else:
-            n_possible_inds = len(possible_individuals_novelties)
-            possible_individuals_qualities = np.array(possible_individuals_qualities)
-            novelties_order = possible_individuals_novelties.argsort()
-            novelties_ranking = novelties_order.argsort()  # 0 is the least novel, n_possible_inds - 1 is the most novel
+            # decide if should use quality or not for selection
+            use_quality = (multi_quality is not None) and (multi_quality[0][bd_idx] is not None)
 
-            qualities_order = possible_individuals_qualities.argsort()
-            qualities_ranking_temp = qualities_order.argsort()
-            if minimization:
-                qualities_ranking = [n_possible_inds - 1 - rk for rk in qualities_ranking_temp]
-                qualities_ranking = np.array(qualities_ranking)  # 0 is the least qualitative, n_possible_inds - 1 best
-            final_rankings = novelties_ranking + qualities_ranking
+            # find all the individuals that are evaluated inside the chosen bd and their novelties
+            possible_individuals_idxs = []
+            possible_individuals_novelties = []
 
-            # choose the best one in terms of novelty ranking and quality ranking
-            temp_idx = np.argmax(final_rankings)
+            if use_quality:
+                possible_individuals_qualities = []
+                if LOCAL_QUALITY:
+                    minimization = False
+                else:
+                    minimization = multi_quality[1][bd_idx] == 'min'
 
-        ind_idx = possible_individuals_idxs[temp_idx]
-        selected.append(pop[ind_idx])
-        if not putback:
-            unwanted_list.append(ind_idx)
+            for idx in tourn_idxs:
+                ind = pop[idx]
+                nov_list = list(ind.novelty.values)
+                nov_to_compare = nov_list[bd_idx]
+                if nov_to_compare is not None:
+                    possible_individuals_idxs.append(idx)
+                    possible_individuals_novelties.append(nov_to_compare)
+                    if use_quality:
+                        name_of_quality = multi_quality[0][bd_idx]
+                        if LOCAL_QUALITY:
+                            quality_to_compare = ind.info.values[name_of_quality + '_local']
+                        else:
+                            quality_to_compare = ind.info.values[name_of_quality]
+                        possible_individuals_qualities.append(quality_to_compare)
+            
+            # find most novel individual and select it
+            # sanity check
+            assert(len(possible_individuals_novelties) > 0)
+
+            possible_individuals_novelties = np.array(possible_individuals_novelties)
+            if not use_quality:
+                # simply choose the individual maximizing the novelty
+                temp_idx = np.argmax(possible_individuals_novelties)
+            else:
+                # multi objective selection
+                possible_individuals_qualities = np.array(possible_individuals_qualities)
+                temp_idx = multi_objective_selection(possible_individuals_novelties,
+                                                     possible_individuals_qualities, minimization)
+
+            ind_idx = possible_individuals_idxs[temp_idx]
+            selected.append(pop[ind_idx])
+            if not putback:
+                unwanted_list.append(ind_idx)
             
     return selected
 
@@ -562,6 +599,9 @@ def choose_bd_strategy(inventory):
     Returns:
         int: index of the chosen bd
     """
+
+    if sum(inventory) == 0:
+        return 'empty_inventory'
 
     # most basic strategy: choose a random behavior descriptor, but make sure inventory(bd_index) > 0
     cond = False
@@ -659,6 +699,7 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
 
     # initialize population
     pop = toolbox.population()
+    nb_offsprings_to_generate = int(pop_size * OFFSPRING_NB_COEFF)
 
     # bootstrap if necessary
     if bootstrap_individuals is not None:
@@ -772,7 +813,8 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
         t_eval.update(n=len(pop))
         t_success.update(n=count_success)
 
-    novelties = assess_novelties(pop, archive, algo_type, bd_bounds, bd_indexes, bd_filters, novelty_metric,
+    novelties = assess_novelties(pop, archive, algo_type, bd_bounds, bd_indexes, bd_filters,
+                                 novelty_metric, multi_quality,
                                  altered=altered_novelty, degree=alteration_degree, info=details)
     for ind, nov in zip(pop, novelties):
         ind.novelty.values = nov
@@ -796,7 +838,8 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
     for gen in tqdm.tqdm(range(nb_gen)):
 
         # ###################################### SELECT ############################################
-        nb_offsprings_to_generate = int(pop_size * OFFSPRING_NB_COEFF)
+        if len(pop) < nb_offsprings_to_generate:
+            raise Exception('Population size is lower than number of offsprings to generate.')
         # references to selected individuals
         if RANDOM_SEL_1:
             offsprings = random.sample(pop, nb_offsprings_to_generate)
@@ -854,7 +897,7 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
 
         # compute novelty for all current individuals (novelty of population may have changed)
         novelties = assess_novelties(current_pool, archive, algo_type, bd_bounds, bd_indexes, bd_filters,
-                                     novelty_metric,
+                                     novelty_metric, multi_quality,
                                      altered=altered_novelty, degree=alteration_degree, info=details)
         if measures:
             novelty_distrib.append(novelties)
