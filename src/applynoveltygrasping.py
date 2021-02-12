@@ -13,7 +13,7 @@ import glob
 import random
 
 DISPLAY = False
-PARALLELIZE = False
+PARALLELIZE = True
 PLOT = True
 DISPLAY_HOF = False
 DISPLAY_RAND = False
@@ -33,7 +33,7 @@ ALGO = 'ns_rand_multi_bd'  # algorithm
 BD = 'multi_full_info'  # behavior descriptor type
 BOOTSTRAP_FOLDER = None
 QUALITY = True
-NB_CELLS = 100  # number of cells for measurement
+NB_CELLS = 1000  # number of cells for measurement
 
 
 # for keypoints controllers
