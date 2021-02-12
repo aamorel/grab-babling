@@ -22,7 +22,7 @@ def set_creator(cr):
     global creator
     creator = cr
 
-
+RANDOM_SEL_1 = True  # decide if selection is random or based on tournament
 HOF_SIZE = 10  # number of individuals in hall of fame
 K = 15  # number of nearest neighbours for novelty computation
 INF = 1000000000  # for security against infinite distances in KDtree queries
@@ -798,19 +798,22 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
         # ###################################### SELECT ############################################
         nb_offsprings_to_generate = int(pop_size * OFFSPRING_NB_COEFF)
         # references to selected individuals
-        if algo_type == 'classic_ea':
-            # classical EA: selection on fitness
-            offsprings = toolbox.select(pop, nb_offsprings_to_generate, fit_attr='fitness')
-        elif algo_type == 'ns_rand_multi_bd':
-            # use special selection for multi novelties
-            offsprings = select_n_multi_bd_tournsize(pop, nb_offsprings_to_generate, TOURNSIZE,
-                                                     bd_filters, multi_quality)
-        elif algo_type == 'random_search':
-            # for experimental baseline
+        if RANDOM_SEL_1:
             offsprings = random.sample(pop, nb_offsprings_to_generate)
         else:
-            # novelty search: selection on novelty
-            offsprings = toolbox.select(pop, nb_offsprings_to_generate, fit_attr='novelty')
+            if algo_type == 'classic_ea':
+                # classical EA: selection on fitness
+                offsprings = toolbox.select(pop, nb_offsprings_to_generate, fit_attr='fitness')
+            elif algo_type == 'ns_rand_multi_bd':
+                # use special selection for multi novelties
+                offsprings = select_n_multi_bd_tournsize(pop, nb_offsprings_to_generate, TOURNSIZE,
+                                                         bd_filters, multi_quality)
+            elif algo_type == 'random_search':
+                # for experimental baseline
+                offsprings = random.sample(pop, nb_offsprings_to_generate)
+            else:
+                # novelty search: selection on novelty
+                offsprings = toolbox.select(pop, nb_offsprings_to_generate, fit_attr='novelty')
         
         offsprings = list(map(toolbox.clone, offsprings))  # clone selected indivduals
 
