@@ -577,7 +577,7 @@ def multi_full_behavior_descriptor(individual):
     if not RESET_MODE:
         ENV.close()
 
-    if QUALITY:
+    if QUALITY and already_touched:
         info['mean positive slope'] = positive_dist_slope / count_touched_steps
 
     if QUALITY and binary_goal:
