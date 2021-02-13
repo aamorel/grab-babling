@@ -842,7 +842,20 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
 
         # ###################################### SELECT ############################################
         if len(pop) < nb_offsprings_to_generate:
-            raise Exception('Population size is lower than number of offsprings to generate.')
+            # generate new random individuals to fill up the need
+            new_pop = toolbox.population()
+            for ind in new_pop:
+                ind.gen_info.values = {}
+                # attribute id to all individuals
+                ind.gen_info.values['id'] = id_counter
+                id_counter += 1
+                # attribute -1 to parent id (convention for initial individuals)
+                ind.gen_info.values['parent id'] = -1
+                # attribute age of 0
+                ind.gen_info.values['age'] = 0
+            nb_to_fill = pop_size - len(pop)
+            pop = pop + new_pop[:nb_to_fill]
+
         # references to selected individuals
         if RANDOM_SEL_1:
             offsprings = random.sample(pop, nb_offsprings_to_generate)
@@ -878,7 +891,7 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
 
         # evaluate the individuals with an invalid fitness
         # done for the whole current pool and not just the offsprings in case the evaluation
-        # function has changed, but in the general case only done for the offsprings
+        # function has changed, or population was re-filled but in the general case only done for the offsprings
         invalid_ind = [ind for ind in current_pool if not ind.fitness.valid]
         evaluation_pop = list(toolbox.map(evaluate_individual, invalid_ind))
         inv_b_descriptors, inv_fitnesses, inv_infos = map(list, zip(*evaluation_pop))
