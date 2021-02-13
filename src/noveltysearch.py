@@ -199,11 +199,23 @@ def assess_novelties(pop, archive, algo_type, bd_bounds, bd_indexes, bd_filters,
     b_descriptors = [ind.behavior_descriptor.values for ind in reference_pop]
 
     if algo_type == 'ns_rand_multi_bd':
+        bd_indexes = np.array(bd_indexes)
+        nb_bd = len(np.unique(bd_indexes))
+
+        # deal with fully None population
+        return_cond = True
+        for bd in b_descriptors:
+            if not all(v is None for v in bd):
+                return_cond = False
+                break
+        if return_cond:
+            # population has all None bds
+            none_novel = tuple([None for _ in range(nb_bd)])
+            novelties = [none_novel for _ in range(len(pop))]
+            return novelties
 
         # create the different trees with the reference pop
         b_descriptors = np.array(b_descriptors)
-        bd_indexes = np.array(bd_indexes)
-        nb_bd = len(np.unique(bd_indexes))
         k_trees = []  # will contain the kd trees for the different bds
         bd_lists = [[] for _ in range(nb_bd)]  # will contain the lists of different bds values
         tree_ref_pop_indexes = [[] for _ in range(nb_bd)]  # will contain the list of ref_pop_idxs in each tree
@@ -1253,8 +1265,11 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
         hall_of_fame.update(pop)
 
         # compute genetic statistics of the population
-        genes_std = genetic_stats(pop)
-        gen_stat_hist.append(genes_std)
+        if len(pop) > 0:
+            genes_std = genetic_stats(pop)
+            gen_stat_hist.append(genes_std)
+        else:
+            gen_stat_hist.append(gen_stat_hist[-1])
 
         # compute genetic statistics of the offsprings
         genes_std = genetic_stats(offsprings)

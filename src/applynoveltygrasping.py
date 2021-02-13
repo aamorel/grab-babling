@@ -48,9 +48,9 @@ if ROBOT == 'baxter':
     NB_ITER = int(6000 / NB_STEPS_TO_ROLLOUT)
     # set height thresh parameter
     if OBJECT == 'cube':
-        HEIGHT_THRESH = -0.08
+        HEIGHT_THRESH = -0.11
     if OBJECT == 'cup':
-        HEIGHT_THRESH = 0.02
+        HEIGHT_THRESH = -0.07
 if ROBOT == 'pepper':
     ENV_NAME = 'gym_baxter_grabbing:pepper_grasping-v0'
     GENE_PER_KEYPOINTS = 7  # pepper is controlled in joints space: 7 joints
@@ -544,7 +544,7 @@ def multi_full_behavior_descriptor(individual):
     fitness = behavior[2]
 
     if not already_touched:
-        behavior = [None, None, None, None]
+        behavior = [None, None, None]
 
     # append 4 times None to behavior in case no grasping (modified later)
     for _ in range(4):
