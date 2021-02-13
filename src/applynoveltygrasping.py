@@ -33,6 +33,7 @@ ALGO = 'ns_rand_multi_bd'  # algorithm
 BD = 'multi_full_info'  # behavior descriptor type
 BOOTSTRAP_FOLDER = None
 QUALITY = True
+AUTO_COLLIDE = True
 NB_CELLS = 1000  # number of cells for measurement
 
 
@@ -515,7 +516,7 @@ def multi_full_behavior_descriptor(individual):
             prev_obj_grip_vec = [o[0][0] - o[2][0], o[0][1] - o[2][1], o[0][2] - o[2][2]]
 
         # if robot has a self-collision monitoring
-        if 'self contact_points' in inf:
+        if 'self contact_points' in inf and AUTO_COLLIDE:
             if len(inf['self contact_points']) != 0:
                 auto_collision = True
                 break
@@ -523,7 +524,7 @@ def multi_full_behavior_descriptor(individual):
     if auto_collision:
         behavior = [None, None, None, None, None, None, None, None, None, None, None]
         fitness = -float('inf')
-        info = {}
+        info = {'binary goal': False}
         return (behavior, (fitness,), info)
 
     # use last info to compute behavior and fitness
