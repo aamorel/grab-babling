@@ -120,7 +120,7 @@ if BD == 'multi_full_info':
     if ALGO == 'ns_rand_multi_bd':
         NOVELTY_METRIC = ['minkowski', 'minkowski', 'minkowski']
         if QUALITY:
-            MULTI_QUALITY_MEASURES = [['mean differential dist', 'std random pos', None], ['min', 'min', None]]
+            MULTI_QUALITY_MEASURES = [['mean positive slope', 'std random pos', None], ['min', 'min', None]]
 if ALGO == 'ns_rand_change_bd':
     BD = 'change_bd'
     # list of 3D bd and orientation bd
@@ -450,7 +450,8 @@ def multi_full_behavior_descriptor(individual):
     auto_collision = False
 
     # for precise measure when we have the gripper assumption
-    grabbed = False
+    already_touched = False
+    already_grasped = False
 
     # for measure at lag time
     lag_measured = False
@@ -460,8 +461,9 @@ def multi_full_behavior_descriptor(individual):
     touch_idx = []
 
     # to compute quality for B1
-    mean_dist_gripper_obj = 0
-    prev_obj_grip_vec = None
+    positive_dist_slope = 0
+    prev_dist = None
+    count_touched_steps = 0
 
     info = {}
 
@@ -483,10 +485,10 @@ def multi_full_behavior_descriptor(individual):
             break
         
         # version 1: measure is done at grip_time
-        # if i >= controller.grip_time and not grabbed:
-        #     # first action that orders the grabbing
-        #     measure_grip_time = diversity_measure(o)
-        #     grabbed = True
+        if i >= controller.grip_time and not already_grasped:
+            # first action that orders the grabbing
+            # measure_grip_time = diversity_measure(o)
+            already_grasped = True
 
         # version 2: measure is done at touch time
         touch = len(inf['contact_points']) > 0
@@ -495,25 +497,30 @@ def multi_full_behavior_descriptor(individual):
             touch_id = inf['contact_points'][0][3]
             touch_idx.append(touch_id)
         relevant_touch = touch and (touch_id in LINK_ID_CONTACT)
-        if relevant_touch and not grabbed:
+        if relevant_touch and not already_touched:
             # first touch of object
             measure_grip_time = diversity_measure(o)
-            grabbed = True
+            already_touched = True
         
         if i >= lag_time and not lag_measured:
             # gripper orientation
             grip_or_lag = o[3]
             lag_measured = True
 
-        if QUALITY and i >= controller.grip_time:
+        if QUALITY and already_touched:
             
             # only done one step after entering the if
-            if i >= controller.grip_time + 1:
-                new_obj_grip_vec = [o[0][0] - o[2][0], o[0][1] - o[2][1], o[0][2] - o[2][2]]
-                differential_dist = utils.list_l2_norm(new_obj_grip_vec, prev_obj_grip_vec)
-                mean_dist_gripper_obj += differential_dist
+            if prev_dist is None:
+                # distance between gripper and object
+                prev_dist = utils.list_l2_norm(o[0], o[2])
+            else:
+                count_touched_steps += 1
+                new_dist = utils.list_l2_norm(o[0], o[2])
+                differential_dist = new_dist - prev_dist
+                if differential_dist > 0:
+                    positive_dist_slope += differential_dist
             
-            prev_obj_grip_vec = [o[0][0] - o[2][0], o[0][1] - o[2][1], o[0][2] - o[2][2]]
+                prev_dist = new_dist
 
         # if robot has a self-collision monitoring
         if 'self contact_points' in inf and AUTO_COLLIDE:
@@ -533,7 +540,10 @@ def multi_full_behavior_descriptor(individual):
 
     utils.bound(behavior, BD_BOUNDS[0:3])
 
-    # append 4 times None to behavior in case no grabbing (modified later)
+    if not already_touched:
+        behavior = [None, None, None, None]
+
+    # append 4 times None to behavior in case no grasping (modified later)
     for _ in range(4):
         behavior.append(None)
 
@@ -568,7 +578,7 @@ def multi_full_behavior_descriptor(individual):
         ENV.close()
 
     if QUALITY:
-        info['mean differential dist'] = mean_dist_gripper_obj / (NB_ITER - controller.grip_time)
+        info['mean positive slope'] = positive_dist_slope / count_touched_steps
 
     if QUALITY and binary_goal:
         # re-evaluate with random initial positions to assess robustness as quality
