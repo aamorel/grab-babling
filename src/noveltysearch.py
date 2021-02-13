@@ -206,11 +206,13 @@ def assess_novelties(pop, archive, algo_type, bd_bounds, bd_indexes, bd_filters,
         nb_bd = len(np.unique(bd_indexes))
         k_trees = []  # will contain the kd trees for the different bds
         bd_lists = [[] for _ in range(nb_bd)]  # will contain the lists of different bds values
-        for bd in b_descriptors:
+        tree_ref_pop_indexes = [[] for _ in range(nb_bd)]  # will contain the list of ref_pop_idxs in each tree
+        for ref_pop_idx, bd in enumerate(b_descriptors):
             for idx, bd_filter in enumerate(bd_filters):
                 bd_value = bd[bd_filter]
                 if not(None in bd_value):  # if the bd has a value
                     bd_lists[idx].append(bd[bd_filter])
+                    tree_ref_pop_indexes[idx].append(ref_pop_idx)
         for idx in range(nb_bd):
             if len(bd_lists[idx]) > 0:
                 neigh = Nearest(n_neighbors=K + 1, metric=novelty_metric[idx])
@@ -233,7 +235,7 @@ def assess_novelties(pop, archive, algo_type, bd_bounds, bd_indexes, bd_filters,
                     nov_bd = search[0]  # float
                     novelty.append(nov_bd)
 
-                    neigh_indices = search[1]  # list of ref pop indices
+                    neigh_indices = search[1]  # list of relative tree indices
                     if multi_qual is not None and multi_qual[0][idx] is not None:
                         # attribute local quality to individual
                         if len(neigh_indices) == 0:
@@ -242,7 +244,8 @@ def assess_novelties(pop, archive, algo_type, bd_bounds, bd_indexes, bd_filters,
                             ind_qual = ind.info.values[multi_qual[0][idx]]
                             quals = []
                             for neigh_idx in neigh_indices:
-                                quals.append(reference_pop[neigh_idx].info.values[multi_qual[0][idx]])
+                                ref_pop_idx = tree_ref_pop_indexes[idx][neigh_idx]
+                                quals.append(reference_pop[ref_pop_idx].info.values[multi_qual[0][idx]])
                             if multi_qual[1][idx] == 'max':
                                 absolute_local_qual = sum(1 if ind_qual > val else 0 for val in quals)
                             else:
