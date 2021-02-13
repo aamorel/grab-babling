@@ -540,15 +540,15 @@ def multi_full_behavior_descriptor(individual):
 
     utils.bound(behavior, BD_BOUNDS[0:3])
 
+    # compute fitness
+    fitness = behavior[2]
+
     if not already_touched:
         behavior = [None, None, None, None]
 
     # append 4 times None to behavior in case no grasping (modified later)
     for _ in range(4):
         behavior.append(None)
-
-    # compute fitness
-    fitness = behavior[2]
 
     # choose if individual satisfied the binary goal
     dist = utils.list_l2_norm(o[0], o[2])
