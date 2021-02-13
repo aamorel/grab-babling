@@ -445,6 +445,9 @@ def multi_full_behavior_descriptor(individual):
     lag_time = controller.grip_time - N_LAG
     action = controller.initial_action
 
+    # monitor auto-collision
+    auto_collision = False
+
     # for precise measure when we have the gripper assumption
     grabbed = False
 
@@ -510,6 +513,18 @@ def multi_full_behavior_descriptor(individual):
                 mean_dist_gripper_obj += differential_dist
             
             prev_obj_grip_vec = [o[0][0] - o[2][0], o[0][1] - o[2][1], o[0][2] - o[2][2]]
+
+        # if robot has a self-collision monitoring
+        if 'self contact_points' in inf:
+            if len(inf['self contact_points']) != 0:
+                auto_collision = True
+                break
+    
+    if auto_collision:
+        behavior = [None, None, None, None, None, None, None, None, None, None, None]
+        fitness = -float('inf')
+        info = {}
+        return (behavior, (fitness,), info)
 
     # use last info to compute behavior and fitness
     behavior = [o[0][0] - initial_object_position[0], o[0][1] - initial_object_position[1],
