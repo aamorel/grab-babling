@@ -13,7 +13,7 @@ import glob
 import random
 
 DISPLAY = False
-PARALLELIZE = False
+PARALLELIZE = True
 PLOT = True
 DISPLAY_HOF = False
 DISPLAY_RAND = False
@@ -24,8 +24,8 @@ RESET_MODE = False
 
 
 # choose parameters
-POP_SIZE = 10
-NB_GEN = 2
+POP_SIZE = 100
+NB_GEN = 100
 OBJECT = 'cube'  # 'cube', 'cup'
 ROBOT = 'baxter'  # 'baxter', 'pepper', 'kuka'
 CONTROLLER = 'interpolate keypoints end pause grip'  # see controllers_dict for list
@@ -34,7 +34,7 @@ BD = 'multi_full_info'  # behavior descriptor type
 BOOTSTRAP_FOLDER = None
 QUALITY = True
 AUTO_COLLIDE = True
-NB_CELLS = 100  # number of cells for measurement
+NB_CELLS = 1000  # number of cells for measurement
 
 
 # for keypoints controllers
