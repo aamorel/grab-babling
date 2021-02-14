@@ -32,8 +32,8 @@ CONTROLLER = 'interpolate keypoints end pause grip'  # see controllers_dict for 
 ALGO = 'ns_rand_multi_bd'  # algorithm
 BD = 'multi_full_info'  # behavior descriptor type
 BOOTSTRAP_FOLDER = None
-QUALITY = True
-AUTO_COLLIDE = True
+QUALITY = False
+AUTO_COLLIDE = False
 NB_CELLS = 1000  # number of cells for measurement
 
 
@@ -532,6 +532,7 @@ def multi_full_behavior_descriptor(individual):
         behavior = [None, None, None, None, None, None, None, None, None, None, None]
         fitness = -float('inf')
         info = {'binary goal': False}
+        ENV.close()
         return (behavior, (fitness,), info)
 
     # use last info to compute behavior and fitness
