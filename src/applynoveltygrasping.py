@@ -531,7 +531,7 @@ def multi_full_behavior_descriptor(individual):
     if auto_collision:
         behavior = [None, None, None, None, None, None, None, None, None, None, None]
         fitness = -float('inf')
-        info = {'binary goal': False}
+        info = {'binary goal': False, 'auto_collided': True}
         ENV.close()
         return (behavior, (fitness,), info)
 
@@ -896,16 +896,17 @@ if __name__ == "__main__":
 
     if EVAL_SUCCESSFULL:
 
-        for j in range(4):
+        for j in range(2):
             for i in range(3):
-                path = os.path.join('../exp_results/106', 'run11', 'type' + str(j) + '_' + str(i) + '.npy')
+                path = os.path.join('runs', 'run59', 'type' + str(j) + '_' + str(i) + '.npy')
                 ind = np.load(path, allow_pickle=True)
                 res = evaluation_function(ind)
                 before = res[2]['binary goal']
                 print(before)
-                res_2 = evaluation_function(ind)
-                after = res_2[2]['binary goal']
-                assert(before == after)
+                if 'auto_collided' in res[2]:
+                    print('\n \n \n')
+                    print('Trajectory auto-collided')
+                    print('\n \n \n')
 
         exit()
     
