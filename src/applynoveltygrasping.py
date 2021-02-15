@@ -32,8 +32,8 @@ CONTROLLER = 'interpolate keypoints end pause grip'  # see controllers_dict for 
 ALGO = 'ns_rand_multi_bd'  # algorithm
 BD = 'multi_full_info'  # behavior descriptor type
 BOOTSTRAP_FOLDER = None
-QUALITY = False
-AUTO_COLLIDE = False
+QUALITY = True
+AUTO_COLLIDE = True
 NB_CELLS = 1000  # number of cells for measurement
 
 
