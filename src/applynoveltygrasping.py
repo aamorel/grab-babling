@@ -48,7 +48,7 @@ if ROBOT == 'baxter':
     NB_ITER = int(6000 / NB_STEPS_TO_ROLLOUT)
     # set height thresh parameter
     if OBJECT == 'cube':
-        HEIGHT_THRESH = -0.11
+        HEIGHT_THRESH = -0.125
     if OBJECT == 'cup':
         HEIGHT_THRESH = -0.07
 if ROBOT == 'pepper':
