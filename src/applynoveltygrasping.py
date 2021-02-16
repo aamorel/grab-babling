@@ -544,7 +544,7 @@ def multi_full_behavior_descriptor(individual):
     # compute fitness
     fitness = behavior[2]
 
-    if not already_touched:
+    if not (count_touched_steps > 0):
         behavior = [None, None, None]
 
     # append 4 times None to behavior in case no grasping (modified later)
