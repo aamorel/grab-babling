@@ -486,7 +486,7 @@ def multi_full_behavior_descriptor(individual):
         
         # version 1: measure is done at grip_time
         if i >= controller.grip_time and not already_grasped:
-            # first action that orders the grabbing
+            # first action that orders the gripper closure
             # measure_grip_time = diversity_measure(o)
             already_grasped = True
 

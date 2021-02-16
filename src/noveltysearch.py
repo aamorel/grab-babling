@@ -25,6 +25,7 @@ def set_creator(cr):
 
 RANDOM_SEL_1 = True  # decide if selection is random or based on tournament
 LOCAL_QUALITY = True  # decide if quality, when used, should be local or global
+REFILL_POP = 'copies'  # how to refil population if too small 'copies', 'new'
 HOF_SIZE = 10  # number of individuals in hall of fame
 K = 15  # number of nearest neighbours for novelty computation
 INF = 1000000000  # for security against infinite distances in KDtree queries
@@ -34,7 +35,7 @@ ARCHIVE_PB = 0.2  # if ARCHIVE is random, probability to add individual to archi
 ARCHIVE_DECREMENTAL_RATIO = 0.9  # if archive size is bigger than thresh, cut down archive by this ratio
 CXPB = 0.2  # probability with which two individuals are crossed
 MUTPB = 0.8  # probability for mutating an individual
-SIGMA = 0.1  # std of the mutation of one gene
+SIGMA = 0.02  # std of the mutation of one gene
 # CXPB and MUTPB should sum up to 1
 TOURNSIZE = 10  # drives towards selective pressure
 OFFSPRING_NB_COEFF = 0.5  # number of offsprings generated (coeff of pop length)
@@ -853,20 +854,36 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
     for gen in tqdm.tqdm(range(nb_gen)):
 
         # ###################################### SELECT ############################################
+        if len(pop) == 0:
+            raise Exception('Empty population.')
         if len(pop) < nb_offsprings_to_generate:
-            # generate new random individuals to fill up the need
-            new_pop = toolbox.population()
-            for ind in new_pop:
-                ind.gen_info.values = {}
-                # attribute id to all individuals
-                ind.gen_info.values['id'] = id_counter
-                id_counter += 1
-                # attribute -1 to parent id (convention for initial individuals)
-                ind.gen_info.values['parent id'] = -1
-                # attribute age of 0
-                ind.gen_info.values['age'] = 0
             nb_to_fill = pop_size - len(pop)
-            pop = pop + new_pop[:nb_to_fill]
+            if REFILL_POP == 'new':
+                # generate new random individuals to fill up the need
+                new_pop = toolbox.population()
+                for ind in new_pop:
+                    ind.gen_info.values = {}
+                    # attribute id to all individuals
+                    ind.gen_info.values['id'] = id_counter
+                    id_counter += 1
+                    # attribute -1 to parent id (convention for initial individuals)
+                    ind.gen_info.values['parent id'] = -1
+                    # attribute age of 0
+                    ind.gen_info.values['age'] = 0
+                pop = pop + new_pop[:nb_to_fill]
+            if REFILL_POP == 'copies':
+                for _ in range(nb_to_fill):
+                    ind_ref = random.choice(pop)
+                    new_ind = toolbox.clone(ind_ref)
+                    new_ind.gen_info.values = {}
+                    # attribute id to all individuals
+                    new_ind.gen_info.values['id'] = id_counter
+                    id_counter += 1
+                    # attribute -1 to parent id (convention for initial individuals)
+                    new_ind.gen_info.values['parent id'] = -1
+                    # attribute age of 0
+                    new_ind.gen_info.values['age'] = 0
+                    pop.append(new_ind)
 
         # references to selected individuals
         if RANDOM_SEL_1:
