@@ -25,7 +25,7 @@ RESET_MODE = False
 
 # choose parameters
 POP_SIZE = 100
-NB_GEN = 100
+NB_GEN = 50
 OBJECT = 'cube'  # 'cube', 'cup'
 ROBOT = 'baxter'  # 'baxter', 'pepper', 'kuka'
 CONTROLLER = 'interpolate keypoints end pause grip'  # see controllers_dict for list
@@ -35,6 +35,7 @@ BOOTSTRAP_FOLDER = None
 QUALITY = True
 AUTO_COLLIDE = True
 NB_CELLS = 1000  # number of cells for measurement
+VERSION = 0
 
 
 # for keypoints controllers
@@ -88,6 +89,7 @@ COV_LIMIT = 0.1  # threshold for changing behavior descriptor in change_bd ns
 N_LAG = int(200 / NB_STEPS_TO_ROLLOUT)  # number of steps before the grip time used in the multi_full_info BD
 ARCHIVE_LIMIT = 10000
 N_REP_RAND = 2
+COUNT_SUCCESS = 0
 
 
 # if reset, create global env
@@ -107,14 +109,9 @@ MULTI_QUALITY_MEASURES = None
 if BD == '2D':
     BD_BOUNDS = [[-0.35, 0.35], [-0.15, 0.2]]
 if BD == '3D':
-    BD_BOUNDS = [[-0.35, 0.35], [-0.15, 0.2], [-0.12, 0.5]]
-if BD == 'multi':
-    BD_BOUNDS = [[-0.35, 0.35], [-0.15, 0.2], [-0.12, 0.5], [-1, 1], [-1, 1], [-1, 1], [-1, 1]]
-    BD_INDEXES = [0, 0, 0, 1, 1, 1, 1]
-    if ALGO == 'ns_rand_multi_bd':
-        NOVELTY_METRIC = ['minkowski', 'minkowski']
+    BD_BOUNDS = [[-0.35, 0.35], [-0.15, 0.2], [-0.15, 0.5]]
 if BD == 'multi_full_info':
-    BD_BOUNDS = [[-0.35, 0.35], [-0.15, 0.2], [-0.12, 0.5], [-1, 1], [-1, 1], [-1, 1], [-1, 1],
+    BD_BOUNDS = [[-0.35, 0.35], [-0.15, 0.2], [-0.15, 0.5], [-1, 1], [-1, 1], [-1, 1], [-1, 1],
                  [-1, 1], [-1, 1], [-1, 1], [-1, 1]]
     BD_INDEXES = [0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2]
     if ALGO == 'ns_rand_multi_bd':
@@ -124,7 +121,7 @@ if BD == 'multi_full_info':
 if ALGO == 'ns_rand_change_bd':
     BD = 'change_bd'
     # list of 3D bd and orientation bd
-    BD_BOUNDS = [[[-0.35, 0.35], [-0.15, 0.2], [-0.12, 0.5]], [[-1, 1], [-1, 1], [-1, 1], [-1, 1]]]
+    BD_BOUNDS = [[[-0.35, 0.35], [-0.15, 0.2], [-0.15, 0.5]], [[-1, 1], [-1, 1], [-1, 1], [-1, 1]]]
 
 
 # deal with Scoop parallelization
@@ -437,6 +434,8 @@ def multi_full_behavior_descriptor(individual):
         ENV = gym.make(ENV_NAME, display=DISPLAY, obj=OBJECT)
         ENV.set_steps_to_roll(NB_STEPS_TO_ROLLOUT)
 
+    global COUNT_SUCCESS
+
     individual = np.around(np.array(individual), 3)
 
     # initialize controller
@@ -507,21 +506,35 @@ def multi_full_behavior_descriptor(individual):
             grip_or_lag = o[3]
             lag_measured = True
 
-        if QUALITY and already_touched:
-            
-            # only done one step after entering the if
-            if prev_dist is None:
-                # distance between gripper and object
-                prev_dist = utils.list_l2_norm(o[0], o[2])
-            else:
-                count_touched_steps += 1
-                new_dist = utils.list_l2_norm(o[0], o[2])
-                differential_dist = new_dist - prev_dist
-                if differential_dist > 0:
-                    positive_dist_slope += differential_dist
-            
-                prev_dist = new_dist
-
+        if VERSION == 0:
+            # quality 1 measured during the whole trajectory
+            if QUALITY:
+                # only done one step after entering the if
+                if prev_dist is None:
+                    # distance between gripper and object
+                    prev_dist = utils.list_l2_norm(o[0], o[2])
+                else:
+                    count_touched_steps += 1
+                    new_dist = utils.list_l2_norm(o[0], o[2])
+                    differential_dist = new_dist - prev_dist
+                    if differential_dist > 0:
+                        positive_dist_slope += differential_dist
+                
+                    prev_dist = new_dist
+        else:
+            if QUALITY and already_touched:
+                # only done one step after entering the if
+                if prev_dist is None:
+                    # distance between gripper and object
+                    prev_dist = utils.list_l2_norm(o[0], o[2])
+                else:
+                    count_touched_steps += 1
+                    new_dist = utils.list_l2_norm(o[0], o[2])
+                    differential_dist = new_dist - prev_dist
+                    if differential_dist > 0:
+                        positive_dist_slope += differential_dist
+                
+                    prev_dist = new_dist
         # if robot has a self-collision monitoring
         if 'self contact_points' in inf and AUTO_COLLIDE:
             if len(inf['self contact_points']) != 0:
@@ -559,7 +572,7 @@ def multi_full_behavior_descriptor(individual):
     info['binary goal'] = binary_goal
 
     if binary_goal:
-
+        COUNT_SUCCESS += 1
         if measure_grip_time is None:
             # print('Individual grasped without touching any contact links')
             info['binary goal'] = False
@@ -570,10 +583,21 @@ def multi_full_behavior_descriptor(individual):
             behavior[5] = measure_grip_time[2]
             behavior[6] = measure_grip_time[3]
     
-    behavior.append(grip_or_lag[3])
-    behavior.append(grip_or_lag[0])
-    behavior.append(grip_or_lag[1])
-    behavior.append(grip_or_lag[2])
+    if VERSION == 1:
+        # BD 3 only active after first successful individual
+        if COUNT_SUCCESS:
+            behavior.append(grip_or_lag[3])
+            behavior.append(grip_or_lag[0])
+            behavior.append(grip_or_lag[1])
+            behavior.append(grip_or_lag[2])
+        else:
+            for _ in range(4):
+                behavior.append(None)
+    else:
+        behavior.append(grip_or_lag[3])
+        behavior.append(grip_or_lag[0])
+        behavior.append(grip_or_lag[1])
+        behavior.append(grip_or_lag[2])
 
     if not RESET_MODE:
         ENV.close()
@@ -621,220 +645,6 @@ def multi_full_behavior_descriptor(individual):
     return (behavior, (fitness,), info)
 
 
-def multi_behavioral_descriptor(individual):
-    """Evaluates an individual: computes its value in the behavior descriptor space,
-    and its fitness value.
-    In this case, we consider two behavioral descriptors:
-    -the end position of the object in the 3D volume, always eligible
-    -the measure described by diversity_measure, eligible if the object is grabbed
-
-    Args:
-        individual (Individual): an individual
-
-    Returns:
-        tuple: tuple of behavior (list) and fitness(tuple)
-    """
-    if RESET_MODE:
-        global ENV
-        ENV.reset()
-    else:
-        ENV = gym.make(ENV_NAME, display=DISPLAY, obj=OBJECT)
-        ENV.set_steps_to_roll(NB_STEPS_TO_ROLLOUT)
-    individual = np.around(np.array(individual), 3)
-
-    # initialize controller
-    controller_info = controllers_info_dict[CONTROLLER]
-    controller = controllers_dict[CONTROLLER](individual, controller_info)
-    action = controller.initial_action
-
-    # for precise measure when we have the gripper assumption
-    grabbed = False
-
-    info = {}
-
-    for i in range(NB_ITER):
-        ENV.render()
-        # apply previously chosen action
-        o, r, eo, inf = ENV.step(action)
-
-        # choose action
-        if controller.open_loop:
-            action = controller.get_action(i)
-        else:
-            action = controller.get_action(i, o)
-
-        if i == 0:
-            initial_object_position = o[0]
-
-        if eo:
-            break
-        
-        if hasattr(controller, 'grip_time'):
-            # we are in the case where the gripping time is given
-            # in consequence, we can do the precise measure of the grabbing orientation
-            if action[-1] == -1 and not grabbed:
-                # first action that orders the grabbing
-
-                measure_grip_time = diversity_measure(o)
-                grabbed = True
-
-    # use last info to compute behavior and fitness
-    behavior = [o[0][0] - initial_object_position[0], o[0][1] - initial_object_position[1],
-                o[0][2]]  # last position of object
-
-    utils.bound(behavior, BD_BOUNDS[0:3])
-
-    # append 4 times None to behavior in case no grabbing (modified later)
-    for _ in range(4):
-        behavior.append(None)
-
-    # compute fitness
-    fitness = behavior[2]
-
-    # choose if individual satisfied the binary goal
-    dist = utils.list_l2_norm(o[0], o[2])
-    binary_goal = False
-    if o[0][2] > HEIGHT_THRESH and dist < DISTANCE_THRESH:
-        binary_goal = True
-    info['binary goal'] = binary_goal
-
-    if binary_goal:
-        if hasattr(controller, 'grip_time'):
-            info['diversity_descriptor'] = measure_grip_time
-            behavior[3] = measure_grip_time[0]  # Quat to array
-            behavior[4] = measure_grip_time[1]
-            behavior[5] = measure_grip_time[2]
-            behavior[6] = measure_grip_time[3]
-        else:
-            # last object orientation (quaternion)
-            obj_or = o[1]
-
-            # last gripper orientation (quaternion)
-            grip_or = o[3]
-
-            # pybullet is x, y, z, w whereas pyquaternion is w, x, y, z
-            obj_or = pyq.Quaternion(obj_or[3], obj_or[0], obj_or[1], obj_or[2])
-            grip_or = pyq.Quaternion(grip_or[3], grip_or[0], grip_or[1], grip_or[2])
-
-            # difference:
-            diff_or = obj_or.conjugate * grip_or
-            info['diversity_descriptor'] = diff_or
-            behavior[3] = diff_or[0]  # Quat to array
-            behavior[4] = diff_or[1]
-            behavior[5] = diff_or[2]
-            behavior[6] = diff_or[3]
-
-    if not RESET_MODE:
-        ENV.close()
-    return (behavior, (fitness,), info)
-
-
-def orientation_behavioral_descriptor(individual):
-    """Evaluates an individual: computes its value in the behavior descriptor space,
-    and its fitness value.
-    In this case, we consider the behavior space as the gripping orientation.
-
-    Args:
-        individual (Individual): an individual
-
-    Returns:
-        tuple: tuple of behavior (list) and fitness(tuple)
-    """
-    if RESET_MODE:
-        global ENV
-        ENV.reset()
-    else:
-        ENV = gym.make(ENV_NAME, display=DISPLAY, obj=OBJECT)
-        ENV.set_steps_to_roll(NB_STEPS_TO_ROLLOUT)
-    individual = np.around(np.array(individual), 3)
-
-    # initialize controller
-    controller_info = controllers_info_dict[CONTROLLER]
-    controller = controllers_dict[CONTROLLER](individual, controller_info)
-    action = controller.initial_action
-
-    # for precise measure when we have the gripper assumption
-    grabbed = False
-
-    info = {}
-
-    for i in range(NB_ITER):
-        ENV.render()
-        # apply previously chosen action
-        o, r, eo, inf = ENV.step(action)
-
-        # choose action
-        if controller.open_loop:
-            action = controller.get_action(i)
-        else:
-            action = controller.get_action(i, o)
-
-        if i == 0:
-            initial_object_position = o[0]
-
-        if eo:
-            break
-        
-        if hasattr(controller, 'grip_time'):
-            # we are in the case where the gripping time is given
-            # in consequence, we can do the precise measure of the grabbing orientation
-            if action[-1] == -1 and not grabbed:
-                # first action that orders the grabbing
-
-                measure_grip_time = diversity_measure(o)
-                grabbed = True
-
-    # use last info to compute behavior and fitness
-    behavior = [o[0][0] - initial_object_position[0], o[0][1] - initial_object_position[1],
-                o[0][2]]  # last position of object
-    
-    # bound behavior descriptor on table because we want to keep the same computation of fitness
-    if ALGO == 'ns_rand_change_bd':
-        utils.bound(behavior, BD_BOUNDS[0])
-    else:
-        utils.bound(behavior, BD_BOUNDS)
-
-    # compute fitness
-    fitness = behavior[2]
-
-    # choose if individual satisfied the binary goal
-    dist = utils.list_l2_norm(o[0], o[2])
-    binary_goal = False
-    if o[0][2] > HEIGHT_THRESH and dist < DISTANCE_THRESH:
-        binary_goal = True
-    info['binary goal'] = binary_goal
-
-    # re attribute the behavior
-    if binary_goal:
-        if hasattr(controller, 'grip_time'):
-            info['diversity_descriptor'] = measure_grip_time
-            # Quat to array
-            behavior = [measure_grip_time[0], measure_grip_time[1], measure_grip_time[2], measure_grip_time[3]]
-        else:
-            # last object orientation (quaternion)
-            obj_or = o[1]
-
-            # last gripper orientation (quaternion)
-            grip_or = o[3]
-
-            # pybullet is x, y, z, w whereas pyquaternion is w, x, y, z
-            obj_or = pyq.Quaternion(obj_or[3], obj_or[0], obj_or[1], obj_or[2])
-            grip_or = pyq.Quaternion(grip_or[3], grip_or[0], grip_or[1], grip_or[2])
-
-            # difference:
-            diff_or = obj_or.conjugate * grip_or
-            info['diversity_descriptor'] = diff_or
-            behavior = [diff_or[0], diff_or[1], diff_or[2], diff_or[3]]  # Quat to array
-
-    else:
-        # set behavior as None and deal with in novelty search
-        behavior = None
-
-    if not RESET_MODE:
-        ENV.close()
-    return (behavior, (fitness,), info)
-
-
 def choose_evaluation_function(info_change_bd):
     """In case of multi_ns bd, choose the evaluation function based on the dict sent by the ns algorithm.
 
@@ -876,8 +686,6 @@ controllers_info_dict = {'interpolate keypoints end pause grip': {'pause_frac': 
                          'closed loop end pause grip': {'n_iter': NB_ITER, 'pause_frac': PAUSE_FRAC}}
 bd_dict = {'2D': two_d_behavioral_descriptor,
            '3D': three_d_behavioral_descriptor,
-           'change_bd': [three_d_behavioral_descriptor, orientation_behavioral_descriptor],
-           'multi': multi_behavioral_descriptor,
            'multi_full_info': multi_full_behavior_descriptor}
 
 if __name__ == "__main__":
@@ -926,18 +734,23 @@ if __name__ == "__main__":
             boostrap_inds.append(ind)
         print('Novelty Search boostrapped with ', len(boostrap_inds), ' individuals.')
 
-    res = noveltysearch.novelty_algo(evaluation_function, initial_genotype_size, BD_BOUNDS,
-                                     mini=MINI, plot=PLOT, algo_type=ALGO,
-                                     nb_gen=NB_GEN, bound_genotype=1,
-                                     pop_size=POP_SIZE, parallelize=PARALLELIZE,
-                                     measures=True,
-                                     choose_evaluate=choose, bd_indexes=BD_INDEXES,
-                                     archive_limit_size=ARCHIVE_LIMIT, nb_cells=NB_CELLS,
-                                     novelty_metric=NOVELTY_METRIC, save_ind_cond='binary goal',
-                                     bootstrap_individuals=boostrap_inds, multi_quality=MULTI_QUALITY_MEASURES,
-                                     monitor_print=True)
-    
-    pop, archive, hof, details, figures, data, triumphant_archive = res
+    versions = [0, 1, 2]
+    for v in versions:
+        VERSION = v
+        for _ in range(10):
+            res = noveltysearch.novelty_algo(evaluation_function, initial_genotype_size, BD_BOUNDS,
+                                             mini=MINI, plot=PLOT, algo_type=ALGO,
+                                             nb_gen=NB_GEN, bound_genotype=1,
+                                             pop_size=POP_SIZE, parallelize=PARALLELIZE,
+                                             measures=True,
+                                             choose_evaluate=choose, bd_indexes=BD_INDEXES,
+                                             archive_limit_size=ARCHIVE_LIMIT, nb_cells=NB_CELLS,
+                                             novelty_metric=NOVELTY_METRIC, save_ind_cond='binary goal',
+                                             bootstrap_individuals=boostrap_inds, multi_quality=MULTI_QUALITY_MEASURES,
+                                             monitor_print=True)
+            
+            pop, archive, hof, details, figures, data, triumphant_archive = res
+            print('Number of triumphants: ', len(triumphant_archive))
     
     # analyze triumphant archive diversity
     coverage, uniformity, clustered_triumphants = analyze_triumphants(triumphant_archive, run_name)
@@ -948,6 +761,7 @@ if __name__ == "__main__":
     details['object'] = OBJECT
     details['robot'] = ROBOT
     details['bootstrap folder'] = BOOTSTRAP_FOLDER
+    details['bd version'] = VERSION
     if coverage is not None:
         details['successful'] = True
         details['diversity coverage'] = coverage
