@@ -25,8 +25,8 @@ RESET_MODE = False
 
 # choose parameters
 POP_SIZE = 100
-NB_GEN = 50
-OBJECT = 'cube'  # 'cube', 'cup'
+NB_GEN = 200
+OBJECT = 'cube'  # 'cube', 'cup', 'cylinder'
 ROBOT = 'baxter'  # 'baxter', 'pepper', 'kuka'
 CONTROLLER = 'interpolate keypoints end pause grip'  # see controllers_dict for list
 ALGO = 'ns_rand_multi_bd'  # algorithm
@@ -50,6 +50,8 @@ if ROBOT == 'baxter':
     # set height thresh parameter
     if OBJECT == 'cube':
         HEIGHT_THRESH = -0.125
+    if OBJECT == 'cylinder':
+        HEIGHT_THRESH = -0.16
     if OBJECT == 'cup':
         HEIGHT_THRESH = -0.07
 if ROBOT == 'pepper':
@@ -109,9 +111,9 @@ MULTI_QUALITY_MEASURES = None
 if BD == '2D':
     BD_BOUNDS = [[-0.35, 0.35], [-0.15, 0.2]]
 if BD == '3D':
-    BD_BOUNDS = [[-0.35, 0.35], [-0.15, 0.2], [-0.15, 0.5]]
+    BD_BOUNDS = [[-0.35, 0.35], [-0.15, 0.2], [-0.2, 0.5]]
 if BD == 'multi_full_info':
-    BD_BOUNDS = [[-0.35, 0.35], [-0.15, 0.2], [-0.15, 0.5], [-1, 1], [-1, 1], [-1, 1], [-1, 1],
+    BD_BOUNDS = [[-0.35, 0.35], [-0.15, 0.2], [-0.2, 0.5], [-1, 1], [-1, 1], [-1, 1], [-1, 1],
                  [-1, 1], [-1, 1], [-1, 1], [-1, 1]]
     BD_INDEXES = [0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2]
     if ALGO == 'ns_rand_multi_bd':
@@ -121,7 +123,7 @@ if BD == 'multi_full_info':
 if ALGO == 'ns_rand_change_bd':
     BD = 'change_bd'
     # list of 3D bd and orientation bd
-    BD_BOUNDS = [[[-0.35, 0.35], [-0.15, 0.2], [-0.15, 0.5]], [[-1, 1], [-1, 1], [-1, 1], [-1, 1]]]
+    BD_BOUNDS = [[[-0.35, 0.35], [-0.15, 0.2], [-0.2, 0.5]], [[-1, 1], [-1, 1], [-1, 1], [-1, 1]]]
 
 
 # deal with Scoop parallelization
@@ -734,23 +736,19 @@ if __name__ == "__main__":
             boostrap_inds.append(ind)
         print('Novelty Search boostrapped with ', len(boostrap_inds), ' individuals.')
 
-    versions = [0, 1, 2]
-    for v in versions:
-        VERSION = v
-        for _ in range(10):
-            res = noveltysearch.novelty_algo(evaluation_function, initial_genotype_size, BD_BOUNDS,
-                                             mini=MINI, plot=PLOT, algo_type=ALGO,
-                                             nb_gen=NB_GEN, bound_genotype=1,
-                                             pop_size=POP_SIZE, parallelize=PARALLELIZE,
-                                             measures=True,
-                                             choose_evaluate=choose, bd_indexes=BD_INDEXES,
-                                             archive_limit_size=ARCHIVE_LIMIT, nb_cells=NB_CELLS,
-                                             novelty_metric=NOVELTY_METRIC, save_ind_cond='binary goal',
-                                             bootstrap_individuals=boostrap_inds, multi_quality=MULTI_QUALITY_MEASURES,
-                                             monitor_print=True)
-            
-            pop, archive, hof, details, figures, data, triumphant_archive = res
-            print('Number of triumphants: ', len(triumphant_archive))
+    res = noveltysearch.novelty_algo(evaluation_function, initial_genotype_size, BD_BOUNDS,
+                                     mini=MINI, plot=PLOT, algo_type=ALGO,
+                                     nb_gen=NB_GEN, bound_genotype=1,
+                                     pop_size=POP_SIZE, parallelize=PARALLELIZE,
+                                     measures=True,
+                                     choose_evaluate=choose, bd_indexes=BD_INDEXES,
+                                     archive_limit_size=ARCHIVE_LIMIT, nb_cells=NB_CELLS,
+                                     novelty_metric=NOVELTY_METRIC, save_ind_cond='binary goal',
+                                     bootstrap_individuals=boostrap_inds, multi_quality=MULTI_QUALITY_MEASURES,
+                                     monitor_print=True)
+    
+    pop, archive, hof, details, figures, data, triumphant_archive = res
+    print('Number of triumphants: ', len(triumphant_archive))
     
     # analyze triumphant archive diversity
     coverage, uniformity, clustered_triumphants = analyze_triumphants(triumphant_archive, run_name)
