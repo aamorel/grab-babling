@@ -35,7 +35,7 @@ BOOTSTRAP_FOLDER = None
 QUALITY = True
 AUTO_COLLIDE = True
 NB_CELLS = 1000  # number of cells for measurement
-VERSION = 0
+VERSION = 1
 
 
 # for keypoints controllers
@@ -464,7 +464,6 @@ def multi_full_behavior_descriptor(individual):
     # to compute quality for B1
     positive_dist_slope = 0
     prev_dist = None
-    count_touched_steps = 0
 
     info = {}
 
@@ -508,35 +507,20 @@ def multi_full_behavior_descriptor(individual):
             grip_or_lag = o[3]
             lag_measured = True
 
-        if VERSION == 0:
-            # quality 1 measured during the whole trajectory
-            if QUALITY:
-                # only done one step after entering the if
-                if prev_dist is None:
-                    # distance between gripper and object
-                    prev_dist = utils.list_l2_norm(o[0], o[2])
-                else:
-                    count_touched_steps += 1
-                    new_dist = utils.list_l2_norm(o[0], o[2])
-                    differential_dist = new_dist - prev_dist
-                    if differential_dist > 0:
-                        positive_dist_slope += differential_dist
-                
-                    prev_dist = new_dist
-        else:
-            if QUALITY and already_touched:
-                # only done one step after entering the if
-                if prev_dist is None:
-                    # distance between gripper and object
-                    prev_dist = utils.list_l2_norm(o[0], o[2])
-                else:
-                    count_touched_steps += 1
-                    new_dist = utils.list_l2_norm(o[0], o[2])
-                    differential_dist = new_dist - prev_dist
-                    if differential_dist > 0:
-                        positive_dist_slope += differential_dist
-                
-                    prev_dist = new_dist
+        # quality 1 measured during the whole trajectory
+        if QUALITY:
+            # only done one step after the start
+            if prev_dist is None:
+                # distance between gripper and object
+                prev_dist = utils.list_l2_norm(o[0], o[2])
+            else:
+                new_dist = utils.list_l2_norm(o[0], o[2])
+                differential_dist = new_dist - prev_dist
+                if differential_dist > 0:
+                    positive_dist_slope += differential_dist
+            
+                prev_dist = new_dist
+
         # if robot has a self-collision monitoring
         if 'self contact_points' in inf and AUTO_COLLIDE:
             if len(inf['self contact_points']) != 0:
@@ -558,9 +542,6 @@ def multi_full_behavior_descriptor(individual):
 
     # compute fitness
     fitness = behavior[2]
-
-    if not (count_touched_steps > 0):
-        behavior = [None, None, None]
 
     # append 4 times None to behavior in case no grasping (modified later)
     for _ in range(4):
@@ -604,8 +585,8 @@ def multi_full_behavior_descriptor(individual):
     if not RESET_MODE:
         ENV.close()
 
-    if QUALITY and count_touched_steps > 0:
-        info['mean positive slope'] = positive_dist_slope / count_touched_steps
+    if QUALITY:
+        info['mean positive slope'] = positive_dist_slope / NB_ITER
 
     if QUALITY and binary_goal:
         # re-evaluate with random initial positions to assess robustness as quality
