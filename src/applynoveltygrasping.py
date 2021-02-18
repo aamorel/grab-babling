@@ -43,7 +43,7 @@ NB_KEYPOINTS = 3
 
 if ROBOT == 'baxter':
     ENV_NAME = 'gym_baxter_grabbing:baxter_grasping-v0'
-    GENE_PER_KEYPOINTS = 8  # baxter is controlled in the end-effector space: pos + orient + gripper openness
+    GENE_PER_KEYPOINTS = 8  # baxter is joints space: 8 joints
     LINK_ID_CONTACT = [47, 48, 49, 50, 51, 52]  # link ids that can have a grasping contact
     NB_STEPS_TO_ROLLOUT = 10
     NB_ITER = int(6000 / NB_STEPS_TO_ROLLOUT)
@@ -53,7 +53,7 @@ if ROBOT == 'baxter':
     if OBJECT == 'cylinder':
         HEIGHT_THRESH = -0.16
     if OBJECT == 'cup':
-        HEIGHT_THRESH = -0.07
+        HEIGHT_THRESH = -0.05
 if ROBOT == 'pepper':
     ENV_NAME = 'gym_baxter_grabbing:pepper_grasping-v0'
     GENE_PER_KEYPOINTS = 7  # pepper is controlled in joints space: 7 joints
@@ -75,7 +75,7 @@ if ROBOT == 'kuka':
     if OBJECT == 'cube':
         HEIGHT_THRESH = -0.08
     if OBJECT == 'cup':
-        HEIGHT_THRESH = -0.10
+        HEIGHT_THRESH = -0.08
 
 # for closed_loop control
 if ROBOT == 'baxter':
