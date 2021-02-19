@@ -62,9 +62,9 @@ if ROBOT == 'pepper':
     NB_ITER = int(1000 / NB_STEPS_TO_ROLLOUT)
     # set height thresh parameter
     if OBJECT == 'cube':
-        HEIGHT_THRESH = -0.10
+        HEIGHT_THRESH = -0.16
     if OBJECT == 'cup':
-        HEIGHT_THRESH = -0.10
+        HEIGHT_THRESH = -0.125
 if ROBOT == 'kuka':
     ENV_NAME = 'gym_baxter_grabbing:kuka_grasping-v0'
     GENE_PER_KEYPOINTS = 9  # kuka is controlled in joints space: 7 joints
