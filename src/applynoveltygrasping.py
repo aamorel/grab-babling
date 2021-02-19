@@ -591,9 +591,9 @@ def multi_full_behavior_descriptor(individual):
     if QUALITY:
         if grasped_before_touch:
             # penalize more
-            info['mean positive slope'] = 2 * positive_dist_slope / NB_ITER
+            info['mean positive slope'] = 4 * positive_dist_slope / NB_ITER
         else:
-            info['mean positive slope'] = 2 * positive_dist_slope / NB_ITER
+            info['mean positive slope'] = positive_dist_slope / NB_ITER
 
     if QUALITY and binary_goal:
         # re-evaluate with random initial positions to assess robustness as quality
