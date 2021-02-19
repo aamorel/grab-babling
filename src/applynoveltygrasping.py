@@ -453,6 +453,7 @@ def multi_full_behavior_descriptor(individual):
     # for precise measure when we have the gripper assumption
     already_touched = False
     already_grasped = False
+    grasped_before_touch = False
 
     # for measure at lag time
     lag_measured = False
@@ -501,6 +502,8 @@ def multi_full_behavior_descriptor(individual):
             # first touch of object
             measure_grip_time = diversity_measure(o)
             already_touched = True
+            if already_grasped:
+                grasped_before_touch = True
         
         if i >= lag_time and not lag_measured:
             # gripper orientation
@@ -586,7 +589,11 @@ def multi_full_behavior_descriptor(individual):
         ENV.close()
 
     if QUALITY:
-        info['mean positive slope'] = positive_dist_slope / NB_ITER
+        if grasped_before_touch:
+            # penalize more
+            info['mean positive slope'] = 2 * positive_dist_slope / NB_ITER
+        else:
+            info['mean positive slope'] = 2 * positive_dist_slope / NB_ITER
 
     if QUALITY and binary_goal:
         # re-evaluate with random initial positions to assess robustness as quality
