@@ -11,7 +11,7 @@ import os
 import json
 import glob
 import random
-from pynput.keyboard import Listener, Key
+# from pynput.keyboard import Listener, Key
 
 DISPLAY = False
 PARALLELIZE = True
@@ -659,15 +659,15 @@ def choose_evaluation_function(info_change_bd):
     return index
 
 
-def on_press(key):
-    global DISPLAY
-    if key == Key.enter:
-        DISPLAY = True
-        print('DISPLAY is on')
+# def on_press(key):
+#     global DISPLAY
+#     if key == Key.enter:
+#         DISPLAY = True
+#         print('DISPLAY is on')
 
-    if key == Key.esc:
-        DISPLAY = False
-        print('DISPLAY is off')
+#     if key == Key.esc:
+#         DISPLAY = False
+#         print('DISPLAY is off')
 
 
 controllers_dict = {'discrete keypoints': controllers.DiscreteKeyPoints,
@@ -694,8 +694,8 @@ bd_dict = {'2D': two_d_behavioral_descriptor,
 
 if __name__ == "__main__":
 
-    with Listener(on_press=on_press) as listener:  # Setup the listener
-        listener.join()  # Join the thread to the main thread
+    # with Listener(on_press=on_press) as listener:  # Setup the listener
+    #     listener.join()  # Join the thread to the main thread
 
     initial_genotype_size = NB_KEYPOINTS * GENE_PER_KEYPOINTS
     if CONTROLLER == 'interpolate keypoints end pause grip':
