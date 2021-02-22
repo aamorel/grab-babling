@@ -578,7 +578,6 @@ def multi_full_behavior_descriptor(individual):
         for i, b in enumerate(behavior):
             if b is None:
                 behavior[i] = 0
-        ENV.close()
         return (behavior, (fitness,), info)
 
     if QUALITY:
