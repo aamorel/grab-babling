@@ -587,7 +587,7 @@ def multi_full_behavior_descriptor(individual):
             info['mean positive slope'] = 4 * positive_dist_slope / NB_ITER
         elif already_touched:
             info['mean positive slope'] = positive_dist_slope / NB_ITER
-            if (not info['closed gripper']) and relevant_touch:
+            if (not inf['closed gripper']) and relevant_touch:
                 # gripper is not entirely closed at the end, and is touching the object
                 info['mean positive slope'] -= 1
         else:
