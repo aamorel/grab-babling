@@ -37,6 +37,7 @@ QUALITY = True
 AUTO_COLLIDE = True
 NB_CELLS = 1000  # number of cells for measurement
 VERSION = 1
+N_EXP = 10
 
 
 # for keypoints controllers
@@ -116,8 +117,8 @@ if BD == '3D':
 if BD == 'multi_full_info':
     BD_BOUNDS = [[-0.35, 0.35], [-0.15, 0.2], [-0.2, 0.5], [-1, 1], [-1, 1], [-1, 1], [-1, 1],
                  [-1, 1], [-1, 1], [-1, 1], [-1, 1]]
-    BD_INDEXES = [0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2]
     if ALGO == 'ns_rand_multi_bd':
+        BD_INDEXES = [0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2]
         NOVELTY_METRIC = ['minkowski', 'minkowski', 'minkowski']
         if QUALITY:
             MULTI_QUALITY_MEASURES = [['mean positive slope', 'std random pos', None], ['min', 'min', None]]
@@ -187,7 +188,7 @@ def analyze_triumphants(triumphant_archive, run_name):
     measure = 'diversity_descriptor'
 
     # sample the triumphant archive to reduce computational cost
-    while len(triumphant_archive) >= 3000:
+    while len(triumphant_archive) >= 10000:
         triumphant_archive.pop(random.randint(0, len(triumphant_archive) - 1))
     
     nb_of_triumphants = len(triumphant_archive)
@@ -242,18 +243,8 @@ def analyze_triumphants(triumphant_archive, run_name):
             if len(clustered_triumphants[i]) > j:
                 ind = np.around(np.array(clustered_triumphants[i][j]), 3)
 
-                # debug
-                evaluation_function = bd_dict[BD]
-                res = evaluation_function(ind)
-                assert(res[2]['binary goal'])
-
                 np.save(run_name + 'type' + str(i) + '_' + str(j), ind,
                         allow_pickle=True)
-
-                # debug
-                ind_2 = np.load(run_name + 'type' + str(i) + '_' + str(j) + '.npy', allow_pickle=True)
-                res_2 = evaluation_function(ind_2)
-                assert(res_2[2]['binary goal'])
 
     return coverage, uniformity, clustered_triumphants
     
@@ -531,6 +522,8 @@ def multi_full_behavior_descriptor(individual):
     
     if auto_collision:
         behavior = [None, None, None, None, None, None, None, None, None, None, None]
+        if ALGO == 'ns_rand':
+            behavior = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
         fitness = -float('inf')
         info = {'binary goal': False, 'auto_collided': True}
         ENV.close()
@@ -580,6 +573,13 @@ def multi_full_behavior_descriptor(individual):
 
     if not RESET_MODE:
         ENV.close()
+
+    if ALGO == 'ns_rand':
+        for i, b in enumerate(behavior):
+            if b is None:
+                behavior[i] = 0
+        ENV.close()
+        return (behavior, (fitness,), info)
 
     if QUALITY:
         if grasped_before_touch:
@@ -688,189 +688,191 @@ bd_dict = {'2D': two_d_behavioral_descriptor,
            'multi_full_info': multi_full_behavior_descriptor}
 
 if __name__ == "__main__":
+ 
+    for _ in range(N_EXP):
 
-    # listener = Listener(on_press=on_press)
-    # listener.start()
+        # listener = Listener(on_press=on_press)
+        # listener.start()
 
-    initial_genotype_size = NB_KEYPOINTS * GENE_PER_KEYPOINTS
-    if CONTROLLER == 'interpolate keypoints end pause grip':
-        initial_genotype_size = NB_KEYPOINTS * (GENE_PER_KEYPOINTS - 1) + 1
-    if CONTROLLER == 'closed loop end pause grip':
-        initial_genotype_size = GENES
+        initial_genotype_size = NB_KEYPOINTS * GENE_PER_KEYPOINTS
+        if CONTROLLER == 'interpolate keypoints end pause grip':
+            initial_genotype_size = NB_KEYPOINTS * (GENE_PER_KEYPOINTS - 1) + 1
+        if CONTROLLER == 'closed loop end pause grip':
+            initial_genotype_size = GENES
 
-    evaluation_function = bd_dict[BD]
+        evaluation_function = bd_dict[BD]
 
-    choose = None
-    if ALGO == 'ns_rand_change_bd':
-        choose = choose_evaluation_function
+        choose = None
+        if ALGO == 'ns_rand_change_bd':
+            choose = choose_evaluation_function
 
-    if EVAL_SUCCESSFULL:
+        if EVAL_SUCCESSFULL:
 
-        for j in range(2):
-            for i in range(3):
-                path = os.path.join('runs', 'run59', 'type' + str(j) + '_' + str(i) + '.npy')
-                ind = np.load(path, allow_pickle=True)
-                res = evaluation_function(ind)
-                before = res[2]['binary goal']
-                print(before)
-                if 'auto_collided' in res[2]:
-                    print('\n \n \n')
-                    print('Trajectory auto-collided')
-                    print('\n \n \n')
+            for j in range(2):
+                for i in range(3):
+                    path = os.path.join('runs', 'run59', 'type' + str(j) + '_' + str(i) + '.npy')
+                    ind = np.load(path, allow_pickle=True)
+                    res = evaluation_function(ind)
+                    before = res[2]['binary goal']
+                    print(before)
+                    if 'auto_collided' in res[2]:
+                        print('\n \n \n')
+                        print('Trajectory auto-collided')
+                        print('\n \n \n')
 
-        exit()
-    
-    i = 0
-    while os.path.exists('runs/run%i/' % i):
-        i += 1
-    run_name = 'runs/run%i/' % i
-    os.mkdir(run_name)
-
-    # deal with possible bootstrap
-    boostrap_inds = None
-    if BOOTSTRAP_FOLDER is not None:
-        bootstrap_files = glob.glob(BOOTSTRAP_FOLDER + '*.npy')
-        boostrap_inds = []
-        for ind_file in bootstrap_files:
-            ind = np.load(ind_file, allow_pickle=True)
-            boostrap_inds.append(ind)
-        print('Novelty Search boostrapped with ', len(boostrap_inds), ' individuals.')
-
-    res = noveltysearch.novelty_algo(evaluation_function, initial_genotype_size, BD_BOUNDS,
-                                     mini=MINI, plot=PLOT, algo_type=ALGO,
-                                     nb_gen=NB_GEN, bound_genotype=1,
-                                     pop_size=POP_SIZE, parallelize=PARALLELIZE,
-                                     measures=True,
-                                     choose_evaluate=choose, bd_indexes=BD_INDEXES,
-                                     archive_limit_size=ARCHIVE_LIMIT, nb_cells=NB_CELLS,
-                                     novelty_metric=NOVELTY_METRIC, save_ind_cond='binary goal',
-                                     bootstrap_individuals=boostrap_inds, multi_quality=MULTI_QUALITY_MEASURES,
-                                     monitor_print=True)
-    
-    pop, archive, hof, details, figures, data, triumphant_archive = res
-    print('Number of triumphants: ', len(triumphant_archive))
-    
-    # analyze triumphant archive diversity
-    coverage, uniformity, clustered_triumphants = analyze_triumphants(triumphant_archive, run_name)
-
-    # complete run dict
-    details['run id'] = i
-    details['controller'] = CONTROLLER
-    details['object'] = OBJECT
-    details['robot'] = ROBOT
-    details['bootstrap folder'] = BOOTSTRAP_FOLDER
-    details['bd version'] = VERSION
-    if coverage is not None:
-        details['successful'] = True
-        details['diversity coverage'] = coverage
-        details['diversity uniformity'] = uniformity
-    else:
-        details['successful'] = False
-    
-    # direct plotting and saving figures
-    if PLOT:
-        fig = figures['figure']
-        fig.savefig(run_name + 'novelty_search_plots.png')
-
-        if MULTI_QUALITY_MEASURES is not None:
-            fig_3 = figures['figure_3']
-            fig_3.savefig(run_name + 'qualities.png')
-            
-        if BD != 'change_bd':
-            # plot final states
-            archive_behavior = np.array([ind.behavior_descriptor.values for ind in archive])
-            pop_behavior = np.array([ind.behavior_descriptor.values for ind in pop])
-            hof_behavior = np.array([ind.behavior_descriptor.values for ind in hof])
-
-        if BD == '2D':
-            fig, ax = plt.subplots(figsize=(5, 5))
-            ax.set(title='Final position of object', xlabel='x', ylabel='y')
-            ax.scatter(archive_behavior[:, 0], archive_behavior[:, 1], color='red', label='Archive')
-            ax.scatter(pop_behavior[:, 0], pop_behavior[:, 1], color='blue', label='Population')
-            ax.scatter(hof_behavior[:, 0], hof_behavior[:, 1], color='green', label='Hall of Fame')
-            plt.legend()
-            plt.savefig(run_name + 'bd_plot.png')
-        if BD == '3D':
-            fig = plt.figure(figsize=(5, 5))
-            ax = fig.add_subplot(111, projection='3d')
-            ax.set(title='Final position of object', xlabel='x', ylabel='y', zlabel='z')
-            ax.scatter(archive_behavior[:, 0], archive_behavior[:, 1], archive_behavior[:, 2],
-                       color='red', label='Archive')
-            ax.scatter(pop_behavior[:, 0], pop_behavior[:, 1], pop_behavior[:, 2], color='blue', label='Population')
-            ax.scatter(hof_behavior[:, 0], hof_behavior[:, 1], hof_behavior[:, 2], color='green', label='Hall of Fame')
-            plt.legend()
-            plt.savefig(run_name + 'bd_plot.png')
-
-        # plot genetic diversity
-        gen_div_pop = np.array(data['population genetic statistics'])
-        gen_div_off = np.array(data['offsprings genetic statistics'])
-        if len(gen_div_pop[0]) <= 25:
-            fig, ax = plt.subplots(nrows=1, ncols=2, figsize=(15, 10))
-            ax[0].set(title='Evolution of population genetic diversity', xlabel='Generations', ylabel='Std of gene')
-            for i in range(len(gen_div_pop[0])):
-                if i < NB_KEYPOINTS * GENE_PER_KEYPOINTS:
-                    color_index = i // GENE_PER_KEYPOINTS
-                    rest = i % GENE_PER_KEYPOINTS
-                    if rest == 0:
-                        ax[0].plot(gen_div_pop[:, i], color=utils.color_list[color_index],
-                                   label='keypoint ' + str(color_index))
-                    else:
-                        ax[0].plot(gen_div_pop[:, i], color=utils.color_list[color_index])
-                else:
-                    color_index += 1
-                    ax[0].plot(gen_div_pop[:, i], color=utils.color_list[color_index])
-            ax[0].legend()
-            ax[1].set(title='Evolution of offsprings genetic diversity', xlabel='Generations', ylabel='Std of gene')
-            for i in range(len(gen_div_off[0])):
-                if i < NB_KEYPOINTS * GENE_PER_KEYPOINTS:
-                    color_index = i // GENE_PER_KEYPOINTS
-                    rest = i % GENE_PER_KEYPOINTS
-                    if rest == 0:
-                        ax[1].plot(gen_div_off[:, i], color=utils.color_list[color_index],
-                                   label='keypoint ' + str(color_index))
-                    else:
-                        ax[1].plot(gen_div_off[:, i], color=utils.color_list[color_index])
-                else:
-                    color_index += 1
-                    ax[1].plot(gen_div_off[:, i], color=utils.color_list[color_index])
-            ax[1].legend()
-            plt.savefig(run_name + 'genetic_diversity_plot.png')
-        plt.show()
-    # don't save some stuff
-    if not SAVE_ALL:
-        data['novelty distribution'] = None
-        data['population genetic statistics'] = None
-        data['offsprings genetic statistics'] = None
-
-    # saving the run
-    with open(run_name + 'run_details.json', 'w') as fp:
-        json.dump(details, fp)
-    with open(run_name + 'run_data.json', 'w') as fp:
-        json.dump(data, fp)
-
-    # display some individuals
-    if DISPLAY_HOF:
-        DISPLAY = True
-        for ind in hof:
-            evaluation_function(ind)
-    
-    if DISPLAY_RAND:
-        DISPLAY = True
-        nb_show = 10
+            exit()
+        
         i = 0
-        for ind in pop:
-            if i <= nb_show:
-                evaluation_function(ind)
-            else:
-                break
+        while os.path.exists('runs/run%i/' % i):
             i += 1
+        run_name = 'runs/run%i/' % i
+        os.mkdir(run_name)
 
-    if DISPLAY_TRIUMPHANTS:
-        DISPLAY = True
-        if clustered_triumphants is not None:
-            for i in range(len(clustered_triumphants)):
-                print('Grasping type', i)
-                # show first 3 grasping of each types
-                for j in range(3):
-                    if len(clustered_triumphants[i]) > j:
-                        evaluation_function(clustered_triumphants[i][j])
+        # deal with possible bootstrap
+        boostrap_inds = None
+        if BOOTSTRAP_FOLDER is not None:
+            bootstrap_files = glob.glob(BOOTSTRAP_FOLDER + '*.npy')
+            boostrap_inds = []
+            for ind_file in bootstrap_files:
+                ind = np.load(ind_file, allow_pickle=True)
+                boostrap_inds.append(ind)
+            print('Novelty Search boostrapped with ', len(boostrap_inds), ' individuals.')
+
+        res = noveltysearch.novelty_algo(evaluation_function, initial_genotype_size, BD_BOUNDS,
+                                         mini=MINI, plot=PLOT, algo_type=ALGO,
+                                         nb_gen=NB_GEN, bound_genotype=1,
+                                         pop_size=POP_SIZE, parallelize=PARALLELIZE,
+                                         measures=True,
+                                         choose_evaluate=choose, bd_indexes=BD_INDEXES,
+                                         archive_limit_size=ARCHIVE_LIMIT, nb_cells=NB_CELLS,
+                                         novelty_metric=NOVELTY_METRIC, save_ind_cond='binary goal',
+                                         bootstrap_individuals=boostrap_inds, multi_quality=MULTI_QUALITY_MEASURES,
+                                         monitor_print=True)
+        
+        pop, archive, hof, details, figures, data, triumphant_archive = res
+        print('Number of triumphants: ', len(triumphant_archive))
+        
+        # analyze triumphant archive diversity
+        coverage, uniformity, clustered_triumphants = analyze_triumphants(triumphant_archive, run_name)
+
+        # complete run dict
+        details['run id'] = i
+        details['controller'] = CONTROLLER
+        details['object'] = OBJECT
+        details['robot'] = ROBOT
+        details['bootstrap folder'] = BOOTSTRAP_FOLDER
+        details['bd version'] = VERSION
+        if coverage is not None:
+            details['successful'] = True
+            details['diversity coverage'] = coverage
+            details['diversity uniformity'] = uniformity
+        else:
+            details['successful'] = False
+        
+        # direct plotting and saving figures
+        if PLOT:
+            fig = figures['figure']
+            fig.savefig(run_name + 'novelty_search_plots.png')
+
+            if MULTI_QUALITY_MEASURES is not None:
+                fig_3 = figures['figure_3']
+                fig_3.savefig(run_name + 'qualities.png')
+                
+            if BD != 'change_bd':
+                # plot final states
+                archive_behavior = np.array([ind.behavior_descriptor.values for ind in archive])
+                pop_behavior = np.array([ind.behavior_descriptor.values for ind in pop])
+                hof_behavior = np.array([ind.behavior_descriptor.values for ind in hof])
+
+            if BD == '2D':
+                fig, ax = plt.subplots(figsize=(5, 5))
+                ax.set(title='Final position of object', xlabel='x', ylabel='y')
+                ax.scatter(archive_behavior[:, 0], archive_behavior[:, 1], color='red', label='Archive')
+                ax.scatter(pop_behavior[:, 0], pop_behavior[:, 1], color='blue', label='Population')
+                ax.scatter(hof_behavior[:, 0], hof_behavior[:, 1], color='green', label='Hall of Fame')
+                plt.legend()
+                plt.savefig(run_name + 'bd_plot.png')
+            if BD == '3D':
+                fig = plt.figure(figsize=(5, 5))
+                ax = fig.add_subplot(111, projection='3d')
+                ax.set(title='Final position of object', xlabel='x', ylabel='y', zlabel='z')
+                ax.scatter(archive_behavior[:, 0], archive_behavior[:, 1], archive_behavior[:, 2],
+                        color='red', label='Archive')
+                ax.scatter(pop_behavior[:, 0], pop_behavior[:, 1], pop_behavior[:, 2], color='blue', label='Population')
+                ax.scatter(hof_behavior[:, 0], hof_behavior[:, 1], hof_behavior[:, 2], color='green', label='Hall of Fame')
+                plt.legend()
+                plt.savefig(run_name + 'bd_plot.png')
+
+            # plot genetic diversity
+            gen_div_pop = np.array(data['population genetic statistics'])
+            gen_div_off = np.array(data['offsprings genetic statistics'])
+            if len(gen_div_pop[0]) <= 25:
+                fig, ax = plt.subplots(nrows=1, ncols=2, figsize=(15, 10))
+                ax[0].set(title='Evolution of population genetic diversity', xlabel='Generations', ylabel='Std of gene')
+                for i in range(len(gen_div_pop[0])):
+                    if i < NB_KEYPOINTS * GENE_PER_KEYPOINTS:
+                        color_index = i // GENE_PER_KEYPOINTS
+                        rest = i % GENE_PER_KEYPOINTS
+                        if rest == 0:
+                            ax[0].plot(gen_div_pop[:, i], color=utils.color_list[color_index],
+                                    label='keypoint ' + str(color_index))
+                        else:
+                            ax[0].plot(gen_div_pop[:, i], color=utils.color_list[color_index])
+                    else:
+                        color_index += 1
+                        ax[0].plot(gen_div_pop[:, i], color=utils.color_list[color_index])
+                ax[0].legend()
+                ax[1].set(title='Evolution of offsprings genetic diversity', xlabel='Generations', ylabel='Std of gene')
+                for i in range(len(gen_div_off[0])):
+                    if i < NB_KEYPOINTS * GENE_PER_KEYPOINTS:
+                        color_index = i // GENE_PER_KEYPOINTS
+                        rest = i % GENE_PER_KEYPOINTS
+                        if rest == 0:
+                            ax[1].plot(gen_div_off[:, i], color=utils.color_list[color_index],
+                                    label='keypoint ' + str(color_index))
+                        else:
+                            ax[1].plot(gen_div_off[:, i], color=utils.color_list[color_index])
+                    else:
+                        color_index += 1
+                        ax[1].plot(gen_div_off[:, i], color=utils.color_list[color_index])
+                ax[1].legend()
+                plt.savefig(run_name + 'genetic_diversity_plot.png')
+            plt.show()
+        # don't save some stuff
+        if not SAVE_ALL:
+            data['novelty distribution'] = None
+            data['population genetic statistics'] = None
+            data['offsprings genetic statistics'] = None
+
+        # saving the run
+        with open(run_name + 'run_details.json', 'w') as fp:
+            json.dump(details, fp)
+        with open(run_name + 'run_data.json', 'w') as fp:
+            json.dump(data, fp)
+
+        # display some individuals
+        if DISPLAY_HOF:
+            DISPLAY = True
+            for ind in hof:
+                evaluation_function(ind)
+        
+        if DISPLAY_RAND:
+            DISPLAY = True
+            nb_show = 10
+            i = 0
+            for ind in pop:
+                if i <= nb_show:
+                    evaluation_function(ind)
+                else:
+                    break
+                i += 1
+
+        if DISPLAY_TRIUMPHANTS:
+            DISPLAY = True
+            if clustered_triumphants is not None:
+                for i in range(len(clustered_triumphants)):
+                    print('Grasping type', i)
+                    # show first 3 grasping of each types
+                    for j in range(3):
+                        if len(clustered_triumphants[i]) > j:
+                            evaluation_function(clustered_triumphants[i][j])
