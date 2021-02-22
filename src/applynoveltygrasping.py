@@ -486,13 +486,11 @@ def multi_full_behavior_descriptor(individual):
         if eo:
             break
         
-        # version 1: measure is done at grip_time
         if i >= controller.grip_time and not already_grasped:
             # first action that orders the gripper closure
             # measure_grip_time = diversity_measure(o)
             already_grasped = True
 
-        # version 2: measure is done at touch time
         touch = len(inf['contact_points']) > 0
         touch_id = 0
         if touch:
@@ -570,21 +568,15 @@ def multi_full_behavior_descriptor(individual):
             behavior[5] = measure_grip_time[2]
             behavior[6] = measure_grip_time[3]
     
-    if VERSION == 1:
-        # BD 3 only active after first successful individual
-        if COUNT_SUCCESS:
-            behavior.append(grip_or_lag[3])
-            behavior.append(grip_or_lag[0])
-            behavior.append(grip_or_lag[1])
-            behavior.append(grip_or_lag[2])
-        else:
-            for _ in range(4):
-                behavior.append(None)
-    else:
+    # BD 3 only active after first successful individual
+    if COUNT_SUCCESS:
         behavior.append(grip_or_lag[3])
         behavior.append(grip_or_lag[0])
         behavior.append(grip_or_lag[1])
         behavior.append(grip_or_lag[2])
+    else:
+        for _ in range(4):
+            behavior.append(None)
 
     if not RESET_MODE:
         ENV.close()
@@ -595,6 +587,9 @@ def multi_full_behavior_descriptor(individual):
             info['mean positive slope'] = 4 * positive_dist_slope / NB_ITER
         elif already_touched:
             info['mean positive slope'] = positive_dist_slope / NB_ITER
+            if (not info['closed gripper']) and relevant_touch:
+                # gripper is not entirely closed at the end, and is touching the object
+                info['mean positive slope'] -= 1
         else:
             info['mean positive slope'] = positive_dist_slope / NB_ITER + 1
 
