@@ -694,8 +694,8 @@ bd_dict = {'2D': two_d_behavioral_descriptor,
 
 if __name__ == "__main__":
 
-    # with Listener(on_press=on_press) as listener:  # Setup the listener
-    #     listener.join()  # Join the thread to the main thread
+    # listener = Listener(on_press=on_press)
+    # listener.start()
 
     initial_genotype_size = NB_KEYPOINTS * GENE_PER_KEYPOINTS
     if CONTROLLER == 'interpolate keypoints end pause grip':
