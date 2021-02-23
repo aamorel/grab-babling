@@ -11,6 +11,50 @@ import re
 DEBUG = False
 
 
+def plot_analysis():
+    ns_rand = '../exp_results/109/'
+    ns_multi_no_qual = '../exp_results/106/'
+    ns_tot = '../exp_results/110/'
+
+    # folders = [ns_rand, ns_multi_no_qual, ns_tot]
+    # labels = ['1 concatenated BD without qualities',
+    #           '3 BD without qualities'
+    #           '3 BD with qualities']
+
+    folders = [ns_multi_no_qual, ns_rand]
+    labels = ['3 BD', '1 BD no qual']
+    
+    fig, ax = plt.subplots(nrows=1, ncols=3, figsize=(15, 15))
+    data_cov = []
+    data_uni = []
+    data_count = []
+    for f in folders:
+        runs = [f + 'run' + str(i) + '/run_details.json' for i in range(10)]
+        list_cov = []
+        list_uni = []
+        count = 0
+        for run in runs:
+            with open(run) as json_file:
+                details = json.load(json_file)
+            if 'diversity coverage' in details:
+                count += 1
+                list_cov.append(details['diversity coverage'])
+                list_uni.append(details['diversity uniformity'])
+        data_cov.append(np.array(list_cov))
+        data_uni.append(np.array(list_uni))
+        data_count.append(count / len(runs))
+    data_cov = np.transpose(np.array(data_cov))
+    data_uni = np.transpose(np.array(data_uni))
+    ax[0].boxplot(data_cov, labels=labels)
+    ax[0].set_title('Coverage')
+    ax[1].boxplot(data_uni, labels=labels)
+    ax[1].set_title('Uniformity')
+    ax[2].bar(list(range(len(data_count))), data_count, tick_label=labels)
+    ax[2].set_title('Successful run frequency')
+
+    plt.show()
+
+
 def plot_launch(details, data):
     """Plotting
 
@@ -422,6 +466,8 @@ def print_details(folder):
 
 
 if __name__ == "__main__":
-    folder = 'results'
-    print_details(folder)
-    plot_archive_importance('evaluate_maze', 10, 200, 100, 5, folder)
+    # folder = 'results'
+    # print_details(folder)
+    # plot_archive_importance('evaluate_maze', 10, 200, 100, 5, folder)
+
+    plot_analysis()

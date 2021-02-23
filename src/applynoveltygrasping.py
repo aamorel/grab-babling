@@ -765,6 +765,7 @@ if __name__ == "__main__":
             details['successful'] = True
             details['diversity coverage'] = coverage
             details['diversity uniformity'] = uniformity
+            details['number of successful'] = len(triumphant_archive)
         else:
             details['successful'] = False
         
@@ -796,9 +797,10 @@ if __name__ == "__main__":
                 ax = fig.add_subplot(111, projection='3d')
                 ax.set(title='Final position of object', xlabel='x', ylabel='y', zlabel='z')
                 ax.scatter(archive_behavior[:, 0], archive_behavior[:, 1], archive_behavior[:, 2],
-                        color='red', label='Archive')
+                           color='red', label='Archive')
                 ax.scatter(pop_behavior[:, 0], pop_behavior[:, 1], pop_behavior[:, 2], color='blue', label='Population')
-                ax.scatter(hof_behavior[:, 0], hof_behavior[:, 1], hof_behavior[:, 2], color='green', label='Hall of Fame')
+                ax.scatter(hof_behavior[:, 0], hof_behavior[:, 1], hof_behavior[:, 2],
+                           color='green', label='Hall of Fame')
                 plt.legend()
                 plt.savefig(run_name + 'bd_plot.png')
 
@@ -814,7 +816,7 @@ if __name__ == "__main__":
                         rest = i % GENE_PER_KEYPOINTS
                         if rest == 0:
                             ax[0].plot(gen_div_pop[:, i], color=utils.color_list[color_index],
-                                    label='keypoint ' + str(color_index))
+                                       label='keypoint ' + str(color_index))
                         else:
                             ax[0].plot(gen_div_pop[:, i], color=utils.color_list[color_index])
                     else:
@@ -828,7 +830,7 @@ if __name__ == "__main__":
                         rest = i % GENE_PER_KEYPOINTS
                         if rest == 0:
                             ax[1].plot(gen_div_off[:, i], color=utils.color_list[color_index],
-                                    label='keypoint ' + str(color_index))
+                                       label='keypoint ' + str(color_index))
                         else:
                             ax[1].plot(gen_div_off[:, i], color=utils.color_list[color_index])
                     else:
