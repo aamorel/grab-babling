@@ -16,14 +16,11 @@ def plot_analysis():
     ns_multi_no_qual = '../exp_results/106/'
     ns_tot = '../exp_results/110/'
 
-    # folders = [ns_rand, ns_multi_no_qual, ns_tot]
-    # labels = ['1 concatenated BD without qualities',
-    #           '3 BD without qualities'
-    #           '3 BD with qualities']
+    folders = [ns_rand, ns_multi_no_qual, ns_tot]
+    labels = ['1 BD',
+              '3 BD no qual',
+              '3 BD qual']
 
-    folders = [ns_multi_no_qual, ns_rand]
-    labels = ['3 BD', '1 BD no qual']
-    
     fig, ax = plt.subplots(nrows=1, ncols=3, figsize=(15, 15))
     data_cov = []
     data_uni = []
@@ -47,10 +44,15 @@ def plot_analysis():
     data_uni = np.transpose(np.array(data_uni))
     ax[0].boxplot(data_cov, labels=labels)
     ax[0].set_title('Coverage')
+    ax[0].tick_params(labelrotation=45)
+
     ax[1].boxplot(data_uni, labels=labels)
     ax[1].set_title('Uniformity')
+    ax[1].tick_params(labelrotation=45)
+
     ax[2].bar(list(range(len(data_count))), data_count, tick_label=labels)
     ax[2].set_title('Successful run frequency')
+    ax[2].tick_params(labelrotation=45)
 
     plt.show()
 

@@ -26,9 +26,9 @@ RESET_MODE = False
 
 # choose parameters
 POP_SIZE = 100
-NB_GEN = 200
+NB_GEN = 500
 OBJECT = 'cube'  # 'cube', 'cup', 'cylinder'
-ROBOT = 'baxter'  # 'baxter', 'pepper', 'kuka'
+ROBOT = 'kuka'  # 'baxter', 'pepper', 'kuka'
 CONTROLLER = 'interpolate keypoints end pause grip'  # see controllers_dict for list
 ALGO = 'ns_rand_multi_bd'  # algorithm
 BD = 'multi_full_info'  # behavior descriptor type
