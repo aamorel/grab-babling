@@ -72,7 +72,7 @@ if ROBOT == 'kuka':
     GENE_PER_KEYPOINTS = 9  # kuka is controlled in joints space: 7 joints
     LINK_ID_CONTACT = [8, 10, 11, 13]  # link ids that can have a grasping contact
     NB_STEPS_TO_ROLLOUT = 1
-    NB_ITER = int(3000 / NB_STEPS_TO_ROLLOUT)
+    NB_ITER = int(2500 / NB_STEPS_TO_ROLLOUT)
     # set height thresh parameter
     if OBJECT == 'cube':
         HEIGHT_THRESH = -0.08
