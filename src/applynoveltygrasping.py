@@ -436,7 +436,8 @@ def multi_full_behavior_descriptor(individual):
     controller_info = controllers_info_dict[CONTROLLER]
     controller = controllers_dict[CONTROLLER](individual, controller_info)
     assert(hasattr(controller, 'grip_time'))
-    lag_time = controller.grip_time - N_LAG
+    # lag_time = controller.grip_time - N_LAG
+    lag_time = NB_ITER / 2
     action = controller.initial_action
 
     # monitor auto-collision

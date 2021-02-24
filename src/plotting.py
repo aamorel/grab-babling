@@ -12,21 +12,24 @@ DEBUG = False
 
 
 def plot_analysis():
-    ns_rand = '../exp_results/109/'
-    ns_multi_no_qual = '../exp_results/106/'
-    ns_tot = '../exp_results/110/'
-
-    folders = [ns_rand, ns_multi_no_qual, ns_tot]
+    ns_rand = '../kuka_grasps/1BD/'
+    ns_multi_no_qual = '../kuka_grasps/3BD/'
+    # rand = '../kuka_graps/random/'
+    folders = [ns_rand, ns_multi_no_qual]
     labels = ['1 BD',
-              '3 BD no qual',
-              '3 BD qual']
+              '3 BD']
+
+    # folders = [ns_rand, ns_multi_no_qual, rand]
+    # labels = ['1 BD',
+    #           '3 BD',
+    #           'random']
 
     fig, ax = plt.subplots(nrows=1, ncols=3, figsize=(15, 15))
     data_cov = []
     data_uni = []
     data_count = []
     for f in folders:
-        runs = [f + 'run' + str(i) + '/run_details.json' for i in range(10)]
+        runs = glob.glob(f + '*/run_details.json')
         list_cov = []
         list_uni = []
         count = 0
@@ -42,11 +45,11 @@ def plot_analysis():
         data_count.append(count / len(runs))
     data_cov = np.transpose(np.array(data_cov))
     data_uni = np.transpose(np.array(data_uni))
-    ax[0].boxplot(data_cov, labels=labels)
+    ax[0].boxplot(data_cov, labels=labels, showmeans=True, meanline=True)
     ax[0].set_title('Coverage')
     ax[0].tick_params(labelrotation=45)
 
-    ax[1].boxplot(data_uni, labels=labels)
+    ax[1].boxplot(data_uni, labels=labels, showmeans=True, meanline=True)
     ax[1].set_title('Uniformity')
     ax[1].tick_params(labelrotation=45)
 
