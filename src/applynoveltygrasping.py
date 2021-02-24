@@ -33,7 +33,7 @@ CONTROLLER = 'interpolate keypoints end pause grip'  # see controllers_dict for 
 ALGO = 'ns_rand_multi_bd'  # algorithm
 BD = 'multi_full_info'  # behavior descriptor type
 BOOTSTRAP_FOLDER = None
-QUALITY = True
+QUALITY = False
 AUTO_COLLIDE = True
 NB_CELLS = 1000  # number of cells for measurement
 VERSION = 1
@@ -522,7 +522,7 @@ def multi_full_behavior_descriptor(individual):
     
     if auto_collision:
         behavior = [None, None, None, None, None, None, None, None, None, None, None]
-        if ALGO == 'ns_rand':
+        if ALGO != 'ns_rand_multi_bd':
             behavior = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
         fitness = -float('inf')
         info = {'binary goal': False, 'auto_collided': True}
@@ -574,7 +574,7 @@ def multi_full_behavior_descriptor(individual):
     if not RESET_MODE:
         ENV.close()
 
-    if ALGO == 'ns_rand':
+    if ALGO != 'ns_rand_multi_bd':
         for i, b in enumerate(behavior):
             if b is None:
                 behavior[i] = 0
