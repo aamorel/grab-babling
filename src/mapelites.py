@@ -110,34 +110,6 @@ def bound(offsprings, bound_genotype):
                 ind[i] = bound_genotype
 
 
-def operate_offsprings(offsprings, toolbox, bound_genotype):
-    """Applies crossover and mutation to the offsprings
-
-    Args:
-        offsprings (list): list of offsprings
-        toolbox (Toolbox): DEAP's toolbox
-        bound_genotype (float): absolute value bound of genotype values
-    """
-    # crossover
-    for child1, child2 in zip(offsprings[::2], offsprings[1::2]):
-        # child 1 has even index, child 2 has odd index
-        if random.random() < CXPB:
-            toolbox.mate(child1, child2)
-            # both child1 and child2 are modified in place
-            # del invalidates their fitness (new indivduals so unknown fitness)
-            del child1.fitness.values
-            del child2.fitness.values
-    # mutation
-    for mutant in offsprings:
-        if random.random() < MUTPB:
-            toolbox.mutate(mutant)
-            del mutant.fitness.values
-
-    # bound genotype to given constraints
-    if bound_genotype is not None:
-        bound(offsprings, bound_genotype)
-
-
 def gen_plot(mean_hist, min_hist, max_hist, coverage_hist):
     """Plotting
 

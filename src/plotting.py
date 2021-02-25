@@ -164,7 +164,7 @@ def plot_launch(details, data):
     ax[2][0].legend()
 
     fig_2 = 0
-    if algo_type == 'ns_rand_multi_bd':
+    if algo_type == 'ns_rand_multi_bd' or algo_type == 'map_elites':
         pass  # TODO: deal with multi_bd for novelty distrib plot
     else:
         if len(novelty_distrib) < 100:

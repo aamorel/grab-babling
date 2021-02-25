@@ -113,6 +113,7 @@ def initialize_tool(initial_gen_size, mini, pop_size, parallelize, algo_type):
     toolbox.register('mate', tools.cxTwoPoint)
     toolbox.register('mutate', tools.mutGaussian, mu=0, sigma=SIGMA, indpb=0.3)
     toolbox.register('select', tools.selTournament, tournsize=TOURNSIZE)
+    toolbox.register('select_map', tools.selBest)
     toolbox.register('replace', tools.selBest)
     return creator, toolbox
 
@@ -327,7 +328,7 @@ def bound(offsprings, bound_genotype):
                 ind[i] = bound_genotype
 
 
-def operate_offsprings(offsprings, toolbox, bound_genotype):
+def operate_offsprings(offsprings, toolbox, bound_genotype, algo_type):
     """Applies crossover and mutation to the offsprings
 
     Args:
@@ -338,7 +339,7 @@ def operate_offsprings(offsprings, toolbox, bound_genotype):
     global id_counter
     for i, ind in enumerate(offsprings):
 
-        if random.random() < CXPB and i < (len(offsprings) - 1):
+        if (random.random() < CXPB and i < (len(offsprings) - 1)) and algo_type != 'map_elites':
             # crossover
             other_parent = toolbox.clone(offsprings[i + 1])  # in order to not modify the other parent
             parents_id = [ind.gen_info.values['id'], other_parent.gen_info.values['id']]
@@ -629,6 +630,25 @@ def choose_bd_strategy(inventory):
     return bd_idx
 
 
+def add_to_grid_map(member, grid, cvt, toolbox):
+
+    # find the corresponding cell
+    member_bd = member.behavior_descriptor.values
+    grid_index = cvt.get_grid_index(member_bd)
+    
+    # get the competitor
+    competitor = grid[grid_index]
+
+    if competitor is None:
+        # no competitor --> add to cell
+        grid[grid_index] = member
+    else:
+        # select best of the two and place in the cell
+        competition = [member, competitor]
+        winner = toolbox.select_map(competition, 1, fit_attr='fitness')[0]
+        grid[grid_index] = winner
+
+
 def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, mini=True, plot=False, nb_gen=100,
                  algo_type='ns_nov', bound_genotype=1, pop_size=30, parallelize=False,
                  measures=False, choose_evaluate=None, bd_indexes=None, archive_limit_size=None,
@@ -807,6 +827,10 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
             grid_hist = np.zeros(nb_cells)
             cvt = utils.CVT(num_centroids=nb_cells, bounds=bd_bounds)
     
+    # initialize map_elites grid
+    if algo_type == 'map_elites':
+        grid_map = [None] * nb_cells
+     
     # initialize ranking similarities and novelty differences lists if analyzing the archive
     ranking_similarities = []
     novelty_differences = []
@@ -829,11 +853,12 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
         t_eval.update(n=len(pop))
         t_success.update(n=count_success)
 
-    novelties = assess_novelties(pop, archive, algo_type, bd_bounds, bd_indexes, bd_filters,
-                                 novelty_metric, multi_quality,
-                                 altered=altered_novelty, degree=alteration_degree, info=details)
-    for ind, nov in zip(pop, novelties):
-        ind.novelty.values = nov
+    if algo_type != 'random_search' and algo_type != 'map_elites':
+        novelties = assess_novelties(pop, archive, algo_type, bd_bounds, bd_indexes, bd_filters,
+                                     novelty_metric, multi_quality,
+                                     altered=altered_novelty, degree=alteration_degree, info=details)
+        for ind, nov in zip(pop, novelties):
+            ind.novelty.values = nov
 
     # add initial individuals to historic and potentially to saved individuals
     if save_ind_cond == 1:
@@ -845,6 +870,10 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
         if isinstance(save_ind_cond, str):
             if member.info.values[save_ind_cond]:
                 save_ind.append(member)
+    
+    if algo_type == 'map_elites':
+        for ind in pop:
+            add_to_grid_map(ind, grid_map, cvt, toolbox)
 
     if plot_gif:
         fig_gif = plt.figure(figsize=(10, 10))
@@ -854,54 +883,62 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
     for gen in tqdm.tqdm(range(nb_gen)):
 
         # ###################################### SELECT ############################################
-        if len(pop) == 0:
-            raise Exception('Empty population.')
-        if len(pop) < nb_offsprings_to_generate:
-            nb_to_fill = pop_size - len(pop)
-            if REFILL_POP == 'new':
-                # generate new random individuals to fill up the need
-                new_pop = toolbox.population()
-                for ind in new_pop:
-                    ind.gen_info.values = {}
-                    # attribute id to all individuals
-                    ind.gen_info.values['id'] = id_counter
-                    id_counter += 1
-                    # attribute -1 to parent id (convention for initial individuals)
-                    ind.gen_info.values['parent id'] = -1
-                    # attribute age of 0
-                    ind.gen_info.values['age'] = 0
-                pop = pop + new_pop[:nb_to_fill]
-            if REFILL_POP == 'copies':
-                for _ in range(nb_to_fill):
-                    ind_ref = random.choice(pop)
-                    new_ind = toolbox.clone(ind_ref)
-                    new_ind.gen_info.values = {}
-                    # attribute id to all individuals
-                    new_ind.gen_info.values['id'] = id_counter
-                    id_counter += 1
-                    # attribute -1 to parent id (convention for initial individuals)
-                    new_ind.gen_info.values['parent id'] = -1
-                    # attribute age of 0
-                    new_ind.gen_info.values['age'] = 0
-                    pop.append(new_ind)
-
-        # references to selected individuals
-        if RANDOM_SEL_1:
-            offsprings = random.sample(pop, nb_offsprings_to_generate)
+        if algo_type == 'map_elites':
+            offsprings = []
+            # find all indexes of the grid which are not None
+            grid_indexes = [i for i, x in enumerate(grid_map) if x is not None]
+            for _ in range(nb_offsprings_to_generate):
+                parent_idx = random.choice(grid_indexes)
+                offsprings.append(grid_map[parent_idx])
         else:
-            if algo_type == 'classic_ea':
-                # classical EA: selection on fitness
-                offsprings = toolbox.select(pop, nb_offsprings_to_generate, fit_attr='fitness')
-            elif algo_type == 'ns_rand_multi_bd':
-                # use special selection for multi novelties
-                offsprings = select_n_multi_bd_tournsize(pop, nb_offsprings_to_generate, TOURNSIZE,
-                                                         bd_filters, multi_quality)
-            elif algo_type == 'random_search':
-                # for experimental baseline
+            if len(pop) == 0:
+                raise Exception('Empty population.')
+            if len(pop) < nb_offsprings_to_generate:
+                nb_to_fill = pop_size - len(pop)
+                if REFILL_POP == 'new':
+                    # generate new random individuals to fill up the need
+                    new_pop = toolbox.population()
+                    for ind in new_pop:
+                        ind.gen_info.values = {}
+                        # attribute id to all individuals
+                        ind.gen_info.values['id'] = id_counter
+                        id_counter += 1
+                        # attribute -1 to parent id (convention for initial individuals)
+                        ind.gen_info.values['parent id'] = -1
+                        # attribute age of 0
+                        ind.gen_info.values['age'] = 0
+                    pop = pop + new_pop[:nb_to_fill]
+                if REFILL_POP == 'copies':
+                    for _ in range(nb_to_fill):
+                        ind_ref = random.choice(pop)
+                        new_ind = toolbox.clone(ind_ref)
+                        new_ind.gen_info.values = {}
+                        # attribute id to all individuals
+                        new_ind.gen_info.values['id'] = id_counter
+                        id_counter += 1
+                        # attribute -1 to parent id (convention for initial individuals)
+                        new_ind.gen_info.values['parent id'] = -1
+                        # attribute age of 0
+                        new_ind.gen_info.values['age'] = 0
+                        pop.append(new_ind)
+
+            # references to selected individuals
+            if RANDOM_SEL_1:
                 offsprings = random.sample(pop, nb_offsprings_to_generate)
             else:
-                # novelty search: selection on novelty
-                offsprings = toolbox.select(pop, nb_offsprings_to_generate, fit_attr='novelty')
+                if algo_type == 'classic_ea':
+                    # classical EA: selection on fitness
+                    offsprings = toolbox.select(pop, nb_offsprings_to_generate, fit_attr='fitness')
+                elif algo_type == 'ns_rand_multi_bd':
+                    # use special selection for multi novelties
+                    offsprings = select_n_multi_bd_tournsize(pop, nb_offsprings_to_generate, TOURNSIZE,
+                                                             bd_filters, multi_quality)
+                elif algo_type == 'random_search':
+                    # for experimental baseline
+                    offsprings = random.sample(pop, nb_offsprings_to_generate)
+                else:
+                    # novelty search: selection on novelty
+                    offsprings = toolbox.select(pop, nb_offsprings_to_generate, fit_attr='novelty')
         
         offsprings = list(map(toolbox.clone, offsprings))  # clone selected indivduals
 
@@ -911,7 +948,7 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
             operate_offsprings_diversity(offsprings, toolbox, bound_genotype,
                                          pop)  # crossover and mutation
         else:
-            operate_offsprings(offsprings, toolbox, bound_genotype)  # crossover and mutation
+            operate_offsprings(offsprings, toolbox, bound_genotype, algo_type)  # crossover and mutation
         # now, offsprings have their correct genetic information
 
         # ###################################### EVALUATE ############################################
@@ -941,13 +978,14 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
             t_success.update(n=count_success)
 
         # compute novelty for all current individuals (novelty of population may have changed)
-        novelties = assess_novelties(current_pool, archive, algo_type, bd_bounds, bd_indexes, bd_filters,
-                                     novelty_metric, multi_quality,
-                                     altered=altered_novelty, degree=alteration_degree, info=details)
-        if measures:
-            novelty_distrib.append(novelties)
-        for ind, nov in zip(current_pool, novelties):
-            ind.novelty.values = nov
+        if algo_type != 'random_search' and algo_type != 'map_elites':
+            novelties = assess_novelties(current_pool, archive, algo_type, bd_bounds, bd_indexes, bd_filters,
+                                         novelty_metric, multi_quality,
+                                         altered=altered_novelty, degree=alteration_degree, info=details)
+            if measures:
+                novelty_distrib.append(novelties)
+            for ind, nov in zip(current_pool, novelties):
+                ind.novelty.values = nov
         # an individual with bd = None will have 0 novelty
 
         # add all generated individuals to historic and potentially to saved individuals
@@ -964,6 +1002,9 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
         # ###################################### FILL ARCHIVE ############################################
         # fill archive with individuals from the offsprings group (direct references to those individuals)
         # grid follows the archive
+        if algo_type == 'map_elites':
+            for member in offsprings:
+                add_to_grid_map(member, grid_map, cvt, toolbox)
         if algo_type != 'ns_no_archive':
             if archive_type == 'random':
                 # fill archive randomly
@@ -1001,6 +1042,8 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
                                                  bd_filters, multi_quality, putback=False)
         elif algo_type == 'random_search':
             pop[:] = random.sample(current_pool, pop_size)
+        elif algo_type == 'map_elites':
+            pass
         else:
             # replacement: keep the most novel individuals
             pop[:] = toolbox.replace(current_pool, pop_size, fit_attr='novelty')

@@ -30,11 +30,11 @@ NB_GEN = 500
 OBJECT = 'cube'  # 'cube', 'cup', 'cylinder'
 ROBOT = 'kuka'  # 'baxter', 'pepper', 'kuka'
 CONTROLLER = 'interpolate keypoints end pause grip'  # see controllers_dict for list
-ALGO = 'ns_rand_multi_bd'  # algorithm
+ALGO = 'map_elites'  # algorithm
 BD = 'multi_full_info'  # behavior descriptor type
 BOOTSTRAP_FOLDER = None
 QUALITY = False
-AUTO_COLLIDE = True
+AUTO_COLLIDE = False
 NB_CELLS = 1000  # number of cells for measurement
 VERSION = 1
 N_EXP = 10
@@ -86,7 +86,7 @@ if ROBOT == 'baxter':
 
 # choose minor parameters
 PAUSE_FRAC = 0.66
-MINI = False  # maximization problem
+MINI = True  # minimization problem (used for MAP-elites)
 DISTANCE_THRESH = 0.6  # binary goal parameter
 DIFF_OR_THRESH = 0.4  # threshold for clustering grasping orientations
 COV_LIMIT = 0.1  # threshold for changing behavior descriptor in change_bd ns
@@ -461,10 +461,16 @@ def multi_full_behavior_descriptor(individual):
 
     info = {}
 
+    if ALGO == 'map_elites':
+        # define energy criterion
+        energy = 0
+
     for i in range(NB_ITER):
         ENV.render()
         # apply previously chosen action
         o, r, eo, inf = ENV.step(action)
+
+        prev_action = action
 
         # choose action
         if controller.open_loop:
@@ -520,6 +526,9 @@ def multi_full_behavior_descriptor(individual):
             if len(inf['self contact_points']) != 0:
                 auto_collision = True
                 break
+
+        if ALGO == 'map_elites':
+            energy += utils.list_l2_norm(action, prev_action) ** 2
     
     if auto_collision:
         behavior = [None, None, None, None, None, None, None, None, None, None, None]
@@ -537,7 +546,10 @@ def multi_full_behavior_descriptor(individual):
     utils.bound(behavior, BD_BOUNDS[0:3])
 
     # compute fitness
-    fitness = behavior[2]
+    if ALGO == 'map_elites':
+        fitness = energy
+    else:
+        fitness = behavior[2]
 
     # append 4 times None to behavior in case no grasping (modified later)
     for _ in range(4):
