@@ -39,7 +39,8 @@ class CVT():
 
         X = []
         for bound in bounds:
-            X.append(np.random.uniform(low=bound[0], high=bound[1], size=self.num_samples))
+            # idea: give as much importance to all dimensions even if bounds are not -1, 1
+            X.append(np.random.uniform(low=-1, high=1, size=self.num_samples))
         X = np.array(X)
         X = np.transpose(X)
 
@@ -56,6 +57,9 @@ class CVT():
         self.k_tree = KDTree(self.centroids)
 
     def get_grid_index(self, sample):
+        # map back to [-1, 1]
+        for i, bound in enumerate(self.bounds):
+            sample[i] = -1 + ((sample[i] - bound[0]) / (bound[1] - bound[0])) * 2
         grid_index = self.k_tree.query(sample, k=1)[1]
         return grid_index
 

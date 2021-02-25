@@ -26,7 +26,7 @@ RESET_MODE = False
 
 # choose parameters
 POP_SIZE = 100
-NB_GEN = 500
+NB_GEN = 100
 OBJECT = 'cube'  # 'cube', 'cup', 'cylinder'
 ROBOT = 'kuka'  # 'baxter', 'pepper', 'kuka'
 CONTROLLER = 'interpolate keypoints end pause grip'  # see controllers_dict for list
@@ -35,9 +35,9 @@ BD = 'multi_full_info'  # behavior descriptor type
 BOOTSTRAP_FOLDER = None
 QUALITY = False
 AUTO_COLLIDE = False
-NB_CELLS = 1000  # number of cells for measurement
+NB_CELLS = 10000  # number of cells for measurement
 VERSION = 1
-N_EXP = 10
+N_EXP = 1
 
 
 # for keypoints controllers
