@@ -56,6 +56,9 @@ if ROBOT == 'baxter':
         HEIGHT_THRESH = -0.16
     if OBJECT == 'cup':
         HEIGHT_THRESH = -0.05
+    if OBJECT == 'deer':
+        HEIGHT_THRESH = -0.08
+
 if ROBOT == 'pepper':
     ENV_NAME = 'gym_baxter_grabbing:pepper_grasping-v0'
     GENE_PER_KEYPOINTS = 7  # pepper is controlled in joints space: 7 joints
@@ -67,6 +70,8 @@ if ROBOT == 'pepper':
         HEIGHT_THRESH = -0.15
     if OBJECT == 'cup':
         HEIGHT_THRESH = -0.125
+    if OBJECT == 'deer':
+        HEIGHT_THRESH = -0.095
 if ROBOT == 'kuka':
     ENV_NAME = 'gym_baxter_grabbing:kuka_grasping-v0'
     GENE_PER_KEYPOINTS = 9  # kuka is controlled in joints space: 7 joints
@@ -78,6 +83,8 @@ if ROBOT == 'kuka':
         HEIGHT_THRESH = -0.08
     if OBJECT == 'cup':
         HEIGHT_THRESH = -0.08
+    if OBJECT == 'deer':
+        HEIGHT_THRESH = -0.03
 
 # for closed_loop control
 if ROBOT == 'baxter':
