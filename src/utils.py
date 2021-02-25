@@ -58,8 +58,9 @@ class CVT():
 
     def get_grid_index(self, sample):
         # map back to [-1, 1]
+        sample_copy = []
         for i, bound in enumerate(self.bounds):
-            sample[i] = -1 + ((sample[i] - bound[0]) / (bound[1] - bound[0])) * 2
+            sample_copy.append(-1 + ((sample[i] - bound[0]) / (bound[1] - bound[0])) * 2)
         grid_index = self.k_tree.query(sample, k=1)[1]
         return grid_index
 
