@@ -887,9 +887,23 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
             offsprings = []
             # find all indexes of the grid which are not None
             grid_indexes = [i for i, x in enumerate(grid_map) if x is not None]
-            for _ in range(nb_offsprings_to_generate):
-                parent_idx = random.choice(grid_indexes)
-                offsprings.append(grid_map[parent_idx])
+            if len(grid_indexes) == 1:
+                # map elites can get stuck: must restart the population
+                # generate new random individuals to fill up the need
+                offsprings = toolbox.population()[:nb_offsprings_to_generate]
+                for ind in offsprings:
+                    ind.gen_info.values = {}
+                    # attribute id to all individuals
+                    ind.gen_info.values['id'] = id_counter
+                    id_counter += 1
+                    # attribute -1 to parent id (convention for initial individuals)
+                    ind.gen_info.values['parent id'] = -1
+                    # attribute age of 0
+                    ind.gen_info.values['age'] = 0
+            else:
+                for _ in range(nb_offsprings_to_generate):
+                    parent_idx = random.choice(grid_indexes)
+                    offsprings.append(grid_map[parent_idx])
         else:
             if len(pop) == 0:
                 raise Exception('Empty population.')

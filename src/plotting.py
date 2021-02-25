@@ -14,15 +14,15 @@ DEBUG = False
 def plot_analysis():
     ns_rand = '../kuka_grasps/1BD/'
     ns_multi_no_qual = '../kuka_grasps/3BD/'
-    # rand = '../kuka_graps/random/'
-    folders = [ns_rand, ns_multi_no_qual]
-    labels = ['1 BD',
-              '3 BD']
-
-    # folders = [ns_rand, ns_multi_no_qual, rand]
+    rand = '../kuka_grasps/random/'
+    # folders = [ns_rand, ns_multi_no_qual]
     # labels = ['1 BD',
-    #           '3 BD',
-    #           'random']
+    #           '3 BD']
+
+    folders = [ns_rand, ns_multi_no_qual, rand]
+    labels = ['1 BD',
+              '3 BD',
+              'random']
 
     fig, ax = plt.subplots(nrows=1, ncols=3, figsize=(15, 15))
     data_cov = []
