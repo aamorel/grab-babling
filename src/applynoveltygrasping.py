@@ -26,7 +26,7 @@ RESET_MODE = False
 
 # choose parameters
 POP_SIZE = 100
-NB_GEN = 100
+NB_GEN = 1000
 OBJECT = 'cube'  # 'cube', 'cup', 'cylinder'
 ROBOT = 'kuka'  # 'baxter', 'pepper', 'kuka'
 CONTROLLER = 'interpolate keypoints end pause grip'  # see controllers_dict for list
@@ -37,7 +37,7 @@ QUALITY = False
 AUTO_COLLIDE = False
 NB_CELLS = 10000  # number of cells for measurement
 VERSION = 1
-N_EXP = 1
+N_EXP = 25
 
 
 # for keypoints controllers
@@ -581,8 +581,8 @@ def multi_full_behavior_descriptor(individual):
             behavior[5] = measure_grip_time[2]
             behavior[6] = measure_grip_time[3]
     
-    # BD 3 only active after first successful individual
-    if COUNT_SUCCESS:
+    # BD 3 only active if trajectory touched the object
+    if already_touched:
         behavior.append(grip_or_lag[3])
         behavior.append(grip_or_lag[0])
         behavior.append(grip_or_lag[1])
