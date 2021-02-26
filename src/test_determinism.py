@@ -11,7 +11,7 @@ controller_info = {'pause_frac': 0.66, 'n_iter': n_iter,
 
 baxter_env = gym.make('gym_baxter_grabbing:kuka_grasping-v0', display=False, obj='cup')
 baxter_env.set_steps_to_roll(1)
-n_exp = 100
+n_exp = 2
 
 
 def eval_func(individual):
@@ -27,6 +27,7 @@ def eval_func(individual):
     return np.array(obs).flatten()
 
 
+np.random.seed(13)
 individual = np.random.rand(25) * 2 - 1
 individual_list = [individual] * n_exp
 
@@ -35,7 +36,7 @@ if __name__ == '__main__':
     observations = list(map(eval_func, individual_list))
 
     for obs in observations:
-        assert((obs == observations[0]).all())
+        assert(np.isclose(obs, observations[0]).all())
 
     # observations = list(futures.map(eval_func, individual_list))
 
