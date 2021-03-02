@@ -658,7 +658,7 @@ def pos_div_grip_bd(individual):
     return (behavior, (fitness,), info)
 
 
-def pos_div_grip_pos_bd(individual):
+def pos_div_pos_grip_bd(individual):
 
     if RESET_MODE:
         global ENV
@@ -943,7 +943,7 @@ controllers_info_dict = {'interpolate keypoints end pause grip': {'pause_frac': 
 bd_dict = {'2D': two_d_bd,
            '3D': three_d_bd,
            'pos_div_grip': pos_div_grip_bd,
-           'pos_div_grip_pos': pos_div_grip_pos_bd}
+           'pos_div_pos_grip': pos_div_pos_grip_bd}
 
 if __name__ == "__main__":
  
