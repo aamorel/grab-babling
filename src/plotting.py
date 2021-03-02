@@ -15,7 +15,7 @@ def plot_analysis():
     ns_rand = '../kuka_grasps/1BD/'
     ns_multi_no_qual = '../kuka_grasps/3BD/'
     rand = '../kuka_grasps/random/'
-    map_elites = '../kuka_grasps/map_elites/'
+    map_elites = '../kuka_grasps/MAP_ELITES/'
     # folders = [ns_rand, ns_multi_no_qual]
     # labels = ['1 BD',
     #           '3 BD']
