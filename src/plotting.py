@@ -193,8 +193,15 @@ def plot_launch(details, data):
                 ax_3[count].plot(qualities[:, i], color=utils.color_list[i])
                 ax_3[count].set(title='Evolution of mean ' + qual + ' in offsprings', xlabel='Generations')
                 count += 1
-
-    return fig, fig_2, fig_3
+    
+    fig_4 = 0
+    if algo_type == 'ns_rand_multi_bd':
+        fig_4, ax_4 = plt.subplots()
+        rates = np.array(data['eligibility rates'])
+        for i in range(np.size(rates, 1)):
+            ax_4.plot(rates[:, i], color=utils.color_list[i], label='Eligibility rate ' + str(i))
+        ax_4.set(title='Evolution of behavioral descriptors eligibility rates in population')
+    return fig, fig_2, fig_3, fig_4
 
 
 def collect_launchs(conditions, number, folder):

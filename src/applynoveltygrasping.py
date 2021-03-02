@@ -26,12 +26,12 @@ RESET_MODE = False
 
 # choose parameters
 POP_SIZE = 100
-NB_GEN = 1000
-OBJECT = 'cube'  # 'cube', 'cup', 'cylinder'
+NB_GEN = 500
+OBJECT = 'cube'  # 'cube', 'cup', 'cylinder', 'deer'
 ROBOT = 'kuka'  # 'baxter', 'pepper', 'kuka'
 CONTROLLER = 'interpolate keypoints end pause grip'  # see controllers_dict for list
 ALGO = 'ns_rand_multi_bd'  # algorithm
-BD = 'multi_full_info'  # behavior descriptor type
+BD = 'pos_div_pos_grip'  # behavior descriptor type '2D', '3D', 'pos_div_grip', 'pos_div_pos_grip'
 BOOTSTRAP_FOLDER = None
 QUALITY = False
 AUTO_COLLIDE = False
@@ -97,7 +97,7 @@ MINI = True  # minimization problem (used for MAP-elites)
 DISTANCE_THRESH = 0.6  # binary goal parameter
 DIFF_OR_THRESH = 0.4  # threshold for clustering grasping orientations
 COV_LIMIT = 0.1  # threshold for changing behavior descriptor in change_bd ns
-N_LAG = int(200 / NB_STEPS_TO_ROLLOUT)  # number of steps before the grip time used in the multi_full_info BD
+N_LAG = int(200 / NB_STEPS_TO_ROLLOUT)  # number of steps before the grip time used in the pos_div_grip BD
 ARCHIVE_LIMIT = 10000
 N_REP_RAND = 2
 COUNT_SUCCESS = 0
@@ -121,7 +121,7 @@ if BD == '2D':
     BD_BOUNDS = [[-0.35, 0.35], [-0.15, 0.2]]
 if BD == '3D':
     BD_BOUNDS = [[-0.35, 0.35], [-0.15, 0.2], [-0.2, 0.5]]
-if BD == 'multi_full_info':
+if BD == 'pos_div_grip':
     BD_BOUNDS = [[-0.35, 0.35], [-0.15, 0.2], [-0.2, 0.5], [-1, 1], [-1, 1], [-1, 1], [-1, 1],
                  [-1, 1], [-1, 1], [-1, 1], [-1, 1]]
     if ALGO == 'ns_rand_multi_bd':
@@ -129,6 +129,12 @@ if BD == 'multi_full_info':
         NOVELTY_METRIC = ['minkowski', 'minkowski', 'minkowski']
         if QUALITY:
             MULTI_QUALITY_MEASURES = [['mean positive slope', 'std random pos', None], ['min', 'min', None]]
+if BD == 'pos_div_pos_grip':
+    BD_BOUNDS = [[-0.35, 0.35], [-0.15, 0.2], [-0.2, 0.5], [-1, 1], [-1, 1], [-1, 1], [-1, 1],
+                 [-0.35, 0.35], [-0.15, 0.2], [-0.2, 0.5], [-1, 1], [-1, 1], [-1, 1], [-1, 1]]
+    if ALGO == 'ns_rand_multi_bd':
+        BD_INDEXES = [0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 3, 3, 3, 3]
+        NOVELTY_METRIC = ['minkowski', 'minkowski', 'minkowski', 'minkowski']
 if ALGO == 'ns_rand_change_bd':
     BD = 'change_bd'
     # list of 3D bd and orientation bd
@@ -256,7 +262,7 @@ def analyze_triumphants(triumphant_archive, run_name):
     return coverage, uniformity, clustered_triumphants
     
 
-def two_d_behavioral_descriptor(individual):
+def two_d_bd(individual):
     """Evaluates an individual: computes its value in the behavior descriptor space,
     and its fitness value.
     In this case, we consider the behavior space as the end position of the object in
@@ -310,7 +316,7 @@ def two_d_behavioral_descriptor(individual):
     return (behavior, (fitness,), info)
 
 
-def three_d_behavioral_descriptor(individual):
+def three_d_bd(individual):
     """Evaluates an individual: computes its value in the behavior descriptor space,
     and its fitness value.
     In this case, we consider the behavior space as the end position of the object in
@@ -409,7 +415,7 @@ def three_d_behavioral_descriptor(individual):
     return (behavior, (fitness,), info)
 
 
-def multi_full_behavior_descriptor(individual):
+def pos_div_grip_bd(individual):
     """Evaluates an individual: computes its value in the behavior descriptor space,
     and its fitness value.
     In this case, we consider the behavior space where we give the maximum amount of information
@@ -652,6 +658,238 @@ def multi_full_behavior_descriptor(individual):
     return (behavior, (fitness,), info)
 
 
+def pos_div_grip_pos_bd(individual):
+
+    if RESET_MODE:
+        global ENV
+        ENV.reset()
+    else:
+        ENV = gym.make(ENV_NAME, display=DISPLAY, obj=OBJECT)
+        ENV.set_steps_to_roll(NB_STEPS_TO_ROLLOUT)
+
+    global COUNT_SUCCESS
+
+    individual = np.around(np.array(individual), 3)
+
+    # initialize controller
+    controller_info = controllers_info_dict[CONTROLLER]
+    controller = controllers_dict[CONTROLLER](individual, controller_info)
+    assert(hasattr(controller, 'grip_time'))
+    # lag_time = controller.grip_time - N_LAG
+    lag_time = NB_ITER / 2
+    action = controller.initial_action
+
+    # monitor auto-collision
+    auto_collision = False
+
+    # for precise measure when we have the gripper assumption
+    already_touched = False
+    already_grasped = False
+    grasped_before_touch = False
+
+    # for measure at lag time
+    lag_measured = False
+
+    measure_grip_time = None
+    pos_touch_time = None
+
+    touch_idx = []
+
+    # to compute quality for B1
+    positive_dist_slope = 0
+    prev_dist = None
+
+    info = {}
+
+    if ALGO == 'map_elites':
+        # define energy criterion
+        energy = 0
+
+    for i in range(NB_ITER):
+        ENV.render()
+        # apply previously chosen action
+        o, r, eo, inf = ENV.step(action)
+
+        prev_action = action
+
+        # choose action
+        if controller.open_loop:
+            action = controller.get_action(i)
+        else:
+            action = controller.get_action(i, o)
+
+        if i == 0:
+            initial_object_position = o[0]
+
+        if eo:
+            break
+        
+        if i >= controller.grip_time and not already_grasped:
+            # first action that orders the gripper closure
+            # measure_grip_time = diversity_measure(o)
+            already_grasped = True
+
+        touch = len(inf['contact_points']) > 0
+        touch_id = 0
+        if touch:
+            touch_id = inf['contact_points'][0][3]
+            touch_idx.append(touch_id)
+        relevant_touch = touch and (touch_id in LINK_ID_CONTACT)
+        if relevant_touch and not already_touched:
+            # first touch of object
+            measure_grip_time = diversity_measure(o)
+            pos_touch_time = o[2]
+            already_touched = True
+            if already_grasped:
+                grasped_before_touch = True
+        
+        if i >= lag_time and not lag_measured:
+            # gripper orientation
+            grip_or_lag = o[3]
+            lag_measured = True
+
+        # quality 1 measured during the whole trajectory
+        if QUALITY:
+            # only done one step after the start
+            if prev_dist is None:
+                # distance between gripper and object
+                prev_dist = utils.list_l2_norm(o[0], o[2])
+            else:
+                new_dist = utils.list_l2_norm(o[0], o[2])
+                differential_dist = new_dist - prev_dist
+                if differential_dist > 0:
+                    positive_dist_slope += differential_dist
+            
+                prev_dist = new_dist
+
+        # if robot has a self-collision monitoring
+        if 'self contact_points' in inf and AUTO_COLLIDE:
+            if len(inf['self contact_points']) != 0:
+                auto_collision = True
+                break
+
+        if ALGO == 'map_elites':
+            energy += utils.list_l2_norm(action, prev_action) ** 2
+    
+    if auto_collision:
+        behavior = [None, None, None, None, None, None, None, None, None, None, None]
+        if ALGO != 'ns_rand_multi_bd':
+            behavior = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+        fitness = -float('inf')
+        info = {'binary goal': False, 'auto_collided': True}
+        ENV.close()
+        return (behavior, (fitness,), info)
+
+    # use last info to compute behavior and fitness
+    behavior = [o[0][0] - initial_object_position[0], o[0][1] - initial_object_position[1],
+                o[0][2]]  # last position of object
+
+    utils.bound(behavior, BD_BOUNDS[0:3])
+
+    # compute fitness
+    if ALGO == 'map_elites':
+        fitness = energy
+    else:
+        fitness = behavior[2]
+
+    # append 4 times None to behavior in case no grasping (modified later)
+    for _ in range(7):
+        behavior.append(None)
+
+    # choose if individual satisfied the binary goal
+    dist = utils.list_l2_norm(o[0], o[2])
+    binary_goal = False
+    if o[0][2] > HEIGHT_THRESH and dist < DISTANCE_THRESH:
+        binary_goal = True
+    info['binary goal'] = binary_goal
+
+    if binary_goal:
+        COUNT_SUCCESS += 1
+        if measure_grip_time is None:
+            # print('Individual grasped without touching any contact links')
+            info['binary goal'] = False
+        else:
+            info['diversity_descriptor'] = measure_grip_time
+            behavior[3] = measure_grip_time[0]  # Quat to array
+            behavior[4] = measure_grip_time[1]
+            behavior[5] = measure_grip_time[2]
+            behavior[6] = measure_grip_time[3]
+            behavior[7] = pos_touch_time[0]
+            behavior[8] = pos_touch_time[1]
+            behavior[9] = pos_touch_time[2]
+
+    
+    # BD 3 only active if trajectory touched the object
+    if already_touched:
+        behavior.append(grip_or_lag[3])
+        behavior.append(grip_or_lag[0])
+        behavior.append(grip_or_lag[1])
+        behavior.append(grip_or_lag[2])
+    else:
+        for _ in range(4):
+            behavior.append(None)
+
+    if not RESET_MODE:
+        ENV.close()
+
+    if ALGO != 'ns_rand_multi_bd':
+        for i, b in enumerate(behavior):
+            if b is None:
+                behavior[i] = 0
+        return (behavior, (fitness,), info)
+
+    if QUALITY:
+        if grasped_before_touch:
+            # penalize more
+            info['mean positive slope'] = 4 * positive_dist_slope / NB_ITER
+        elif already_touched:
+            info['mean positive slope'] = positive_dist_slope / NB_ITER
+            if (not inf['closed gripper']) and relevant_touch:
+                # gripper is not entirely closed at the end, and is touching the object
+                info['mean positive slope'] -= 1
+        else:
+            info['mean positive slope'] = positive_dist_slope / NB_ITER + 1
+
+    if QUALITY and binary_goal:
+        # re-evaluate with random initial positions to assess robustness as quality
+        last_pos_obj = [[o[0][0], o[0][1], o[0][2]]]
+        for _ in range(N_REP_RAND):
+            ENV = gym.make(ENV_NAME, display=DISPLAY, obj=OBJECT, random_obj=True)
+            ENV.set_steps_to_roll(NB_STEPS_TO_ROLLOUT)
+
+            # initialize controller
+            controller_info = controllers_info_dict[CONTROLLER]
+            controller = controllers_dict[CONTROLLER](individual, controller_info)
+            action = controller.initial_action
+
+            for i in range(NB_ITER):
+                ENV.render()
+                # apply previously chosen action
+                o, r, eo, inf = ENV.step(action)
+
+                # choose action
+                if controller.open_loop:
+                    action = controller.get_action(i)
+                else:
+                    action = controller.get_action(i, o)
+
+                if i == 0:
+                    initial_object_position = o[0]
+
+                if eo:
+                    break
+            last_pos_obj.append([o[0][0], o[0][1], o[0][2]])
+
+            ENV.close()
+
+        last_pos_obj = np.array(last_pos_obj)
+        std = np.std(last_pos_obj, axis=0)
+        mean_std = np.mean(std)
+        info['std random pos'] = mean_std
+    
+    return (behavior, (fitness,), info)
+
+
 def choose_evaluation_function(info_change_bd):
     """In case of multi_ns bd, choose the evaluation function based on the dict sent by the ns algorithm.
 
@@ -702,9 +940,10 @@ controllers_info_dict = {'interpolate keypoints end pause grip': {'pause_frac': 
                                                    'NB_KEYPOINTS': NB_KEYPOINTS,
                                                    'GENE_PER_KEYPOINTS': GENE_PER_KEYPOINTS},
                          'closed loop end pause grip': {'n_iter': NB_ITER, 'pause_frac': PAUSE_FRAC}}
-bd_dict = {'2D': two_d_behavioral_descriptor,
-           '3D': three_d_behavioral_descriptor,
-           'multi_full_info': multi_full_behavior_descriptor}
+bd_dict = {'2D': two_d_bd,
+           '3D': three_d_bd,
+           'pos_div_grip': pos_div_grip_bd,
+           'pos_div_grip_pos': pos_div_grip_pos_bd}
 
 if __name__ == "__main__":
  
@@ -793,6 +1032,10 @@ if __name__ == "__main__":
         if PLOT:
             fig = figures['figure']
             fig.savefig(run_name + 'novelty_search_plots.png')
+
+            if ALGO == 'ns_rand_multi_bd':
+                fig_4 = figures['figure_4']
+                fig_4.savefig(run_name + 'eligibility_rates.png')
 
             if MULTI_QUALITY_MEASURES is not None:
                 fig_3 = figures['figure_3']

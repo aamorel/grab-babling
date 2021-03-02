@@ -674,6 +674,8 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
         full_uni_hist = []
         pop_uni_hist = []
         multi_quality_hist = []
+        if algo_type == 'ns_rand_multi_bd':
+            bd_rates = []
     if monitor_print:
         t_eval = tqdm.tqdm(total=float('inf'), leave=False, desc='Number of evaluations',
                            bar_format='{desc}: {n_fmt}')
@@ -1362,14 +1364,24 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
                 grid_pop = []
                 for _ in range(nb_bd):
                     grid_pop.append(np.zeros(nb_cells))
+                counts_elibility = np.zeros(nb_bd)
             else:
                 grid_pop = np.zeros(nb_cells)
 
             # populate the population grid
             for ind in pop:
                 add_to_grid(ind, grid_pop, cvt, measures, algo_type, bd_filters)
+                if algo_type == 'ns_rand_multi_bd':
+                    member_bd = np.array(ind.behavior_descriptor.values)
+
+                    for idx, bd_filter in enumerate(bd_filters):
+                        bd_value = member_bd[bd_filter]
+                        if not(None in bd_value):  # if the bd has a value
+                            counts_elibility[idx] += 1
 
             if algo_type == 'ns_rand_multi_bd':
+                counts_elibility = counts_elibility / len(pop)
+                bd_rates.append(counts_elibility)
                 coverages = []
                 uniformities = []
                 # loop through all grids and compute measures for each grid
@@ -1514,13 +1526,15 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
     data['population uniformity'] = pop_uni_hist
     data['novelty distribution'] = novelty_distrib
     data['qualities'] = multi_quality_hist
-
+    if algo_type == 'ns_rand_multi_bd':
+        data['eligibility rates'] = bd_rates
     if plot:
-        fig, fig_2, fig_3 = plotting.plot_launch(details, data)
+        fig, fig_2, fig_3, fig_4 = plotting.plot_launch(details, data)
     
         figures['figure'] = fig
         figures['figure_2'] = fig_2
         figures['figure_3'] = fig_3
+        figures['figure_4'] = fig_4
     
     if plot_gif:
         interval = int(GIF_LENGHT * 1000 / len(ims))
