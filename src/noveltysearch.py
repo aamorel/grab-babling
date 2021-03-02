@@ -1381,7 +1381,7 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
 
             if algo_type == 'ns_rand_multi_bd':
                 counts_elibility = counts_elibility / len(pop)
-                bd_rates.append(counts_elibility)
+                bd_rates.append(counts_elibility.tolist())
                 coverages = []
                 uniformities = []
                 # loop through all grids and compute measures for each grid
