@@ -30,14 +30,14 @@ NB_GEN = 1000
 OBJECT = 'cube'  # 'cube', 'cup', 'cylinder'
 ROBOT = 'kuka'  # 'baxter', 'pepper', 'kuka'
 CONTROLLER = 'interpolate keypoints end pause grip'  # see controllers_dict for list
-ALGO = 'map_elites'  # algorithm
+ALGO = 'ns_rand_multi_bd'  # algorithm
 BD = 'multi_full_info'  # behavior descriptor type
 BOOTSTRAP_FOLDER = None
 QUALITY = False
 AUTO_COLLIDE = False
-NB_CELLS = 10000  # number of cells for measurement
+NB_CELLS = 1000  # number of cells for measurement
 VERSION = 1
-N_EXP = 25
+N_EXP = 1
 
 
 # for keypoints controllers
