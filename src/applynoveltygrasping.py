@@ -75,7 +75,7 @@ if ROBOT == 'pepper':
 if ROBOT == 'kuka':
     ENV_NAME = 'gym_baxter_grabbing:kuka_grasping-v0'
     GENE_PER_KEYPOINTS = 9  # kuka is controlled in joints space: 7 joints
-    LINK_ID_CONTACT = [8, 10, 11, 13]  # link ids that can have a grasping contact
+    LINK_ID_CONTACT = [8, 9, 10, 11, 12, 13]  # link ids that can have a grasping contact
     NB_STEPS_TO_ROLLOUT = 1
     NB_ITER = int(2500 / NB_STEPS_TO_ROLLOUT)
     # set height thresh parameter
@@ -106,8 +106,7 @@ COUNT_SUCCESS = 0
 # if reset, create global env
 # TODO: debug, for now RESET_MODE should be False
 if RESET_MODE:
-    ENV = gym.make(ENV_NAME, display=DISPLAY, obj=OBJECT)
-    ENV.set_steps_to_roll(NB_STEPS_TO_ROLLOUT)
+    ENV = gym.make(ENV_NAME, display=DISPLAY, obj=OBJECT, steps_to_roll=NB_STEPS_TO_ROLLOUT)
 
 
 # choose diversity measure if gripping time is given by the controller
@@ -278,8 +277,8 @@ def two_d_bd(individual):
         global ENV
         ENV.reset()
     else:
-        ENV = gym.make(ENV_NAME, display=DISPLAY, obj=OBJECT)
-        ENV.set_steps_to_roll(NB_STEPS_TO_ROLLOUT)
+        ENV = gym.make(ENV_NAME, display=DISPLAY, obj=OBJECT, steps_to_roll=NB_STEPS_TO_ROLLOUT)
+
     individual = np.around(np.array(individual), 3)
     # initialize controller
     controller_info = controllers_info_dict[CONTROLLER]
@@ -332,8 +331,8 @@ def three_d_bd(individual):
         global ENV
         ENV.reset()
     else:
-        ENV = gym.make(ENV_NAME, display=DISPLAY, obj=OBJECT)
-        ENV.set_steps_to_roll(NB_STEPS_TO_ROLLOUT)
+        ENV = gym.make(ENV_NAME, display=DISPLAY, obj=OBJECT, steps_to_roll=NB_STEPS_TO_ROLLOUT)
+
     individual = np.around(np.array(individual), 3)
     
     # initialize controller
@@ -438,8 +437,7 @@ def pos_div_grip_bd(individual):
         global ENV
         ENV.reset()
     else:
-        ENV = gym.make(ENV_NAME, display=DISPLAY, obj=OBJECT)
-        ENV.set_steps_to_roll(NB_STEPS_TO_ROLLOUT)
+        ENV = gym.make(ENV_NAME, display=DISPLAY, obj=OBJECT, steps_to_roll=NB_STEPS_TO_ROLLOUT)
 
     global COUNT_SUCCESS
 
@@ -664,8 +662,7 @@ def pos_div_pos_grip_bd(individual):
         global ENV
         ENV.reset()
     else:
-        ENV = gym.make(ENV_NAME, display=DISPLAY, obj=OBJECT)
-        ENV.set_steps_to_roll(NB_STEPS_TO_ROLLOUT)
+        ENV = gym.make(ENV_NAME, display=DISPLAY, obj=OBJECT, steps_to_roll=NB_STEPS_TO_ROLLOUT)
 
     global COUNT_SUCCESS
 
@@ -818,7 +815,6 @@ def pos_div_pos_grip_bd(individual):
             behavior[8] = pos_touch_time[1]
             behavior[9] = pos_touch_time[2]
 
-    
     # BD 3 only active if trajectory touched the object
     if already_touched:
         behavior.append(grip_or_lag[3])

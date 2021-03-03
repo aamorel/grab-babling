@@ -8,8 +8,7 @@ n_iter = 3000
 controller_info = {'pause_frac': 0.66, 'n_iter': n_iter,
                    'NB_KEYPOINTS': 3, 'GENE_PER_KEYPOINTS': 9}
 for _ in range(3):
-    baxter_env = gym.make('gym_baxter_grabbing:kuka_grasping-v0', display=False, obj='cup')
-    baxter_env.set_steps_to_roll(1)
+    baxter_env = gym.make('gym_baxter_grabbing:kuka_grasping-v0', display=False, obj='cup', steps_to_roll=1)
     individual = np.random.rand(25) * 2 - 1
     print('new individual open loop')
     controller = controllers.InterpolateKeyPointsEndPauseGripAssumption(individual, controller_info)
