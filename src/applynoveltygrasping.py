@@ -26,18 +26,18 @@ RESET_MODE = False
 
 # choose parameters
 POP_SIZE = 100
-NB_GEN = 500
+NB_GEN = 1000
 OBJECT = 'cube'  # 'cube', 'cup', 'cylinder', 'deer'
 ROBOT = 'kuka'  # 'baxter', 'pepper', 'kuka'
 CONTROLLER = 'interpolate keypoints end pause grip'  # see controllers_dict for list
-ALGO = 'ns_rand_multi_bd'  # algorithm
-BD = 'pos_div_pos_grip'  # behavior descriptor type '2D', '3D', 'pos_div_grip', 'pos_div_pos_grip'
+ALGO = 'ns_rand'  # algorithm
+BD = 'pos_div_grip'  # behavior descriptor type '2D', '3D', 'pos_div_grip', 'pos_div_pos_grip'
 BOOTSTRAP_FOLDER = None
 QUALITY = False
 AUTO_COLLIDE = False
 NB_CELLS = 1000  # number of cells for measurement
 VERSION = 1
-N_EXP = 1
+N_EXP = 5
 
 
 # for keypoints controllers
