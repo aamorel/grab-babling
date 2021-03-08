@@ -7,31 +7,28 @@ import glob
 import json
 import seaborn as sns
 import re
+import os
 
 DEBUG = False
 
 
 def plot_analysis():
-    ns_rand = '../kuka_grasps/1BD/'
-    ns_multi_no_qual = '../kuka_grasps/3BD/'
-    rand = '../kuka_grasps/random/'
-    map_elites = '../kuka_grasps/MAP_ELITES/'
-    # folders = [ns_rand, ns_multi_no_qual]
-    # labels = ['1 BD',
-    #           '3 BD']
+    # exp = '3_descriptors_no_qual_kuka'
+    # labels = ['concat_3BD', '3BD', '4BD']
 
-    folders = [ns_rand, ns_multi_no_qual, rand, map_elites]
-    labels = ['1 BD',
-              '3 BD',
-              'random',
-              'map_elites']
+    exp = '3_descriptors_no_qual_baxter'
+    labels = ['concat_3BD', '3BD']
+    folders = []
+    for alg in labels:
+        folders.append(os.path.join('..', 'experiments_analysis', exp, alg))
 
     fig, ax = plt.subplots(nrows=1, ncols=3, figsize=(15, 15))
     data_cov = []
     data_uni = []
     data_count = []
     for f in folders:
-        runs = glob.glob(f + '*/run_details.json')
+        print(f)
+        runs = glob.glob(f + '/*/run_details.json')
         list_cov = []
         list_uni = []
         count = 0

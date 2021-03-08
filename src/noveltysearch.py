@@ -14,6 +14,10 @@ import matplotlib.animation as animation
 from matplotlib import cm
 import plotting
 import tqdm
+import torch
+import torch.nn as nn
+import torch.optim as optim
+from torch.utils.data import DataLoader
 
 creator = None
 
@@ -48,6 +52,11 @@ MULTI_OBJ_SELECTION = 'pareto_based'  # 'rank_based', 'pareto_based'  how to ope
 GIF_LENGHT = 30  # length of gif in seconds
 GIF_TYPE = 'hist_color'  # 'full' or 'hist_color'
 CM = cm.get_cmap('viridis', 100)
+LR = 0.001  # learning rate for AURORA auto-encoder
+EPOCHS = 100  # number of epochs used to train auto-encoder
+BATCH_SIZE = 16  # batch size for auto-encoder
+HID = 32  # size of the hidden layers for the auto-encoder
+DIM_RED = 2  # size of the reduced dimension of the auto-encoder
 
 id_counter = 0  # each individual will have a unique id
 
@@ -649,6 +658,40 @@ def add_to_grid_map(member, grid, cvt, toolbox):
         grid[grid_index] = winner
 
 
+def train_autoencoder(train_loader, device, optimizer, model, criterion):
+    for epoch in range(EPOCHS):
+        loss = 0
+        for batch_features, _ in train_loader:
+            # reshape mini-batch data to [N, 784] matrix
+            # load it to the active device
+            batch_features = batch_features.view(-1, 784).to(device)
+            
+            # reset the gradients back to zero
+            # PyTorch accumulates gradients on subsequent backward passes
+            optimizer.zero_grad()
+            
+            # compute reconstructions
+            outputs = model(batch_features)
+            
+            # compute training reconstruction loss
+            train_loss = criterion(outputs, batch_features)
+            
+            # compute accumulated gradients
+            train_loss.backward()
+            
+            # perform parameter update based on current gradients
+            optimizer.step()
+            
+            # add the mini-batch training loss to epoch loss
+            loss += train_loss.item()
+        
+        # compute the epoch training loss
+        loss = loss / len(train_loader)
+    
+    # display the epoch training loss
+    print("epoch : {}/{}, recon loss = {:.8f}".format(epoch + 1, EPOCHS, loss))
+
+
 def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, mini=True, plot=False, nb_gen=100,
                  algo_type='ns_nov', bound_genotype=1, pop_size=30, parallelize=False,
                  measures=False, choose_evaluate=None, bd_indexes=None, archive_limit_size=None,
@@ -733,7 +776,10 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
 
     else:
         evaluate_individual = evaluate_individual_list
-        bd_bounds = np.array(bd_bounds_list)
+        if algo_type == 'ns_rand_aurora':
+            bd_bounds = np.array([[0, 1]] * DIM_RED)
+        else:
+            bd_bounds = np.array(bd_bounds_list)
 
     # initialize population
     pop = toolbox.population()
@@ -840,6 +886,29 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
     # evaluate initial population
     evaluation_pop = list(toolbox.map(evaluate_individual, pop))
     b_descriptors, fitnesses, infos = map(list, zip(*evaluation_pop))
+
+    if algo_type == 'ns_rand_aurora':
+        # first training of the auto-encoder
+        # create the dataset
+        dataset = utils.BDDataset(b_descriptors)
+        dataloader = DataLoader(dataset, batch_size=BATCH_SIZE,
+                                shuffle=True, num_workers=0)
+
+        #  use gpu if available
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+        # create a model from `AE` autoencoder class
+        # load it to the specified device, either gpu or cpu
+        model = utils.AE(len(b_descriptors[0]), n_hidden=HID, n_reduced_dim=DIM_RED).to(device)
+
+        # create an optimizer object
+        # Adam optimizer with learning rate 1e-3
+        optimizer = optim.Adam(model.parameters(), lr=LR)
+
+        # mean-squared error loss
+        criterion = nn.MSELoss()
+
+        train_autoencoder(dataloader, device, optimizer, model, criterion)
 
     # attribute fitness and behavior descriptors to individuals
     if monitor_print:

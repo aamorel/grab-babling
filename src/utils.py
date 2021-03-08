@@ -5,7 +5,9 @@ from scipy.spatial import distance
 from numpy import linalg as LA
 import pybullet_envs
 import pybullet_envs.gym_locomotion_envs
-
+import torch
+import torch.nn as nn
+from torch.utils.data import Dataset
 
 color_list = ["green", "blue", "red",
               "#FFFF00", "#1CE6FF", "#FF34FF", "#006FA6", "#A30059",
@@ -260,3 +262,48 @@ class DeterministicPybulletAnt(pybullet_envs.gym_locomotion_envs.AntBulletEnv):
     def reset(self):
         self.seed(self.deterministic_random_seed)
         return pybullet_envs.gym_locomotion_envs.AntBulletEnv.reset(self)
+
+
+class BDDataset(Dataset):
+
+    def __init__(self, bds):
+
+        self.bds = bds
+
+    def __len__(self):
+        return len(self.bds)
+
+    def __getitem__(self, idx):
+        if torch.is_tensor(idx):
+            idx = idx.tolist()
+        sample = self.bds[idx]
+
+        return sample
+
+
+class AE(nn.Module):
+    def __init__(self, input_shape, n_hidden, n_reduced_dim):
+        super().__init__()
+        self.encoder_hidden_layer = nn.Linear(
+            in_features=input_shape, out_features=n_hidden
+        )
+        self.encoder_output_layer = nn.Linear(
+            in_features=n_hidden, out_features=n_reduced_dim
+        )
+        self.decoder_hidden_layer = nn.Linear(
+            in_features=n_reduced_dim, out_features=n_hidden
+        )
+        self.decoder_output_layer = nn.Linear(
+            in_features=n_hidden, out_features=input_shape
+        )
+
+    def forward(self, features):
+        activation = self.encoder_hidden_layer(features)
+        activation = torch.relu(activation)
+        code = self.encoder_output_layer(activation)
+        code = torch.sigmoid(code)
+        activation = self.decoder_hidden_layer(code)
+        activation = torch.relu(activation)
+        activation = self.decoder_output_layer(activation)
+        reconstructed = torch.sigmoid(activation)
+        return reconstructed

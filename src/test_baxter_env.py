@@ -4,7 +4,6 @@ import numpy as np
 
 n_iter = 3000
 
-
 controller_info = {'pause_frac': 0.66, 'n_iter': n_iter,
                    'NB_KEYPOINTS': 3, 'GENE_PER_KEYPOINTS': 9}
 for _ in range(3):

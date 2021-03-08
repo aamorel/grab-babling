@@ -11,6 +11,7 @@ import os
 import json
 import glob
 import random
+import math
 # from pynput.keyboard import Listener, Key
 
 DISPLAY = False
@@ -30,14 +31,14 @@ NB_GEN = 1000
 OBJECT = 'cube'  # 'cube', 'cup', 'cylinder', 'deer'
 ROBOT = 'kuka'  # 'baxter', 'pepper', 'kuka'
 CONTROLLER = 'interpolate keypoints end pause grip'  # see controllers_dict for list
-ALGO = 'ns_rand'  # algorithm
-BD = 'pos_div_grip'  # behavior descriptor type '2D', '3D', 'pos_div_grip', 'pos_div_pos_grip'
+ALGO = 'ns_rand_aurora'  # algorithm
+BD = 'aurora'  # behavior descriptor type '2D', '3D', 'pos_div_grip', 'pos_div_pos_grip'
 BOOTSTRAP_FOLDER = None
 QUALITY = False
 AUTO_COLLIDE = False
 NB_CELLS = 1000  # number of cells for measurement
 VERSION = 1
-N_EXP = 5
+N_EXP = 1
 
 
 # for keypoints controllers
@@ -101,6 +102,9 @@ N_LAG = int(200 / NB_STEPS_TO_ROLLOUT)  # number of steps before the grip time u
 ARCHIVE_LIMIT = 10000
 N_REP_RAND = 2
 COUNT_SUCCESS = 0
+
+if ALGO == 'ns_rand_aurora':
+    N_SAMPLES = 4
 
 
 # if reset, create global env
@@ -886,6 +890,95 @@ def pos_div_pos_grip_bd(individual):
     return (behavior, (fitness,), info)
 
 
+def aurora_bd(individual):
+
+    if RESET_MODE:
+        global ENV
+        ENV.reset()
+    else:
+        ENV = gym.make(ENV_NAME, display=DISPLAY, obj=OBJECT, steps_to_roll=NB_STEPS_TO_ROLLOUT)
+
+    individual = np.around(np.array(individual), 3)
+
+    # initialize controller
+    controller_info = controllers_info_dict[CONTROLLER]
+    controller = controllers_dict[CONTROLLER](individual, controller_info)
+
+    action = controller.initial_action
+
+    # for precise measure when we have the gripper assumption
+    already_touched = False
+
+    measure_grip_time = None
+
+    touch_idx = []
+
+    info = {}
+    sample_points = []
+    sample_step = NB_ITER / (N_SAMPLES + 1)
+    for point in range(N_SAMPLES):
+        sample_points.append(sample_step * (point + 1))
+    
+    behavior = []
+
+    for i in range(NB_ITER):
+        ENV.render()
+        # apply previously chosen action
+        o, r, eo, inf = ENV.step(action)
+
+        # choose action
+        if controller.open_loop:
+            action = controller.get_action(i)
+        else:
+            action = controller.get_action(i, o)
+
+        if eo:
+            break
+
+        touch = len(inf['contact_points']) > 0
+        touch_id = 0
+        if touch:
+            touch_id = inf['contact_points'][0][3]
+            touch_idx.append(touch_id)
+        relevant_touch = touch and (touch_id in LINK_ID_CONTACT)
+        if relevant_touch and not already_touched:
+            # first touch of object
+            measure_grip_time = diversity_measure(o)
+            already_touched = True
+
+        if i in sample_points:
+            # we sample the trajectory to feed the high dimensional BD
+            flattened_obs = [item for sublist in o for item in sublist]
+            obs_bounds = [[-1, 1]] * 10 + [[-math.pi, math.pi]] * len(o[4])
+            utils.bound(flattened_obs, obs_bounds)
+            utils.normalize(flattened_obs, obs_bounds)
+            behavior.append(flattened_obs)
+
+    # compute fitness
+    fitness = o[0][2]
+
+    # choose if individual satisfied the binary goal
+    dist = utils.list_l2_norm(o[0], o[2])
+    binary_goal = False
+    if o[0][2] > HEIGHT_THRESH and dist < DISTANCE_THRESH:
+        binary_goal = True
+    info['binary goal'] = binary_goal
+
+    if binary_goal:
+        if measure_grip_time is None:
+            # print('Individual grasped without touching any contact links')
+            info['binary goal'] = False
+        else:
+            info['diversity_descriptor'] = measure_grip_time
+
+    if not RESET_MODE:
+        ENV.close()
+
+    behavior_flat = [item for sublist in behavior for item in sublist]
+
+    return (behavior_flat, (fitness,), info)
+
+
 def choose_evaluation_function(info_change_bd):
     """In case of multi_ns bd, choose the evaluation function based on the dict sent by the ns algorithm.
 
@@ -939,7 +1032,8 @@ controllers_info_dict = {'interpolate keypoints end pause grip': {'pause_frac': 
 bd_dict = {'2D': two_d_bd,
            '3D': three_d_bd,
            'pos_div_grip': pos_div_grip_bd,
-           'pos_div_pos_grip': pos_div_pos_grip_bd}
+           'pos_div_pos_grip': pos_div_pos_grip_bd,
+           'aurora': aurora_bd}
 
 if __name__ == "__main__":
  
