@@ -13,11 +13,11 @@ DEBUG = False
 
 
 def plot_analysis():
-    # exp = '3_descriptors_no_qual_kuka'
-    # labels = ['concat_3BD', '3BD', '4BD']
+    exp = '3_descriptors_no_qual_kuka'
+    labels = ['concat_3BD', '3BD', '4BD', 'concat_4BD']
 
-    exp = '3_descriptors_no_qual_baxter'
-    labels = ['concat_3BD', '3BD']
+    # exp = '3_descriptors_no_qual_baxter'
+    # labels = ['concat_3BD', '3BD']
     folders = []
     for alg in labels:
         folders.append(os.path.join('..', 'experiments_analysis', exp, alg))
@@ -298,7 +298,7 @@ def plot_archive_management(env, arch_size, pop, gen, nb_cells, n_required, fold
     plt.rc('figure', titlesize=size, titleweight='bold')  # fontsize of the figure title
 
     if savepath:
-        param_dict = {'pop_size': pop, 'gen_nb': gen, 'env': env, 
+        param_dict = {'pop_size': pop, 'gen_nb': gen, 'env': env,
                       'n_cells': nb_cells, 'arch_size': arch_size,
                       'n_rep': n_required}
         with open(savepath + '_params.json', 'w') as fp:

@@ -37,7 +37,6 @@ BOOTSTRAP_FOLDER = None
 QUALITY = False
 AUTO_COLLIDE = False
 NB_CELLS = 1000  # number of cells for measurement
-VERSION = 1
 N_EXP = 1
 
 
@@ -138,6 +137,8 @@ if BD == 'pos_div_pos_grip':
     if ALGO == 'ns_rand_multi_bd':
         BD_INDEXES = [0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 3, 3, 3, 3]
         NOVELTY_METRIC = ['minkowski', 'minkowski', 'minkowski', 'minkowski']
+if BD == 'aurora':
+    BD_BOUNDS = None
 if ALGO == 'ns_rand_change_bd':
     BD = 'change_bd'
     # list of 3D bd and orientation bd
@@ -949,7 +950,7 @@ def aurora_bd(individual):
         if i in sample_points:
             # we sample the trajectory to feed the high dimensional BD
             flattened_obs = [item for sublist in o for item in sublist]
-            obs_bounds = [[-1, 1]] * 10 + [[-math.pi, math.pi]] * len(o[4])
+            obs_bounds = [[-1, 1]] * 14 + [[-math.pi, math.pi]] * len(o[4])
             utils.bound(flattened_obs, obs_bounds)
             utils.normalize(flattened_obs, obs_bounds)
             behavior.append(flattened_obs)
@@ -1109,7 +1110,6 @@ if __name__ == "__main__":
         details['object'] = OBJECT
         details['robot'] = ROBOT
         details['bootstrap folder'] = BOOTSTRAP_FOLDER
-        details['bd version'] = VERSION
         if coverage is not None:
             details['successful'] = True
             details['diversity coverage'] = coverage

@@ -278,7 +278,7 @@ class BDDataset(Dataset):
             idx = idx.tolist()
         sample = self.bds[idx]
 
-        return sample
+        return np.array(sample)
 
 
 class AE(nn.Module):
@@ -307,3 +307,10 @@ class AE(nn.Module):
         activation = self.decoder_output_layer(activation)
         reconstructed = torch.sigmoid(activation)
         return reconstructed
+    
+    def encode(self, features):
+        activation = self.encoder_hidden_layer(features)
+        activation = torch.relu(activation)
+        code = self.encoder_output_layer(activation)
+        code = torch.sigmoid(code)
+        return code

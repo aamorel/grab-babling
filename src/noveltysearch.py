@@ -57,6 +57,7 @@ EPOCHS = 100  # number of epochs used to train auto-encoder
 BATCH_SIZE = 16  # batch size for auto-encoder
 HID = 32  # size of the hidden layers for the auto-encoder
 DIM_RED = 2  # size of the reduced dimension of the auto-encoder
+GPU = False
 
 id_counter = 0  # each individual will have a unique id
 
@@ -659,22 +660,23 @@ def add_to_grid_map(member, grid, cvt, toolbox):
 
 
 def train_autoencoder(train_loader, device, optimizer, model, criterion):
+    losses = []
     for epoch in range(EPOCHS):
         loss = 0
-        for batch_features, _ in train_loader:
+        for batch_features in train_loader:
             # reshape mini-batch data to [N, 784] matrix
             # load it to the active device
-            batch_features = batch_features.view(-1, 784).to(device)
+            batch_features = batch_features.to(device)
             
             # reset the gradients back to zero
             # PyTorch accumulates gradients on subsequent backward passes
             optimizer.zero_grad()
             
             # compute reconstructions
-            outputs = model(batch_features)
+            outputs = model(batch_features.float())
             
             # compute training reconstruction loss
-            train_loss = criterion(outputs, batch_features)
+            train_loss = criterion(outputs, batch_features.float())
             
             # compute accumulated gradients
             train_loss.backward()
@@ -687,9 +689,20 @@ def train_autoencoder(train_loader, device, optimizer, model, criterion):
         
         # compute the epoch training loss
         loss = loss / len(train_loader)
-    
-    # display the epoch training loss
-    print("epoch : {}/{}, recon loss = {:.8f}".format(epoch + 1, EPOCHS, loss))
+        losses.append(loss)
+    return losses
+
+
+def reduce_behavior_descriptor(model, b_descriptors, device):
+
+    # transform each BD to its reduced form
+    bd_array = np.array(b_descriptors)
+    bd_tensor = torch.from_numpy(bd_array)
+    bd_tensor = bd_tensor.to(device)
+    with torch.no_grad():
+        bd_res = model.encode(bd_tensor.float())
+    b_descriptors = bd_res.cpu().numpy().tolist()
+    return b_descriptors
 
 
 def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, mini=True, plot=False, nb_gen=100,
@@ -889,13 +902,12 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
 
     if algo_type == 'ns_rand_aurora':
         # first training of the auto-encoder
-        # create the dataset
-        dataset = utils.BDDataset(b_descriptors)
-        dataloader = DataLoader(dataset, batch_size=BATCH_SIZE,
-                                shuffle=True, num_workers=0)
 
         #  use gpu if available
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        if GPU:
+            device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        else:
+            device = torch.device('cpu')
 
         # create a model from `AE` autoencoder class
         # load it to the specified device, either gpu or cpu
@@ -908,7 +920,17 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
         # mean-squared error loss
         criterion = nn.MSELoss()
 
-        train_autoencoder(dataloader, device, optimizer, model, criterion)
+        # create the dataset
+        dataset = utils.BDDataset(b_descriptors)
+        dataloader = DataLoader(dataset, batch_size=BATCH_SIZE,
+                                shuffle=True, num_workers=0)
+
+        # model is directly modified
+        losses = train_autoencoder(dataloader, device, optimizer, model, criterion)
+        print(losses)
+
+        # transform each BD to its reduced form
+        b_descriptors = reduce_behavior_descriptor(model, b_descriptors, device)
 
     # attribute fitness and behavior descriptors to individuals
     if monitor_print:
