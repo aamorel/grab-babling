@@ -82,6 +82,8 @@ def initialize_tool(initial_gen_size, mini, pop_size, parallelize, algo_type):
         from deap import creator
         # container for behavior descriptor
         creator.create('BehaviorDescriptor', list)
+        # container for extended behavior descriptor (only used for aurora)
+        creator.create('ExtendedBehaviorDescriptor', list)
         # container for info
         creator.create('Info', dict)
         # container for genetic info
@@ -101,7 +103,7 @@ def initialize_tool(initial_gen_size, mini, pop_size, parallelize, algo_type):
         # container for individual
         creator.create('Individual', list, behavior_descriptor=creator.BehaviorDescriptor,
                        novelty=creator.Novelty, fitness=creator.Fit, info=creator.Info,
-                       gen_info=creator.GenInfo)
+                       gen_info=creator.GenInfo, extended_behavior_descriptor=creator.ExtendedBehaviorDescriptor)
 
         # overwrite map function with normal map
         toolbox.register('map', map)
@@ -902,7 +904,7 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
 
     if algo_type == 'ns_rand_aurora':
         # first training of the auto-encoder
-
+        losses_list = []
         #  use gpu if available
         if GPU:
             device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -927,7 +929,11 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
 
         # model is directly modified
         losses = train_autoencoder(dataloader, device, optimizer, model, criterion)
-        print(losses)
+        losses_list.append(losses)
+
+        # save extended BD
+        for ind, e_bd in zip(pop, b_descriptors):
+            ind.extended_behavior_descriptor.values = e_bd
 
         # transform each BD to its reduced form
         b_descriptors = reduce_behavior_descriptor(model, b_descriptors, device)
@@ -1073,6 +1079,10 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
         if monitor_print:
             count_success = 0
         if algo_type == 'ns_rand_aurora':
+            # save extended BD
+            for ind, e_bd in zip(invalid_ind, inv_b_descriptors):
+                ind.extended_behavior_descriptor.values = e_bd
+
             # transform each BD to its reduced form
             inv_b_descriptors = reduce_behavior_descriptor(model, inv_b_descriptors, device)
         for ind, fit, bd, inf in zip(invalid_ind, inv_fitnesses, inv_b_descriptors, inv_infos):

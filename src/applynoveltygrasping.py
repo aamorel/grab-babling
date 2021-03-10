@@ -150,6 +150,8 @@ if ALGO == 'ns_rand_change_bd':
 if PARALLELIZE:
     # container for behavior descriptor
     creator.create('BehaviorDescriptor', list)
+    # container for extended behavior descriptor (only used for aurora)
+    creator.create('ExtendedBehaviorDescriptor', list)
     # container for genetic info
     creator.create('GenInfo', dict)
     # container for info
@@ -169,7 +171,7 @@ if PARALLELIZE:
     # container for individual
     creator.create('Individual', list, behavior_descriptor=creator.BehaviorDescriptor,
                    novelty=creator.Novelty, fitness=creator.Fit, info=creator.Info,
-                   gen_info=creator.GenInfo)
+                   gen_info=creator.GenInfo, extended_behavior_descriptor=creator.ExtendedBehaviorDescriptor)
 
     # set creator
     noveltysearch.set_creator(creator)
@@ -1141,7 +1143,7 @@ if __name__ == "__main__":
                 pop_behavior = np.array([ind.behavior_descriptor.values for ind in pop])
                 hof_behavior = np.array([ind.behavior_descriptor.values for ind in hof])
 
-            if BD == '2D':
+            if len(archive_behavior[0]) == 2:
                 fig, ax = plt.subplots(figsize=(5, 5))
                 ax.set(title='Final position of object', xlabel='x', ylabel='y')
                 ax.scatter(archive_behavior[:, 0], archive_behavior[:, 1], color='red', label='Archive')
@@ -1149,7 +1151,7 @@ if __name__ == "__main__":
                 ax.scatter(hof_behavior[:, 0], hof_behavior[:, 1], color='green', label='Hall of Fame')
                 plt.legend()
                 plt.savefig(run_name + 'bd_plot.png')
-            if BD == '3D':
+            if len(archive_behavior[0]) == 3:
                 fig = plt.figure(figsize=(5, 5))
                 ax = fig.add_subplot(111, projection='3d')
                 ax.set(title='Final position of object', xlabel='x', ylabel='y', zlabel='z')
