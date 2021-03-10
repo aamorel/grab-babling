@@ -12,6 +12,7 @@ import json
 import glob
 import random
 import math
+import time
 # from pynput.keyboard import Listener, Key
 
 DISPLAY = False
@@ -27,7 +28,7 @@ RESET_MODE = False
 
 # choose parameters
 POP_SIZE = 100
-NB_GEN = 1000
+NB_GEN = 10
 OBJECT = 'cube'  # 'cube', 'cup', 'cylinder', 'deer'
 ROBOT = 'kuka'  # 'baxter', 'pepper', 'kuka'
 CONTROLLER = 'interpolate keypoints end pause grip'  # see controllers_dict for list
@@ -1087,6 +1088,7 @@ if __name__ == "__main__":
                 boostrap_inds.append(ind)
             print('Novelty Search boostrapped with ', len(boostrap_inds), ' individuals.')
 
+        t_start = time.time()
         res = noveltysearch.novelty_algo(evaluation_function, initial_genotype_size, BD_BOUNDS,
                                          mini=MINI, plot=PLOT, algo_type=ALGO,
                                          nb_gen=NB_GEN, bound_genotype=1,
@@ -1103,6 +1105,7 @@ if __name__ == "__main__":
         
         # analyze triumphant archive diversity
         coverage, uniformity, clustered_triumphants = analyze_triumphants(triumphant_archive, run_name)
+        t_end = time.time()
 
         # complete run dict
         details['run id'] = i
@@ -1110,6 +1113,7 @@ if __name__ == "__main__":
         details['object'] = OBJECT
         details['robot'] = ROBOT
         details['bootstrap folder'] = BOOTSTRAP_FOLDER
+        details['run time'] = t_end - t_start
         if coverage is not None:
             details['successful'] = True
             details['diversity coverage'] = coverage

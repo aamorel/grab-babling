@@ -10,14 +10,15 @@ import re
 import os
 
 DEBUG = False
+JOYPLOT = False
 
 
 def plot_analysis():
-    exp = '3_descriptors_no_qual_kuka'
-    labels = ['concat_3BD', '3BD', '4BD', 'concat_4BD']
+    # exp = '3_descriptors_no_qual_kuka'
+    # labels = ['concat_3BD', '3BD', '4BD', 'concat_4BD']
 
-    # exp = '3_descriptors_no_qual_baxter'
-    # labels = ['concat_3BD', '3BD']
+    exp = '3_descriptors_no_qual_baxter'
+    labels = ['concat_3BD', '3BD', 'concat_4BD']
     folders = []
     for alg in labels:
         folders.append(os.path.join('..', 'experiments_analysis', exp, alg))
@@ -166,7 +167,7 @@ def plot_launch(details, data):
     if algo_type == 'ns_rand_multi_bd' or algo_type == 'map_elites':
         pass  # TODO: deal with multi_bd for novelty distrib plot
     else:
-        if len(novelty_distrib) < 100:
+        if len(novelty_distrib) < 100 and JOYPLOT:
             novelty_distrib = np.array(novelty_distrib)
             df = novelty_distrib.reshape((novelty_distrib.shape[0], novelty_distrib.shape[1]))
             df = df.transpose()

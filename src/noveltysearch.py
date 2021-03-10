@@ -1072,6 +1072,9 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
         # attribute fitness and behavior descriptors to new individuals
         if monitor_print:
             count_success = 0
+        if algo_type == 'ns_rand_aurora':
+            # transform each BD to its reduced form
+            inv_b_descriptors = reduce_behavior_descriptor(model, inv_b_descriptors, device)
         for ind, fit, bd, inf in zip(invalid_ind, inv_fitnesses, inv_b_descriptors, inv_infos):
             ind.behavior_descriptor.values = bd  # can be None in the change_bd case
             ind.info.values = inf
