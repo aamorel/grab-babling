@@ -57,7 +57,7 @@ EPOCHS = 100  # number of epochs used to train auto-encoder
 BATCH_SIZE = 16  # batch size for auto-encoder
 HID = 32  # size of the hidden layers for the auto-encoder
 DIM_RED = 2  # size of the reduced dimension of the auto-encoder
-GPU = False
+GPU = False  # try to use the GPU or not
 
 id_counter = 0  # each individual will have a unique id
 
@@ -707,6 +707,13 @@ def reduce_behavior_descriptor(model, b_descriptors, device):
     return b_descriptors
 
 
+def gen_to_retrain_aurora(gen):
+    if gen % 10 == 9:
+        return True
+    else:
+        return False
+
+
 def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, mini=True, plot=False, nb_gen=100,
                  algo_type='ns_nov', bound_genotype=1, pop_size=30, parallelize=False,
                  measures=False, choose_evaluate=None, bd_indexes=None, archive_limit_size=None,
@@ -1176,6 +1183,39 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
                     pop.pop(i)
 
         # ###################################### MANAGE ARCHIVE ############################################
+        if algo_type == 'ns_rand_aurora' and gen_to_retrain_aurora(gen):
+            # should retrain the model with new archive
+            extend_descriptors = []
+            for ind in archive:
+                e_bd = ind.extented_behavior_descriptor.values
+                extend_descriptors.append(e_bd)
+
+            # create the dataset
+            dataset = utils.BDDataset(extend_descriptors)
+            dataloader = DataLoader(dataset, batch_size=BATCH_SIZE,
+                                    shuffle=True, num_workers=0)
+
+            # model is directly modified
+            losses = train_autoencoder(dataloader, device, optimizer, model, criterion)
+            losses_list.append(losses)
+
+            # transform each BD to its reduced form
+            behavior_descriptors = reduce_behavior_descriptor(model, extend_descriptors, device)
+            
+            for ind, bd in zip(archive, behavior_descriptors):
+                ind.behavior_descriptor.values = bd
+            
+            # recomputing BD also for the current population
+            pop_extended_descriptors = []
+            for ind in pop:
+                e_bd = ind.extended_behavior_descriptor.values
+                pop_extended_descriptors.append(e_bd)
+
+            pop_behavior_descriptors = reduce_behavior_descriptor(model, pop_extended_descriptors, device)
+
+            for ind, bd in zip(pop, pop_behavior_descriptors):
+                ind.behavior_descriptor.values = bd
+
         if archive_limit_size is not None:
             # implement archive size limitation strategy
             if len(archive) >= archive_limit_size:

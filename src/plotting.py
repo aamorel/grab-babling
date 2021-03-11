@@ -14,24 +14,29 @@ JOYPLOT = False
 
 
 def plot_analysis():
-    # exp = '3_descriptors_no_qual_kuka'
+    # exp = 'kuka_1000_gen_cube'
     # labels = ['concat_3BD', '3BD', '4BD', 'concat_4BD']
+    # thresh = -0.08
 
-    exp = '3_descriptors_no_qual_baxter'
-    labels = ['concat_3BD', '3BD', 'concat_4BD']
+    exp = 'baxter_300_gen_cylinder'
+    labels = ['concat_3BD', '3BD', 'concat_4BD', '4BD']
+    thresh = -0.16
+
     folders = []
     for alg in labels:
         folders.append(os.path.join('..', 'experiments_analysis', exp, alg))
 
-    fig, ax = plt.subplots(nrows=1, ncols=3, figsize=(15, 15))
+    fig, ax = plt.subplots(nrows=1, ncols=4, figsize=(15, 15))
     data_cov = []
     data_uni = []
+    data_first = []
     data_count = []
     for f in folders:
         print(f)
         runs = glob.glob(f + '/*/run_details.json')
         list_cov = []
         list_uni = []
+        list_first = []
         count = 0
         for run in runs:
             with open(run) as json_file:
@@ -40,11 +45,23 @@ def plot_analysis():
                 count += 1
                 list_cov.append(details['diversity coverage'])
                 list_uni.append(details['diversity uniformity'])
+                data_path = run[:-12] + 'data.json'
+                with open(data_path) as json_data:
+                    data = json.load(json_data)
+                fitness_hist = np.array(data['max fitness'])
+                grasping_in_pop = fitness_hist > thresh
+                for i, val in enumerate(grasping_in_pop):
+                    if val:
+                        list_first.append(i)
+                        break
+                
         data_cov.append(np.array(list_cov))
         data_uni.append(np.array(list_uni))
+        data_first.append(np.array(list_first))
         data_count.append(count / len(runs))
     data_cov = np.transpose(np.array(data_cov))
     data_uni = np.transpose(np.array(data_uni))
+    data_first = np.transpose(np.array(data_first))
     ax[0].boxplot(data_cov, labels=labels, showmeans=True, meanline=True)
     ax[0].set_title('Coverage')
     ax[0].tick_params(labelrotation=45)
@@ -53,9 +70,13 @@ def plot_analysis():
     ax[1].set_title('Uniformity')
     ax[1].tick_params(labelrotation=45)
 
-    ax[2].bar(list(range(len(data_count))), data_count, tick_label=labels)
-    ax[2].set_title('Successful run frequency')
+    ax[2].boxplot(data_first, labels=labels, showmeans=True, meanline=True)
+    ax[2].set_title('First grasping individual')
     ax[2].tick_params(labelrotation=45)
+
+    ax[3].bar(list(range(len(data_count))), data_count, tick_label=labels)
+    ax[3].set_title('Successful run frequency')
+    ax[3].tick_params(labelrotation=45)
 
     plt.show()
 
