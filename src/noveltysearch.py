@@ -1187,7 +1187,7 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
             # should retrain the model with new archive
             extend_descriptors = []
             for ind in archive:
-                e_bd = ind.extented_behavior_descriptor.values
+                e_bd = ind.extended_behavior_descriptor.values
                 extend_descriptors.append(e_bd)
 
             # create the dataset

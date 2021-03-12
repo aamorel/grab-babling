@@ -28,17 +28,17 @@ RESET_MODE = False
 
 # choose parameters
 POP_SIZE = 100
-NB_GEN = 10
+NB_GEN = 500
 OBJECT = 'cube'  # 'cube', 'cup', 'cylinder', 'deer'
 ROBOT = 'kuka'  # 'baxter', 'pepper', 'kuka'
 CONTROLLER = 'interpolate keypoints end pause grip'  # see controllers_dict for list
-ALGO = 'ns_rand_aurora'  # algorithm
-BD = 'aurora'  # behavior descriptor type '2D', '3D', 'pos_div_grip', 'pos_div_pos_grip'
+ALGO = 'ns_rand_multi_bd'  # algorithm
+BD = 'pos_div_pos_grip'  # behavior descriptor type '2D', '3D', 'pos_div_grip', 'pos_div_pos_grip'
 BOOTSTRAP_FOLDER = None
-QUALITY = False
+QUALITY = True
 AUTO_COLLIDE = False
 NB_CELLS = 1000  # number of cells for measurement
-N_EXP = 1
+N_EXP = 50
 
 
 # for keypoints controllers
@@ -131,13 +131,17 @@ if BD == 'pos_div_grip':
         BD_INDEXES = [0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2]
         NOVELTY_METRIC = ['minkowski', 'minkowski', 'minkowski']
         if QUALITY:
-            MULTI_QUALITY_MEASURES = [['mean positive slope', 'std random pos', None], ['min', 'min', None]]
+            # MULTI_QUALITY_MEASURES = [['mean positive slope', 'std random pos', None], ['min', 'min', None]]
+            MULTI_QUALITY_MEASURES = [[None, 'std random pos', None], [None, 'min', None]]
 if BD == 'pos_div_pos_grip':
     BD_BOUNDS = [[-0.35, 0.35], [-0.15, 0.2], [-0.2, 0.5], [-1, 1], [-1, 1], [-1, 1], [-1, 1],
                  [-0.35, 0.35], [-0.15, 0.2], [-0.2, 0.5], [-1, 1], [-1, 1], [-1, 1], [-1, 1]]
     if ALGO == 'ns_rand_multi_bd':
         BD_INDEXES = [0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 3, 3, 3, 3]
         NOVELTY_METRIC = ['minkowski', 'minkowski', 'minkowski', 'minkowski']
+        if QUALITY:
+            MULTI_QUALITY_MEASURES = [[None, 'std random pos', 'std random pos', None], 
+                                      [None, 'min', 'min', None]]
 if BD == 'aurora':
     BD_BOUNDS = None
 if ALGO == 'ns_rand_change_bd':
