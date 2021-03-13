@@ -19,15 +19,15 @@ def plot_analysis():
     plt.rc('axes', labelsize=13, labelweight='bold')    # fontsize of the x and y labels
 
     exp = 'kuka_1000_gen_cube'
-    labels = ['concat_3BD', '3BD', 'concat_4BD', '4BD']
-    colors = ['#73020C', '#426A8C', '#D94D1A', '#008000']
+    labels = ['concat_3BD', '3BD', 'concat_4BD', '4BD', 'map_elites']
+    colors = ['#73020C', '#426A8C', '#D94D1A', '#008000', '#0000FF']
     thresh = -0.08
-    detail_key_verif = {'nb of cells': 1000, 'robot': 'kuka',
+    detail_key_verif = {'robot': 'kuka',
                         'object': 'cube', 'nb of generations': 1000}
 
     # exp = 'baxter_300_gen_cylinder'
-    # labels = ['concat_3BD', '3BD', 'concat_4BD', '4BD']
-    # colors = ['#73020C', '#426A8C', '#D94D1A', '#008000']
+    # labels = ['concat_3BD', '3BD', 'concat_4BD', '4BD', '4BD_600']
+    # colors = ['#73020C', '#426A8C', '#D94D1A', '#008000', '#0000FF']
     # thresh = -0.16
     # detail_key_verif = {}
 
@@ -51,7 +51,7 @@ def plot_analysis():
     for alg in labels:
         folders.append(os.path.join('..', 'experiments_analysis', exp, alg))
 
-    fig, ax = plt.subplots(nrows=1, ncols=3, figsize=(15, 15))
+    fig, ax = plt.subplots(nrows=1, ncols=2, figsize=(15, 15))
     data_cov = []
     data_uni = []
     data_first = []
@@ -101,21 +101,22 @@ def plot_analysis():
     # Add major gridlines in the y-axis
     ax[0].grid(color='grey', axis='y', linestyle='-', linewidth=0.75, alpha=0.5)
 
-    for i in range(len(data_first)):
-        ax[1].boxplot(data_first[i], positions=[i], labels=[labels[i]], showfliers=False,
-                      showmeans=True, meanline=True, patch_artist=True,
-                      widths=[0.6], boxprops=box_dicts[i], medianprops=line_dicts[i],
-                      whiskerprops=color_dicts[i], capprops=color_dicts[i],
-                      flierprops=f_dicts[i], meanprops=line_dicts[i])
-    ax[1].set_title('First grasping individual')
-    ax[1].set_ylabel('Number of generations')
-    ax[1].tick_params(labelrotation=45)
-    # Add major gridlines in the y-axis
+    ax[1].bar(list(range(len(data_count))), data_count, tick_label=labels, color=colors)
+    ax[1].set_title('Successful run frequency')
     ax[1].grid(color='grey', axis='y', linestyle='-', linewidth=0.75, alpha=0.5)
+    ax[1].tick_params(labelrotation=45)
 
-    ax[2].bar(list(range(len(data_count))), data_count, tick_label=labels, color=colors)
-    ax[2].set_title('Successful run frequency')
-    ax[2].tick_params(labelrotation=45)
+    # for i in range(len(data_first)):
+    #     ax[2].boxplot(data_first[i], positions=[i], labels=[labels[i]], showfliers=False,
+    #                   showmeans=True, meanline=True, patch_artist=True,
+    #                   widths=[0.6], boxprops=box_dicts[i], medianprops=line_dicts[i],
+    #                   whiskerprops=color_dicts[i], capprops=color_dicts[i],
+    #                   flierprops=f_dicts[i], meanprops=line_dicts[i])
+    # ax[2].set_title('First grasping individual')
+    # ax[2].set_ylabel('Number of generations')
+    # ax[2].tick_params(labelrotation=45)
+    # # Add major gridlines in the y-axis
+    # ax[2].grid(color='grey', axis='y', linestyle='-', linewidth=0.75, alpha=0.5)
 
     # ax[3].boxplot(data_uni, labels=labels, showmeans=True, meanline=True)
     # ax[3].set_title('Uniformity')

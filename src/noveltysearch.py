@@ -985,6 +985,8 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
         fig_gif = plt.figure(figsize=(10, 10))
         ims = []
 
+    first_saved_ind_gen = None
+
     # begin evolution
     for gen in tqdm.tqdm(range(nb_gen)):
 
@@ -1594,6 +1596,9 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
         max_age_hist.append(int(np.max(ages)))
         mean_age_hist.append(mean_age)
 
+        if len(save_ind) != 0 and first_saved_ind_gen is None:
+            first_saved_ind_gen = gen
+
         if algo_type == 'ns_rand_change_bd':
             # novelty search expects a list of evaluation functions and a list of bd_bounds
             # and a choose_evaluate functions which chooses which evaluation function to use
@@ -1670,6 +1675,7 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
     data['population uniformity'] = pop_uni_hist
     data['novelty distribution'] = novelty_distrib
     data['qualities'] = multi_quality_hist
+    data['first saved ind gen'] = first_saved_ind_gen
     if algo_type == 'ns_rand_multi_bd':
         data['eligibility rates'] = bd_rates
     if plot:
