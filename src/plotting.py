@@ -14,22 +14,23 @@ JOYPLOT = False
 
 
 def plot_analysis():
-    plt.rc('axes', titlesize=16, titleweight='bold')     # fontsize of the axes title
-    plt.rc('xtick', labelsize=13)    # fontsize of the tick labels
-    plt.rc('axes', labelsize=13, labelweight='bold')    # fontsize of the x and y labels
+    plt.rc('axes', titlesize=19, titleweight='bold')     # fontsize of the axes title
+    plt.rc('xtick', labelsize=16)
+    plt.rc('ytick', labelsize=16)
+    plt.rc('axes', labelsize=16, labelweight='bold')    # fontsize of the x and y labels
 
-    # exp = 'kuka_1000_gen_cube'
-    # labels = ['concat_3BD', '3BD', 'concat_4BD', '4BD', 'map_elites', 'random']
-    # colors = ['#73020C', '#426A8C', '#D94D1A', '#008000', '#0000FF', '#686868']
-    # thresh = -0.08
-    # detail_key_verif = {'robot': 'kuka',
-    #                     'object': 'cube', 'nb of generations': 1000}
+    exp = 'kuka_1000_gen_cube'
+    labels = ['4BD', '3BD', 'concat_4BD', 'concat_3BD', 'map_elites', 'random']
+    colors = ['#73020C', '#426A8C', '#D94D1A', '#008000', '#0000FF', '#686868']
+    thresh = -0.08
+    detail_key_verif = {'robot': 'kuka',
+                        'object': 'cube', 'nb of generations': 1000}
 
-    exp = 'baxter_300_gen_cylinder'
-    labels = ['concat_3BD', '3BD', 'concat_4BD', '4BD', '4BD_600', 'concat_3BD_600', '3BD_600']
-    colors = ['#73020C', '#426A8C', '#D94D1A', '#008000', '#0000FF', '#686868', '#FFC0CB']
-    thresh = -0.16
-    detail_key_verif = {}
+    # exp = 'baxter_300_gen_cylinder'
+    # labels = ['concat_3BD', '3BD', 'concat_4BD', '4BD', '4BD_600', 'concat_3BD_600', '3BD_600']
+    # colors = ['#73020C', '#426A8C', '#D94D1A', '#008000', '#0000FF', '#686868', '#FFC0CB']
+    # thresh = -0.16
+    # detail_key_verif = {}
 
     color_dicts = []
     for color in colors:
@@ -102,7 +103,7 @@ def plot_analysis():
                       whiskerprops=color_dicts[i], capprops=color_dicts[i],
                       flierprops=f_dicts[i], meanprops=line_dicts[i])
     ax[0].set_title('Diversity')
-    ax[0].set_ylabel('BD3 coverage percentage')
+    ax[0].set_ylabel('BD3 coverage')
     ax[0].tick_params(labelrotation=45)
     # Add major gridlines in the y-axis
     ax[0].grid(color='grey', axis='y', linestyle='-', linewidth=0.75, alpha=0.5)

@@ -29,7 +29,7 @@ RESET_MODE = False
 # choose parameters
 POP_SIZE = 100
 NB_GEN = 100
-OBJECT = 'deer'  # 'cube', 'cup', 'cylinder', 'deer'
+OBJECT = 'glass'  # 'cube', 'cup', 'cylinder', 'deer'
 ROBOT = 'baxter'  # 'baxter', 'pepper', 'kuka'
 CONTROLLER = 'interpolate keypoints end pause grip'  # see controllers_dict for list
 ALGO = 'ns_rand_multi_bd'  # algorithm
@@ -59,6 +59,8 @@ if ROBOT == 'baxter':
         HEIGHT_THRESH = -0.05
     if OBJECT == 'deer':
         HEIGHT_THRESH = -0.08
+    if OBJECT == 'glass':
+        HEIGHT_THRESH = -0.11
 
 if ROBOT == 'pepper':
     ENV_NAME = 'gym_baxter_grabbing:pepper_grasping-v0'
@@ -73,6 +75,8 @@ if ROBOT == 'pepper':
         HEIGHT_THRESH = -0.125
     if OBJECT == 'deer':
         HEIGHT_THRESH = -0.095
+    if OBJECT == 'glass':
+        HEIGHT_THRESH = -0.09
 if ROBOT == 'kuka':
     ENV_NAME = 'gym_baxter_grabbing:kuka_grasping-v0'
     GENE_PER_KEYPOINTS = 9  # kuka is controlled in joints space: 7 joints
@@ -85,6 +89,8 @@ if ROBOT == 'kuka':
     if OBJECT == 'cup':
         HEIGHT_THRESH = -0.08
     if OBJECT == 'deer':
+        HEIGHT_THRESH = -0.03
+    if OBJECT == 'glass':
         HEIGHT_THRESH = -0.03
 
 # for closed_loop control
@@ -140,7 +146,7 @@ if BD == 'pos_div_pos_grip':
         BD_INDEXES = [0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 3, 3, 3, 3]
         NOVELTY_METRIC = ['minkowski', 'minkowski', 'minkowski', 'minkowski']
         if QUALITY:
-            MULTI_QUALITY_MEASURES = [[None, 'std random pos', 'std random pos', None], 
+            MULTI_QUALITY_MEASURES = [[None, 'std random pos', 'std random pos', None],
                                       [None, 'min', 'min', None]]
 if BD == 'aurora':
     BD_BOUNDS = None
