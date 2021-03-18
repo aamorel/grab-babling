@@ -7,6 +7,7 @@ import pybullet_envs
 import pybullet_envs.gym_locomotion_envs
 import torch
 import torch.nn as nn
+import math
 from torch.utils.data import Dataset
 
 color_list = ["green", "blue", "red",
@@ -132,6 +133,19 @@ def sigmoid(x):
 def tanh(x):
     return np.tanh(x)
     
+
+def circle_coordinates(n_rep, r):
+    coordinates = []
+    delta_rad = 2 * math.pi / n_rep
+    for i in range(n_rep):
+        theta = i * delta_rad
+        x = math.cos(theta) * r
+        y = math.sin(theta) * r
+        c = [x, y]
+        coordinates.append(c)
+
+    return coordinates
+
 
 class NeuralAgentNumpy():
     def __init__(self, n_in, n_out, n_hidden_layers=2, n_neurons_per_hidden=5):

@@ -19,18 +19,18 @@ def plot_analysis():
     plt.rc('ytick', labelsize=16)
     plt.rc('axes', labelsize=16, labelweight='bold')    # fontsize of the x and y labels
 
-    exp = 'kuka_1000_gen_cube'
-    labels = ['4BD', '3BD', 'concat_4BD', 'concat_3BD', 'map_elites', 'random']
-    colors = ['#73020C', '#426A8C', '#D94D1A', '#008000', '#0000FF', '#686868']
-    thresh = -0.08
-    detail_key_verif = {'robot': 'kuka',
-                        'object': 'cube', 'nb of generations': 1000}
+    # exp = 'kuka_1000_gen_cube'
+    # labels = ['4BD', '3BD', 'concat_4BD', 'concat_3BD', 'map_elites', 'random']
+    # colors = ['#73020C', '#426A8C', '#D94D1A', '#008000', '#0000FF', '#686868']
+    # thresh = -0.08
+    # detail_key_verif = {'robot': 'kuka',
+    #                     'object': 'cube', 'nb of generations': 1000}
 
-    # exp = 'baxter_300_gen_cylinder'
-    # labels = ['concat_3BD', '3BD', 'concat_4BD', '4BD', '4BD_600', 'concat_3BD_600', '3BD_600']
-    # colors = ['#73020C', '#426A8C', '#D94D1A', '#008000', '#0000FF', '#686868', '#FFC0CB']
-    # thresh = -0.16
-    # detail_key_verif = {}
+    exp = 'baxter_300_gen_cylinder/600'
+    labels = ['4BD_600', '3BD_600', 'concat_3BD_600']
+    colors = ['#73020C', '#426A8C', '#D94D1A']
+    thresh = -0.16
+    detail_key_verif = {}
 
     color_dicts = []
     for color in colors:

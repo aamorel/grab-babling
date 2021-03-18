@@ -13,7 +13,6 @@ import glob
 import random
 import math
 import time
-# from pynput.keyboard import Listener, Key
 
 DISPLAY = False
 PARALLELIZE = True
@@ -28,17 +27,17 @@ RESET_MODE = False
 
 # choose parameters
 POP_SIZE = 100
-NB_GEN = 100
-OBJECT = 'glass'  # 'cube', 'cup', 'cylinder', 'deer'
-ROBOT = 'baxter'  # 'baxter', 'pepper', 'kuka'
+NB_GEN = 1000
+OBJECT = 'kuka'  # 'cube', 'cup', 'cylinder', 'deer'
+ROBOT = 'cube'  # 'baxter', 'pepper', 'kuka'
 CONTROLLER = 'interpolate keypoints end pause grip'  # see controllers_dict for list
 ALGO = 'ns_rand_multi_bd'  # algorithm
 BD = 'pos_div_pos_grip'  # behavior descriptor type '2D', '3D', 'pos_div_grip', 'pos_div_pos_grip'
 BOOTSTRAP_FOLDER = None
-QUALITY = False
+QUALITY = True
 AUTO_COLLIDE = False
 NB_CELLS = 1000  # number of cells for measurement
-N_EXP = 10
+N_EXP = 30
 
 
 # for keypoints controllers
@@ -77,6 +76,7 @@ if ROBOT == 'pepper':
         HEIGHT_THRESH = -0.095
     if OBJECT == 'glass':
         HEIGHT_THRESH = -0.09
+
 if ROBOT == 'kuka':
     ENV_NAME = 'gym_baxter_grabbing:kuka_grasping-v0'
     GENE_PER_KEYPOINTS = 9  # kuka is controlled in joints space: 7 joints
@@ -106,8 +106,12 @@ DIFF_OR_THRESH = 0.4  # threshold for clustering grasping orientations
 COV_LIMIT = 0.1  # threshold for changing behavior descriptor in change_bd ns
 N_LAG = int(200 / NB_STEPS_TO_ROLLOUT)  # number of steps before the grip time used in the pos_div_grip BD
 ARCHIVE_LIMIT = 10000
-N_REP_RAND = 2
+N_REP_RAND = 5
+SIGMA_RAND = 0.01
 COUNT_SUCCESS = 0
+
+if QUALITY:
+    D_POS = utils.circle_coordinates(N_REP_RAND, SIGMA_RAND)
 
 if ALGO == 'ns_rand_aurora':
     N_SAMPLES = 4
@@ -137,8 +141,8 @@ if BD == 'pos_div_grip':
         BD_INDEXES = [0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2]
         NOVELTY_METRIC = ['minkowski', 'minkowski', 'minkowski']
         if QUALITY:
-            # MULTI_QUALITY_MEASURES = [['mean positive slope', 'std random pos', None], ['min', 'min', None]]
-            MULTI_QUALITY_MEASURES = [[None, 'std random pos', None], [None, 'min', None]]
+            # MULTI_QUALITY_MEASURES = [['mean positive slope', 'grasp robustness', None], ['min', 'min', None]]
+            MULTI_QUALITY_MEASURES = [[None, 'grasp robustness', None], [None, 'max', None]]
 if BD == 'pos_div_pos_grip':
     BD_BOUNDS = [[-0.35, 0.35], [-0.15, 0.2], [-0.2, 0.5], [-1, 1], [-1, 1], [-1, 1], [-1, 1],
                  [-0.35, 0.35], [-0.15, 0.2], [-0.2, 0.5], [-1, 1], [-1, 1], [-1, 1], [-1, 1]]
@@ -146,8 +150,8 @@ if BD == 'pos_div_pos_grip':
         BD_INDEXES = [0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 3, 3, 3, 3]
         NOVELTY_METRIC = ['minkowski', 'minkowski', 'minkowski', 'minkowski']
         if QUALITY:
-            MULTI_QUALITY_MEASURES = [[None, 'std random pos', 'std random pos', None],
-                                      [None, 'min', 'min', None]]
+            MULTI_QUALITY_MEASURES = [[None, 'grasp robustness', 'grasp robustness', None],
+                                      [None, 'max', 'max', None]]
 if BD == 'aurora':
     BD_BOUNDS = None
 if ALGO == 'ns_rand_change_bd':
@@ -636,10 +640,11 @@ def pos_div_grip_bd(individual):
 
     if QUALITY and binary_goal:
         # re-evaluate with random initial positions to assess robustness as quality
-        last_pos_obj = [[o[0][0], o[0][1], o[0][2]]]
+        reference = [o[0][0], o[0][1], o[0][2]]
+        last_pos_obj = []
+        count = 0
         for _ in range(N_REP_RAND):
-            ENV = gym.make(ENV_NAME, display=DISPLAY, obj=OBJECT, random_obj=True)
-            ENV.set_steps_to_roll(NB_STEPS_TO_ROLLOUT)
+            ENV = gym.make(ENV_NAME, display=DISPLAY, obj=OBJECT, random_obj=True, steps_to_roll=NB_STEPS_TO_ROLLOUT)
 
             # initialize controller
             controller_info = controllers_info_dict[CONTROLLER]
@@ -662,14 +667,24 @@ def pos_div_grip_bd(individual):
 
                 if eo:
                     break
-            last_pos_obj.append([o[0][0], o[0][1], o[0][2]])
+            dist = utils.list_l2_norm(o[0], o[2])
+            binary_goal = False
+            if o[0][2] > HEIGHT_THRESH and dist < DISTANCE_THRESH:
+                binary_goal = True
+            
+            if binary_goal:
+                count += 1
+                last_pos_obj.append([o[0][0], o[0][1], o[0][2]])
 
             ENV.close()
 
-        last_pos_obj = np.array(last_pos_obj)
-        std = np.std(last_pos_obj, axis=0)
-        mean_std = np.mean(std)
-        info['std random pos'] = mean_std
+        mean_dist = 0
+        for last_pos in last_pos_obj:
+            mean_dist += utils.list_l2_norm(reference, last_pos)
+        mean_dist = mean_dist / count
+
+        grasp_rob = count + 1 / (1 + 0.00000001 + mean_dist)
+        info['grasp robustness'] = grasp_rob
     
     return (behavior, (fitness,), info)
 
@@ -866,10 +881,12 @@ def pos_div_pos_grip_bd(individual):
 
     if QUALITY and binary_goal:
         # re-evaluate with random initial positions to assess robustness as quality
-        last_pos_obj = [[o[0][0], o[0][1], o[0][2]]]
-        for _ in range(N_REP_RAND):
-            ENV = gym.make(ENV_NAME, display=DISPLAY, obj=OBJECT, random_obj=True)
-            ENV.set_steps_to_roll(NB_STEPS_TO_ROLLOUT)
+        reference = [o[0][0], o[0][1], o[0][2]]
+        last_pos_obj = []
+        count = 0
+        for rep in range(N_REP_RAND):
+            ENV = gym.make(ENV_NAME, display=DISPLAY, obj=OBJECT, delta_pos=D_POS[rep],
+                           steps_to_roll=NB_STEPS_TO_ROLLOUT)
 
             # initialize controller
             controller_info = controllers_info_dict[CONTROLLER]
@@ -892,14 +909,24 @@ def pos_div_pos_grip_bd(individual):
 
                 if eo:
                     break
-            last_pos_obj.append([o[0][0], o[0][1], o[0][2]])
+            dist = utils.list_l2_norm(o[0], o[2])
+            binary_goal = False
+            if o[0][2] > HEIGHT_THRESH and dist < DISTANCE_THRESH:
+                binary_goal = True
+            
+            if binary_goal:
+                count += 1
+                last_pos_obj.append([o[0][0], o[0][1], o[0][2]])
 
             ENV.close()
 
-        last_pos_obj = np.array(last_pos_obj)
-        std = np.std(last_pos_obj, axis=0)
-        mean_std = np.mean(std)
-        info['std random pos'] = mean_std
+        mean_dist = 0
+        for last_pos in last_pos_obj:
+            mean_dist += utils.list_l2_norm(reference, last_pos)
+        mean_dist = mean_dist / count
+
+        grasp_rob = count + 1 / (1 + 0.00000001 + mean_dist)
+        info['grasp robustness'] = grasp_rob
     
     return (behavior, (fitness,), info)
 
@@ -1014,17 +1041,6 @@ def choose_evaluation_function(info_change_bd):
     return index
 
 
-# def on_press(key):
-#     global DISPLAY
-#     if key == Key.enter:
-#         DISPLAY = True
-#         print('DISPLAY is on')
-
-#     if key == Key.esc:
-#         DISPLAY = False
-#         print('DISPLAY is off')
-
-
 controllers_dict = {'discrete keypoints': controllers.DiscreteKeyPoints,
                     'interpolate keypoints': controllers.InterpolateKeyPoints,
                     'interpolate keypoints end pause': controllers.InterpolateKeyPointsEndPause,
@@ -1052,9 +1068,6 @@ bd_dict = {'2D': two_d_bd,
 if __name__ == "__main__":
  
     for _ in range(N_EXP):
-
-        # listener = Listener(on_press=on_press)
-        # listener.start()
 
         initial_genotype_size = NB_KEYPOINTS * GENE_PER_KEYPOINTS
         if CONTROLLER == 'interpolate keypoints end pause grip':
