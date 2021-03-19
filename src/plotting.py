@@ -20,15 +20,15 @@ def plot_analysis():
     plt.rc('axes', labelsize=16, labelweight='bold')    # fontsize of the x and y labels
 
     # exp = 'kuka_1000_gen_cube'
-    # labels = ['4BD', '3BD', 'concat_4BD', 'concat_3BD', 'map_elites', 'random']
-    # colors = ['#73020C', '#426A8C', '#D94D1A', '#008000', '#0000FF', '#686868']
+    # labels = ['random', 'map_elites', 'concat_3BD', 'concat_4BD', '3BD', '4BD']
+    # colors = ['#686868', '#0000FF', '#008000', '#D94D1A', '#426A8C', '#73020C']
     # thresh = -0.08
     # detail_key_verif = {'robot': 'kuka',
     #                     'object': 'cube', 'nb of generations': 1000}
 
     exp = 'baxter_300_gen_cylinder/600'
-    labels = ['4BD_600', '3BD_600', 'concat_3BD_600']
-    colors = ['#73020C', '#426A8C', '#D94D1A']
+    labels = ['concat_3BD_600', 'concat_4BD_600', '3BD_600', '4BD_600']
+    colors = ['#008000', '#D94D1A', '#426A8C', '#73020C']
     thresh = -0.16
     detail_key_verif = {}
 
