@@ -923,7 +923,8 @@ def pos_div_pos_grip_bd(individual):
         mean_dist = 0
         for last_pos in last_pos_obj:
             mean_dist += utils.list_l2_norm(reference, last_pos)
-        mean_dist = mean_dist / count
+        if count != 0:
+            mean_dist = mean_dist / count
 
         grasp_rob = count + 1 / (1 + 0.00000001 + mean_dist)
         info['grasp robustness'] = grasp_rob
@@ -1085,6 +1086,8 @@ if __name__ == "__main__":
 
             for j in range(2):
                 for i in range(3):
+                    QUALITY = False
+                    DISPLAY = True
                     path = os.path.join('runs', 'run59', 'type' + str(j) + '_' + str(i) + '.npy')
                     ind = np.load(path, allow_pickle=True)
                     res = evaluation_function(ind)
