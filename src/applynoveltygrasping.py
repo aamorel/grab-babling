@@ -643,8 +643,9 @@ def pos_div_grip_bd(individual):
         reference = [o[0][0], o[0][1], o[0][2]]
         last_pos_obj = []
         count = 0
-        for _ in range(N_REP_RAND):
-            ENV = gym.make(ENV_NAME, display=DISPLAY, obj=OBJECT, random_obj=True, steps_to_roll=NB_STEPS_TO_ROLLOUT)
+        for rep in range(N_REP_RAND):
+            ENV = gym.make(ENV_NAME, display=DISPLAY, obj=OBJECT, delta_pos=D_POS[rep],
+                           steps_to_roll=NB_STEPS_TO_ROLLOUT)
 
             # initialize controller
             controller_info = controllers_info_dict[CONTROLLER]
@@ -681,7 +682,8 @@ def pos_div_grip_bd(individual):
         mean_dist = 0
         for last_pos in last_pos_obj:
             mean_dist += utils.list_l2_norm(reference, last_pos)
-        mean_dist = mean_dist / count
+        if count != 0:
+            mean_dist = mean_dist / count
 
         grasp_rob = count + 1 / (1 + 0.00000001 + mean_dist)
         info['grasp robustness'] = grasp_rob
