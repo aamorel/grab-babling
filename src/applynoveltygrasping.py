@@ -804,9 +804,9 @@ def pos_div_pos_grip_bd(individual):
             energy += utils.list_l2_norm(action, prev_action) ** 2
     
     if auto_collision:
-        behavior = [None, None, None, None, None, None, None, None, None, None, None]
+        behavior = [None, None, None, None, None, None, None, None, None, None, None, None, None, None]
         if ALGO != 'ns_rand_multi_bd':
-            behavior = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+            behavior = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
         fitness = -float('inf')
         info = {'binary goal': False, 'auto_collided': True}
         ENV.close()
