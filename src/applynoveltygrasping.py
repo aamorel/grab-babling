@@ -28,14 +28,14 @@ RESET_MODE = False
 # choose parameters
 POP_SIZE = 100
 NB_GEN = 100
-OBJECT = 'cup'  # 'cube', 'cup', 'cylinder', 'deer'
+OBJECT = 'cylinder_r'  # 'cube', 'cup', 'cylinder', 'deer', 'cylinder_r', 'glass'
 ROBOT = 'baxter'  # 'baxter', 'pepper', 'kuka'
 CONTROLLER = 'interpolate keypoints end pause grip'  # see controllers_dict for list
 ALGO = 'ns_rand_multi_bd'  # algorithm
 BD = 'pos_div_pos_grip'  # behavior descriptor type '2D', '3D', 'pos_div_grip', 'pos_div_pos_grip'
 BOOTSTRAP_FOLDER = None
-QUALITY = False
-AUTO_COLLIDE = False
+QUALITY = True
+AUTO_COLLIDE = True
 NB_CELLS = 1000  # number of cells for measurement
 N_EXP = 10
 
@@ -54,6 +54,8 @@ if ROBOT == 'baxter':
         HEIGHT_THRESH = -0.125
     if OBJECT == 'cylinder':
         HEIGHT_THRESH = -0.16
+    if OBJECT == 'cylinder_r':
+        HEIGHT_THRESH = -0.12
     if OBJECT == 'cup':
         HEIGHT_THRESH = -0.15
     if OBJECT == 'deer':
