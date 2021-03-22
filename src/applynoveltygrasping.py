@@ -21,6 +21,7 @@ DISPLAY_HOF = False
 DISPLAY_RAND = False
 DISPLAY_TRIUMPHANTS = False
 EVAL_SUCCESSFULL = False
+SAVE_TRAJ = False
 SAVE_ALL = False
 RESET_MODE = False
 
@@ -734,6 +735,11 @@ def pos_div_pos_grip_bd(individual):
     prev_dist = None
 
     info = {}
+    if SAVE_TRAJ:
+        count_keypoint = 0
+        closed_keypoint_idx = 0
+        traj_array = []
+        closed = False
 
     if ALGO == 'map_elites':
         # define energy criterion
@@ -754,6 +760,14 @@ def pos_div_pos_grip_bd(individual):
 
         if i == 0:
             initial_object_position = o[0]
+
+        if i % 15 == 0 and SAVE_TRAJ:
+            count_keypoint += 1
+            joint_config = o[4][10:17]
+            traj_array.append(joint_config)
+            if not closed and already_grasped:
+                closed = True
+                closed_keypoint_idx = count_keypoint
 
         if eo:
             break
@@ -814,6 +828,7 @@ def pos_div_pos_grip_bd(individual):
         ENV.close()
         return (behavior, (fitness,), info)
 
+
     # use last info to compute behavior and fitness
     behavior = [o[0][0] - initial_object_position[0], o[0][1] - initial_object_position[1],
                 o[0][2]]  # last position of object
@@ -864,6 +879,10 @@ def pos_div_pos_grip_bd(individual):
 
     if not RESET_MODE:
         ENV.close()
+
+    if SAVE_TRAJ:
+        traj_array.append(closed_keypoint_idx)
+        return (behavior, (fitness,), info, traj_array)
 
     if ALGO != 'ns_rand_multi_bd':
         for i, b in enumerate(behavior):
@@ -1101,6 +1120,10 @@ if __name__ == "__main__":
                         print('\n \n \n')
                         print('Trajectory auto-collided')
                         print('\n \n \n')
+
+                    if SAVE_TRAJ:
+                        with open('traj.json', 'w') as outfile:
+                            json.dump(res[3], outfile)
 
             exit()
         
