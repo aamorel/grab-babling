@@ -147,6 +147,12 @@ def circle_coordinates(n_rep, r):
     return coordinates
 
 
+def sample_spherical(npoints, ndim=3):
+    vec = np.random.randn(ndim, npoints)
+    vec /= np.linalg.norm(vec, axis=0)
+    return vec
+
+
 class NeuralAgentNumpy():
     def __init__(self, n_in, n_out, n_hidden_layers=2, n_neurons_per_hidden=5):
         self.dim_in = n_in

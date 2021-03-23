@@ -21,6 +21,7 @@ DISPLAY_HOF = False
 DISPLAY_RAND = False
 DISPLAY_TRIUMPHANTS = False
 EVAL_SUCCESSFULL = False
+EVAL_WITH_OBSTACLE = True
 SAVE_TRAJ = False
 SAVE_ALL = False
 RESET_MODE = False
@@ -735,11 +736,6 @@ def pos_div_pos_grip_bd(individual):
     prev_dist = None
 
     info = {}
-    if SAVE_TRAJ:
-        count_keypoint = 0
-        closed_keypoint_idx = 0
-        traj_array = []
-        closed = False
 
     if ALGO == 'map_elites':
         # define energy criterion
@@ -760,14 +756,6 @@ def pos_div_pos_grip_bd(individual):
 
         if i == 0:
             initial_object_position = o[0]
-
-        if i % 15 == 0 and SAVE_TRAJ:
-            count_keypoint += 1
-            joint_config = o[4][10:17]
-            traj_array.append(joint_config)
-            if not closed and already_grasped:
-                closed = True
-                closed_keypoint_idx = count_keypoint
 
         if eo:
             break
@@ -828,7 +816,6 @@ def pos_div_pos_grip_bd(individual):
         ENV.close()
         return (behavior, (fitness,), info)
 
-
     # use last info to compute behavior and fitness
     behavior = [o[0][0] - initial_object_position[0], o[0][1] - initial_object_position[1],
                 o[0][2]]  # last position of object
@@ -879,10 +866,6 @@ def pos_div_pos_grip_bd(individual):
 
     if not RESET_MODE:
         ENV.close()
-
-    if SAVE_TRAJ:
-        traj_array.append(closed_keypoint_idx)
-        return (behavior, (fitness,), info, traj_array)
 
     if ALGO != 'ns_rand_multi_bd':
         for i, b in enumerate(behavior):
@@ -953,6 +936,74 @@ def pos_div_pos_grip_bd(individual):
         info['grasp robustness'] = grasp_rob
     
     return (behavior, (fitness,), info)
+
+
+def eval_sucessfull_ind(individual, obstacle_pos=None, obstacle_size=None):
+
+    if obstacle_pos is None:
+        ENV = gym.make(ENV_NAME, display=DISPLAY, obj=OBJECT, steps_to_roll=NB_STEPS_TO_ROLLOUT)
+    else:
+        ENV = gym.make(ENV_NAME, display=DISPLAY, obj=OBJECT, steps_to_roll=NB_STEPS_TO_ROLLOUT,
+                       obstacle=True, obstacle_pos=obstacle_pos, obstacle_size=obstacle_size)
+
+    individual = np.around(np.array(individual), 3)
+
+    # initialize controller
+    controller_info = controllers_info_dict[CONTROLLER]
+    controller = controllers_dict[CONTROLLER](individual, controller_info)
+    action = controller.initial_action
+
+    # for precise measure when we have the gripper assumption
+    already_grasped = False
+
+    count_keypoint = 0
+    closed_keypoint_idx = 0
+    traj_array = []
+    closed = False
+
+    for i in range(NB_ITER):
+        ENV.render()
+        # apply previously chosen action
+        o, r, eo, inf = ENV.step(action)
+
+        # choose action
+        if controller.open_loop:
+            action = controller.get_action(i)
+        else:
+            action = controller.get_action(i, o)
+
+        if i % 15 == 0 and SAVE_TRAJ:
+            count_keypoint += 1
+            joint_config = o[4][10:17]
+            traj_array.append(joint_config)
+            if not closed and already_grasped:
+                closed = True
+                closed_keypoint_idx = count_keypoint
+
+        if eo:
+            break
+        
+        if i >= controller.grip_time and not already_grasped:
+            # first action that orders the gripper closure
+            already_grasped = True
+
+        # if robot has a self-collision monitoring
+        if 'self contact_points' in inf and AUTO_COLLIDE:
+            if len(inf['self contact_points']) != 0:
+                raise Exception('Auto collision detected')
+
+    # choose if individual satisfied the binary goal
+    dist = utils.list_l2_norm(o[0], o[2])
+    binary_goal = False
+    if o[0][2] > HEIGHT_THRESH and dist < DISTANCE_THRESH:
+        binary_goal = True
+
+    ENV.close()
+
+    if SAVE_TRAJ:
+        traj_array.append(closed_keypoint_idx)
+
+    return binary_goal, traj_array
 
 
 def aurora_bd(individual):
@@ -1106,27 +1157,49 @@ if __name__ == "__main__":
             choose = choose_evaluation_function
 
         if EVAL_SUCCESSFULL:
-
+            QUALITY = False
+            DISPLAY = True
             for j in range(2):
                 for i in range(3):
-                    QUALITY = False
-                    DISPLAY = True
+
                     path = os.path.join('runs', 'run59', 'type' + str(j) + '_' + str(i) + '.npy')
                     ind = np.load(path, allow_pickle=True)
-                    res = evaluation_function(ind)
-                    before = res[2]['binary goal']
-                    print(before)
-                    if 'auto_collided' in res[2]:
-                        print('\n \n \n')
-                        print('Trajectory auto-collided')
-                        print('\n \n \n')
+                    res = eval_sucessfull_ind(ind)
+                    before = res[0]
+                    print('Individual did a succesfull graps ?', before)
 
                     if SAVE_TRAJ:
                         with open('traj.json', 'w') as outfile:
-                            json.dump(res[3], outfile)
+                            json.dump(res[1], outfile)
 
             exit()
-        
+
+        if EVAL_WITH_OBSTACLE:
+            sphere_radius = 0.15
+            obstacle_radius = 0.03
+            n_obstacles = 20
+
+            obstacle_pos = utils.sample_spherical(n_obstacles)
+            obstacle_pos = obstacle_pos.transpose()
+            obstacle_pos[obstacle_pos[:, 2] < 0] = -obstacle_pos[obstacle_pos[:, 2] < 0]
+            obstacle_pos = sphere_radius * obstacle_pos
+            path_to_inds = glob.glob('')
+            QUALITY = False
+
+            inds = []
+            for path in path_to_inds:
+                ind = np.load(path, allow_pickle=True)
+                inds.append(ind)
+            
+            count_sucess = np.zeros((n_obstacles, len(inds)))
+            for i, pos in enumerate(obstacle_pos):
+                for j, ind in enumerate(inds):
+                    res = eval_sucessfull_ind(ind, obstacle_pos=pos, obstacle_size=obstacle_radius)
+                    if res[0]:
+                        count_sucess[i, j] += 1
+            np.save('results/obstacle_results.npy', count_sucess)
+            exit()
+
         i = 0
         while os.path.exists('runs/run%i/' % i):
             i += 1
