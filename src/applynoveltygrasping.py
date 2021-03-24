@@ -22,6 +22,7 @@ DISPLAY_RAND = False
 DISPLAY_TRIUMPHANTS = False
 EVAL_SUCCESSFULL = False
 EVAL_WITH_OBSTACLE = False
+EVAL_QUALITY = False
 SAVE_TRAJ = False
 SAVE_ALL = False
 RESET_MODE = False
@@ -30,14 +31,14 @@ RESET_MODE = False
 # choose parameters
 POP_SIZE = 100
 NB_GEN = 100
-OBJECT = 'cylinder_r'  # 'cube', 'cup', 'cylinder', 'deer', 'cylinder_r', 'glass'
-ROBOT = 'baxter'  # 'baxter', 'pepper', 'kuka'
+OBJECT = 'cube'  # 'cube', 'cup', 'cylinder', 'deer', 'cylinder_r', 'glass'
+ROBOT = 'kuka'  # 'baxter', 'pepper', 'kuka'
 CONTROLLER = 'interpolate keypoints end pause grip'  # see controllers_dict for list
 ALGO = 'ns_rand_multi_bd'  # algorithm
 BD = 'pos_div_pos_grip'  # behavior descriptor type '2D', '3D', 'pos_div_grip', 'pos_div_pos_grip'
 BOOTSTRAP_FOLDER = None
 QUALITY = True
-AUTO_COLLIDE = True
+AUTO_COLLIDE = False
 NB_CELLS = 1000  # number of cells for measurement
 N_EXP = 10
 
@@ -1198,6 +1199,41 @@ if __name__ == "__main__":
                     if res[0]:
                         count_sucess[i, j] += 1
             np.save('results/obstacle_results.npy', count_sucess)
+            exit()
+
+        if EVAL_QUALITY:
+
+            path_to_inds_qual = glob.glob('../qual_inds/*/*.npy')
+            path_to_inds_no_qual = glob.glob('../no_qual_inds/*/*.npy')
+            QUALITY = True
+
+            inds_qual = []
+            for path in path_to_inds_qual:
+                ind = np.load(path, allow_pickle=True)
+                inds_qual.append(ind)
+            inds_no_qual = []
+            for path in path_to_inds_no_qual:
+                ind = np.load(path, allow_pickle=True)
+                inds_no_qual.append(ind)
+            
+            quality_qual_inds = []
+            quality_no_qual_inds = []
+            for ind in inds_qual:
+                res = evaluation_function(ind)
+                qual = res[2]['grasp robustness']
+                quality_qual_inds.append(qual)
+            for ind in inds_no_qual:
+                res = evaluation_function(ind)
+                qual = res[2]['grasp robustness']
+                quality_no_qual_inds.append(qual)
+
+            qual = np.array(quality_qual_inds)
+            no_qual = np.array(quality_no_qual_inds)
+            print('Mean quality qual_inds:', np.mean(qual))
+            print('Mean quality no_qual_inds:', np.mean(no_qual))
+            np.save('results/qual.npy', qual)
+            np.save('results/no_qual.npy', no_qual)
+
             exit()
 
         i = 0
