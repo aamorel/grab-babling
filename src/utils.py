@@ -153,6 +153,13 @@ def sample_spherical(npoints, ndim=3):
     return vec
 
 
+def half_sphere_projection(r=1, num=10):
+    linspace = np.linspace(-r, r, num=num)
+    points = np.array(np.meshgrid(linspace, linspace)).T.reshape(-1, 2)
+    points = points[np.linalg.norm(points, axis=1) <= r]
+    return np.hstack([points, np.sqrt(r * r - (points[:, 0] * points[:, 0] + points[:, 1] * points[:, 1]))[:, None]])
+
+
 class NeuralAgentNumpy():
     def __init__(self, n_in, n_out, n_hidden_layers=2, n_neurons_per_hidden=5):
         self.dim_in = n_in

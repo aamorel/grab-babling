@@ -6,11 +6,40 @@ import joypy
 import glob
 import json
 import seaborn as sns
+from matplotlib import cm
 import re
 import os
 
 DEBUG = False
 JOYPLOT = False
+
+
+def half_sphere_projection(radius=1, num=10):
+    linspace = np.linspace(-radius, radius, num=num)
+    points = np.array(np.meshgrid(linspace, linspace)).T.reshape(-1, 2)
+    points = points[np.linalg.norm(points, axis=1) <= radius]
+    temp = np.sqrt(np.maximum(radius * radius - points[:, 0] * points[:, 0] - points[:, 1] * points[:, 1], 0))
+    return np.hstack([points, temp[:, None]])
+
+
+def plot_heat_circle(num, positions, values, fig=None, ax=None):
+    map_m = np.zeros((num, num))
+    map_m[:] = np.nan
+    radius = np.linalg.norm(positions, axis=1).mean()
+    indexes = np.round((positions[:, :2] / radius + 1) * (num - 1) / 2, 0).astype(int).T
+    map_m[tuple(np.split(indexes, 2))] = values
+
+    if ax is None or fig is None:
+        fig, ax = plt.subplots(1, 1)
+    heatmap = ax.imshow(np.flip(map_m.transpose(), 0), cmap='viridis', extent=[-radius, radius, -radius, radius])
+    fig.colorbar(heatmap)
+    ax.set_xlabel("x")
+    ax.set_ylabel("y")
+    ax.set_title("Success with obstacle")
+    fig.savefig("halfSphereHeatMap.pdf")
+    plt.show()
+
+    return map_m
 
 
 def plot_analysis():
@@ -20,15 +49,19 @@ def plot_analysis():
     plt.rc('axes', labelsize=16, labelweight='bold')    # fontsize of the x and y labels
 
     # exp = 'kuka_1000_gen_cube'
-    # labels = ['random', 'map_elites', 'concat_3BD', 'concat_4BD', '3BD', '4BD']
-    # colors = ['#686868', '#0000FF', '#008000', '#D94D1A', '#426A8C', '#73020C']
+    # # labels = ['random', 'map_elites', 'concat_3BD', 'concat_4BD', '3BD', '4BD']
+    # # colors = ['#686868', '#0000FF', '#008000', '#D94D1A', '#426A8C', '#73020C']
+    # labels = ['random', 'map_elites', 'concat_4BD', '4BD']
+    # colors = ['#686868', '#0000FF', '#D94D1A', '#73020C']
     # thresh = -0.08
     # detail_key_verif = {'robot': 'kuka',
     #                     'object': 'cube', 'nb of generations': 1000}
 
     exp = 'baxter_300_gen_cylinder/600'
-    labels = ['concat_3BD_600', 'concat_4BD_600', '3BD_600', '4BD_600']
+    labels = ['concat_3BD', 'concat_4BD', '3BD', '4BD']
     colors = ['#008000', '#D94D1A', '#426A8C', '#73020C']
+    # labels = ['concat_4BD', '4BD']
+    # colors = ['#D94D1A', '#73020C']
     thresh = -0.16
     detail_key_verif = {}
 
@@ -554,3 +587,27 @@ if __name__ == "__main__":
     # plot_archive_importance('evaluate_maze', 10, 200, 100, 5, folder)
 
     plot_analysis()
+
+    # radius = 0.23
+    # num = 20
+    # points = half_sphere_projection(radius=radius, num=num)
+    # values = np.load('results/obstacle_results.npy')
+    # values = np.mean(values, 1)
+
+    # fig_2 = plt.figure()
+    # ax = fig_2.gca(projection='3d')
+
+    # ax.scatter(points[:, 0], points[:, 1], values)
+    # ax.set_xlabel('x')
+    # ax.set_ylabel('y')
+    # ax.set_zlabel('value')
+
+    # plot_heat_circle(num=num, positions=points, values=values)
+    
+    # with open('../long_run_kuka_cup/run_data.json') as f:
+    #     data = json.load(f)
+    # with open('../long_run_kuka_cup/run_details.json') as f:
+    #     details = json.load(f)
+
+    # plot_launch(details, data)
+    # plt.show()
