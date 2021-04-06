@@ -1013,11 +1013,11 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
                     parent_idx = random.choice(grid_indexes)
                     offsprings.append(grid_map[parent_idx])
         else:
-            if len(pop) == 0:
-                raise Exception('Empty population.')
+            #if len(pop) == 0:
+                #raise Exception('Empty population.')
             if len(pop) < nb_offsprings_to_generate:
                 nb_to_fill = pop_size - len(pop)
-                if REFILL_POP == 'new':
+                if REFILL_POP == 'new' or len(pop)<10:
                     # generate new random individuals to fill up the need
                     new_pop = toolbox.population()
                     for ind in new_pop:
@@ -1491,7 +1491,8 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
             genes_std = genetic_stats(pop)
             gen_stat_hist.append(genes_std)
         else:
-            gen_stat_hist.append(gen_stat_hist[-1])
+            if len(gen_stat_hist)>0: gen_stat_hist.append(gen_stat_hist[-1])
+            else: continue
 
         # compute genetic statistics of the offsprings
         genes_std = genetic_stats(offsprings)

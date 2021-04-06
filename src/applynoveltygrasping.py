@@ -13,6 +13,7 @@ import glob
 import random
 import math
 import time
+import sys
 
 DISPLAY = False
 PARALLELIZE = True
@@ -25,22 +26,22 @@ EVAL_WITH_OBSTACLE = False
 EVAL_QUALITY = False
 SAVE_TRAJ = False
 SAVE_ALL = False
-RESET_MODE = False
+RESET_MODE = True
 
 
 # choose parameters
 POP_SIZE = 100
 NB_GEN = 1000
-OBJECT = 'cube'  # 'cube', 'cup', 'cylinder', 'deer', 'cylinder_r', 'glass'
-ROBOT = 'kuka'  # 'baxter', 'pepper', 'kuka'
+OBJECT = sys.argv[1] if len(sys.argv)>1 else 'pin.urdf'  # 'cuboid', 'mug.urdf', 'cylinder', 'deer.urdf', 'cylinder_r', 'glass.urdf'
+ROBOT = 'baxter'  # 'baxter', 'pepper', 'kuka'
 CONTROLLER = 'interpolate keypoints end pause grip'  # see controllers_dict for list
 ALGO = 'ns_rand_multi_bd'  # algorithm
-BD = 'pos_div_pos'  # behavior descriptor type '2D', '3D', 'pos_div_grip', 'pos_div_pos_grip'
+BD = 'pos_div_pos_grip'  # behavior descriptor type '2D', '3D', 'pos_div_grip', 'pos_div_pos_grip'
 BOOTSTRAP_FOLDER = None
-QUALITY = False
-AUTO_COLLIDE = False
+QUALITY = sys.argv[2].lower() == 'true' if len(sys.argv)>2 else False
+AUTO_COLLIDE = True
 NB_CELLS = 1000  # number of cells for measurement
-N_EXP = 20
+N_EXP = int(sys.argv[3]) if len(sys.argv)>3 else 10 # second argument
 
 
 # for keypoints controllers
@@ -53,18 +54,20 @@ if ROBOT == 'baxter':
     NB_STEPS_TO_ROLLOUT = 10
     NB_ITER = int(6000 / NB_STEPS_TO_ROLLOUT)
     # set height thresh parameter
-    if OBJECT == 'cube':
+    if OBJECT == 'cuboid':
         HEIGHT_THRESH = -0.125
-    if OBJECT == 'cylinder':
+    elif OBJECT == 'cylinder':
         HEIGHT_THRESH = -0.16
-    if OBJECT == 'cylinder_r':
+    elif OBJECT == 'cylinder_r':
         HEIGHT_THRESH = -0.12
-    if OBJECT == 'cup':
+    elif OBJECT == 'mug.urdf':
         HEIGHT_THRESH = -0.15
-    if OBJECT == 'deer':
+    elif OBJECT == 'deer.urdf':
         HEIGHT_THRESH = -0.08
-    if OBJECT == 'glass':
+    elif OBJECT == 'glass.urdf':
         HEIGHT_THRESH = -0.11
+    else: # otherwise, suppose the object is not that tall
+        HEIGHT_THRESH = -0.15
 
 if ROBOT == 'pepper':
     ENV_NAME = 'gym_baxter_grabbing:pepper_grasping-v0'
@@ -73,13 +76,13 @@ if ROBOT == 'pepper':
     NB_STEPS_TO_ROLLOUT = 1
     NB_ITER = int(1000 / NB_STEPS_TO_ROLLOUT)
     # set height thresh parameter
-    if OBJECT == 'cube':
+    if OBJECT == 'cuboid':
         HEIGHT_THRESH = -0.15
-    if OBJECT == 'cup':
+    elif OBJECT == 'mug.urdf':
         HEIGHT_THRESH = -0.125
-    if OBJECT == 'deer':
+    elif OBJECT == 'deer.urdf':
         HEIGHT_THRESH = -0.095
-    if OBJECT == 'glass':
+    elif OBJECT == 'glass.urdf':
         HEIGHT_THRESH = -0.09
 
 if ROBOT == 'kuka':
@@ -89,13 +92,13 @@ if ROBOT == 'kuka':
     NB_STEPS_TO_ROLLOUT = 1
     NB_ITER = int(2500 / NB_STEPS_TO_ROLLOUT)
     # set height thresh parameter
-    if OBJECT == 'cube':
+    if OBJECT == 'cuboid':
         HEIGHT_THRESH = -0.08
-    if OBJECT == 'cup':
+    elif OBJECT == 'mug.urdf':
         HEIGHT_THRESH = -0.08
-    if OBJECT == 'deer':
+    elif OBJECT == 'deer.urdf':
         HEIGHT_THRESH = -0.03
-    if OBJECT == 'glass':
+    elif OBJECT == 'glass.urdf':
         HEIGHT_THRESH = -0.03
 
 # for closed_loop control
@@ -320,7 +323,7 @@ def two_d_bd(individual):
     individual = np.around(np.array(individual), 3)
     # initialize controller
     controller_info = controllers_info_dict[CONTROLLER]
-    controller = controllers_dict[CONTROLLER](individual, controller_info)
+    controller = controllers_dict[CONTROLLER](individual, controller_info, initial=ENV.get_action())
     action = controller.initial_action
 
     for i in range(NB_ITER):
@@ -375,7 +378,7 @@ def three_d_bd(individual):
     
     # initialize controller
     controller_info = controllers_info_dict[CONTROLLER]
-    controller = controllers_dict[CONTROLLER](individual, controller_info)
+    controller = controllers_dict[CONTROLLER](individual, controller_info, initial=ENV.get_action())
     action = controller.initial_action
 
     # for precise measure when we have the gripper assumption
@@ -483,7 +486,7 @@ def pos_div_grip_bd(individual):
 
     # initialize controller
     controller_info = controllers_info_dict[CONTROLLER]
-    controller = controllers_dict[CONTROLLER](individual, controller_info)
+    controller = controllers_dict[CONTROLLER](individual, controller_info, initial=ENV.get_action())
     assert(hasattr(controller, 'grip_time'))
     # lag_time = controller.grip_time - N_LAG
     lag_time = NB_ITER / 2
@@ -585,7 +588,8 @@ def pos_div_grip_bd(individual):
             behavior = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
         fitness = -float('inf')
         info = {'binary goal': False, 'auto_collided': True}
-        ENV.close()
+        if not RESET_MODE:
+            ENV.close()
         return (behavior, (fitness,), info)
 
     # use last info to compute behavior and fitness
@@ -665,7 +669,7 @@ def pos_div_grip_bd(individual):
 
             # initialize controller
             controller_info = controllers_info_dict[CONTROLLER]
-            controller = controllers_dict[CONTROLLER](individual, controller_info)
+            controller = controllers_dict[CONTROLLER](individual, controller_info, initial=ENV.get_action())
             action = controller.initial_action
 
             for i in range(NB_ITER):
@@ -693,7 +697,8 @@ def pos_div_grip_bd(individual):
                 count += 1
                 last_pos_obj.append([o[0][0], o[0][1], o[0][2]])
 
-            ENV.close()
+            if not RESET_MODE:
+                ENV.close()
 
         mean_dist = 0
         for last_pos in last_pos_obj:
@@ -721,7 +726,7 @@ def pos_div_pos_bd(individual):
 
     # initialize controller
     controller_info = controllers_info_dict[CONTROLLER]
-    controller = controllers_dict[CONTROLLER](individual, controller_info)
+    controller = controllers_dict[CONTROLLER](individual, controller_info, initial=ENV.get_action())
     assert(hasattr(controller, 'grip_time'))
 
     action = controller.initial_action
@@ -811,12 +816,13 @@ def pos_div_pos_bd(individual):
             energy += utils.list_l2_norm(action, prev_action) ** 2
     
     if auto_collision:
-        behavior = [None, None, None, None, None, None, None, None, None, None, None, None, None, None]
+        behavior = [None]*10#[None, None, None, None, None, None, None, None, None, None, None, None, None, None]
         if ALGO != 'ns_rand_multi_bd':
-            behavior = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+            behavior = [0]*10#[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
         fitness = -float('inf')
         info = {'binary goal': False, 'auto_collided': True}
-        ENV.close()
+        if not RESET_MODE:
+            ENV.close()
         return (behavior, (fitness,), info)
 
     # use last info to compute behavior and fitness
@@ -889,7 +895,7 @@ def pos_div_pos_bd(individual):
 
             # initialize controller
             controller_info = controllers_info_dict[CONTROLLER]
-            controller = controllers_dict[CONTROLLER](individual, controller_info)
+            controller = controllers_dict[CONTROLLER](individual, controller_info, initial=ENV.get_action())
             action = controller.initial_action
 
             for i in range(NB_ITER):
@@ -917,7 +923,8 @@ def pos_div_pos_bd(individual):
                 count += 1
                 last_pos_obj.append([o[0][0], o[0][1], o[0][2]])
 
-            ENV.close()
+            if not RESET_MODE:
+                ENV.close()
 
         mean_dist = 0
         for last_pos in last_pos_obj:
@@ -945,7 +952,7 @@ def pos_div_pos_grip_bd(individual):
 
     # initialize controller
     controller_info = controllers_info_dict[CONTROLLER]
-    controller = controllers_dict[CONTROLLER](individual, controller_info)
+    controller = controllers_dict[CONTROLLER](individual, controller_info, initial=ENV.get_action())
     assert(hasattr(controller, 'grip_time'))
     # lag_time = controller.grip_time - N_LAG
     lag_time = NB_ITER / 2
@@ -1037,6 +1044,7 @@ def pos_div_pos_grip_bd(individual):
         # if robot has a self-collision monitoring
         if 'self contact_points' in inf and AUTO_COLLIDE:
             if len(inf['self contact_points']) != 0:
+                #print("collision", i, inf['self contact_points'][0][3], inf['self contact_points'][0][4])
                 auto_collision = True
                 break
 
@@ -1044,12 +1052,13 @@ def pos_div_pos_grip_bd(individual):
             energy += utils.list_l2_norm(action, prev_action) ** 2
     
     if auto_collision:
-        behavior = [None, None, None, None, None, None, None, None, None, None, None, None, None, None]
+        behavior = [None]*14#[None, None, None, None, None, None, None, None, None, None, None, None, None, None]
         if ALGO != 'ns_rand_multi_bd':
-            behavior = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+            behavior = [0]*14#[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
         fitness = -float('inf')
         info = {'binary goal': False, 'auto_collided': True}
-        ENV.close()
+        if not RESET_MODE:
+            ENV.close()
         return (behavior, (fitness,), info)
 
     # use last info to compute behavior and fitness
@@ -1132,7 +1141,7 @@ def pos_div_pos_grip_bd(individual):
 
             # initialize controller
             controller_info = controllers_info_dict[CONTROLLER]
-            controller = controllers_dict[CONTROLLER](individual, controller_info)
+            controller = controllers_dict[CONTROLLER](individual, controller_info, initial=ENV.get_action())
             action = controller.initial_action
 
             for i in range(NB_ITER):
@@ -1160,7 +1169,8 @@ def pos_div_pos_grip_bd(individual):
                 count += 1
                 last_pos_obj.append([o[0][0], o[0][1], o[0][2]])
 
-            ENV.close()
+            if not RESET_MODE:
+                ENV.close()
 
         mean_dist = 0
         for last_pos in last_pos_obj:
@@ -1186,7 +1196,7 @@ def eval_sucessfull_ind(individual, obstacle_pos=None, obstacle_size=None):
 
     # initialize controller
     controller_info = controllers_info_dict[CONTROLLER]
-    controller = controllers_dict[CONTROLLER](individual, controller_info)
+    controller = controllers_dict[CONTROLLER](individual, controller_info, initial=ENV.get_action())
     action = controller.initial_action
 
     # for precise measure when we have the gripper assumption
@@ -1234,7 +1244,8 @@ def eval_sucessfull_ind(individual, obstacle_pos=None, obstacle_size=None):
     if o[0][2] > HEIGHT_THRESH and dist < DISTANCE_THRESH:
         binary_goal = True
 
-    ENV.close()
+    if not RESET_MODE:
+        ENV.close()
 
     if SAVE_TRAJ:
         traj_array.append(closed_keypoint_idx)
@@ -1254,7 +1265,7 @@ def aurora_bd(individual):
 
     # initialize controller
     controller_info = controllers_info_dict[CONTROLLER]
-    controller = controllers_dict[CONTROLLER](individual, controller_info)
+    controller = controllers_dict[CONTROLLER](individual, controller_info, initial=ENV.get_action())
 
     action = controller.initial_action
 
@@ -1602,7 +1613,7 @@ if __name__ == "__main__":
                         ax[1].plot(gen_div_off[:, i], color=utils.color_list[color_index])
                 ax[1].legend()
                 plt.savefig(run_name + 'genetic_diversity_plot.png')
-            plt.show()
+            #plt.show()
         # don't save some stuff
         if not SAVE_ALL:
             data['novelty distribution'] = None

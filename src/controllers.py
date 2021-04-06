@@ -30,7 +30,7 @@ class DiscreteKeyPoints():
 
 class InterpolateKeyPoints():
 
-    def __init__(self, individual, info):
+    def __init__(self, individual, info, initial=None):
         """Interpolate actions between keypoints
 
         """
@@ -41,6 +41,9 @@ class InterpolateKeyPoints():
         n_keypoints = len(actions)
         interval_size = int(info['n_iter'] / n_keypoints)
         interp_x = [int(interval_size / 2 + i * interval_size) for i in range(n_keypoints)]
+        if initial: # add initial state to get a smooth motion
+            actions.insert(0, initial[:-1]) # the gripper is not included
+            interp_x.insert(0, 0)
         self.action_polynome = interpolate.interp1d(interp_x, actions, kind='quadratic', axis=0,
                                                     bounds_error=False, fill_value='extrapolate')
         self.open_loop = True
@@ -53,7 +56,7 @@ class InterpolateKeyPoints():
 
 class InterpolateKeyPointsEndPause():
 
-    def __init__(self, individual, info):
+    def __init__(self, individual, info, initial=None):
         """Interpolate actions between keypoints
            Stops the movement at the end in order to make sure that the object was correctly grasped at the end.
 
@@ -67,6 +70,9 @@ class InterpolateKeyPointsEndPause():
         self.pause_time = info['pause_frac'] * info['n_iter']
         interval_size = int(self.pause_time / n_keypoints)
         interp_x = [int(interval_size / 2 + i * interval_size) for i in range(n_keypoints)]
+        if initial: # add initial state to get a smooth motion
+            actions.insert(0, initial[:-1]) # the gripper is not included
+            interp_x.insert(0, 0)
         self.action_polynome = interpolate.interp1d(interp_x, actions, kind='quadratic', axis=0,
                                                     bounds_error=False, fill_value='extrapolate')
         self.open_loop = True
@@ -84,7 +90,7 @@ class InterpolateKeyPointsEndPause():
 
 class InterpolateKeyPointsEndPauseGripAssumption():
 
-    def __init__(self, individual, info):
+    def __init__(self, individual, info, initial=None):
         """Interpolate actions between keypoints
            Stops the movement at the end in order to make sure that the object was correctly grasped at the end.
            Only one parameter for the gripper, specifying the time at which it should close
@@ -101,6 +107,9 @@ class InterpolateKeyPointsEndPauseGripAssumption():
         self.pause_time = info['pause_frac'] * info['n_iter']
         interval_size = int(self.pause_time / n_keypoints)
         interp_x = [int(interval_size / 2 + i * interval_size) for i in range(n_keypoints)]
+        if initial: # add initial state to get a smooth motion
+            actions.insert(0, initial[:-1]) # the gripper is not included
+            interp_x.insert(0, 0)
         self.action_polynome = interpolate.interp1d(interp_x, actions, kind='quadratic', axis=0,
                                                     bounds_error=False, fill_value='extrapolate')
         self.open_loop = True
