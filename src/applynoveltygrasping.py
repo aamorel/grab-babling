@@ -30,9 +30,9 @@ RESET_MODE = True
 
 
 # choose parameters
-POP_SIZE = 100
+POP_SIZE = 96 # -> 48 new individuals wil be evaluated each generation in order to match the nb of cores of MeSu beta with 2 nodes
 NB_GEN = 1000
-OBJECT = sys.argv[1] if len(sys.argv)>1 else 'pin.urdf'  # 'cuboid', 'mug.urdf', 'cylinder', 'deer.urdf', 'cylinder_r', 'glass.urdf'
+OBJECT = sys.argv[1] if len(sys.argv)>1 else 'sphere'  # 'cuboid', 'mug.urdf', 'cylinder', 'deer.urdf', 'cylinder_r', 'glass.urdf'
 ROBOT = 'baxter'  # 'baxter', 'pepper', 'kuka'
 CONTROLLER = 'interpolate keypoints end pause grip'  # see controllers_dict for list
 ALGO = 'ns_rand_multi_bd'  # algorithm
@@ -664,7 +664,10 @@ def pos_div_grip_bd(individual):
         last_pos_obj = []
         count = 0
         for rep in range(N_REP_RAND):
-            ENV = gym.make(ENV_NAME, display=DISPLAY, obj=OBJECT, delta_pos=D_POS[rep],
+            if RESET_MODE:
+                ENV.reset()
+            else:
+                ENV = gym.make(ENV_NAME, display=DISPLAY, obj=OBJECT, delta_pos=D_POS[rep],
                            steps_to_roll=NB_STEPS_TO_ROLLOUT)
 
             # initialize controller
@@ -890,7 +893,10 @@ def pos_div_pos_bd(individual):
         last_pos_obj = []
         count = 0
         for rep in range(N_REP_RAND):
-            ENV = gym.make(ENV_NAME, display=DISPLAY, obj=OBJECT, delta_pos=D_POS[rep],
+            if RESET_MODE:
+                ENV.reset()
+            else:
+                ENV = gym.make(ENV_NAME, display=DISPLAY, obj=OBJECT, delta_pos=D_POS[rep],
                            steps_to_roll=NB_STEPS_TO_ROLLOUT)
 
             # initialize controller
@@ -1136,7 +1142,10 @@ def pos_div_pos_grip_bd(individual):
         last_pos_obj = []
         count = 0
         for rep in range(N_REP_RAND):
-            ENV = gym.make(ENV_NAME, display=DISPLAY, obj=OBJECT, delta_pos=D_POS[rep],
+            if RESET_MODE:
+                ENV.reset()
+            else:
+                ENV = gym.make(ENV_NAME, display=DISPLAY, obj=OBJECT, delta_pos=D_POS[rep],
                            steps_to_roll=NB_STEPS_TO_ROLLOUT)
 
             # initialize controller
