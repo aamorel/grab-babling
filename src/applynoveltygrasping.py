@@ -42,6 +42,7 @@ QUALITY = sys.argv[2].lower() == 'true' if len(sys.argv)>2 else False
 AUTO_COLLIDE = True
 NB_CELLS = 1000  # number of cells for measurement
 N_EXP = int(sys.argv[3]) if len(sys.argv)>3 else 10 # second argument
+print(f"pop size={POP_SIZE}, ngen={NB_GEN}, object={OBJECT}, robot={ROBOT}, quality={QUALITY}, autocollide={AUTO_COLLIDE}, nexp={N_EXP}, reset mode={RESET_MODE}, parallelize={PARALLELIZE}, controller={CONTROLLER}, behavior descriptor={BD}")
 
 
 # for keypoints controllers

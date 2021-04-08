@@ -6,6 +6,7 @@ from sklearn.neighbors import NearestNeighbors as Nearest
 from scipy.spatial import cKDTree as KDTree
 import scipy.stats as stats
 from scoop import futures
+from multiprocessing import Pool
 import utils
 import math
 from sklearn import mixture
@@ -109,7 +110,8 @@ def initialize_tool(initial_gen_size, mini, pop_size, parallelize, algo_type):
         toolbox.register('map', map)
     else:
         # overwrite map function with scoop for parallelization
-        toolbox.register('map', futures.map)
+        toolbox.register('map', Pool().map) #futures.map)
+
 
     # create function for individual initialization
     toolbox.register('init_ind', random.uniform, -1, 1)
