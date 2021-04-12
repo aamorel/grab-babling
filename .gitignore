@@ -12,3 +12,4 @@ past_results/
 *.mp4
 *.gif
 *.png
+.DS_Store

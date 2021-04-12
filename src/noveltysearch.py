@@ -990,7 +990,7 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
     first_saved_ind_gen = None
 
     # begin evolution
-    for gen in tqdm.tqdm(range(nb_gen)):
+    for gen in tqdm.tqdm(range(nb_gen), ascii=True):
         
         # ###################################### SELECT ############################################
         if algo_type == 'map_elites':
