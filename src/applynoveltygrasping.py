@@ -40,7 +40,7 @@ BD = 'pos_div_pos_grip'  # behavior descriptor type '2D', '3D', 'pos_div_grip', 
 BOOTSTRAP_FOLDER = None
 QUALITY = sys.argv[2].lower() == 'true' if len(sys.argv)>2 else False
 AUTO_COLLIDE = True
-NB_CELLS = 1000  # number of cells for measurement
+NB_CELLS = 10; assert NB_CELLS>2  # number of cells for measurement
 N_EXP = int(sys.argv[3]) if len(sys.argv)>3 else 10 # second argument
 print(f"pop size={POP_SIZE}, ngen={NB_GEN}, object={OBJECT}, robot={ROBOT}, quality={QUALITY}, autocollide={AUTO_COLLIDE}, nexp={N_EXP}, reset mode={RESET_MODE}, parallelize={PARALLELIZE}, controller={CONTROLLER}, behavior descriptor={BD}")
 
@@ -115,7 +115,7 @@ DIFF_OR_THRESH = 0.4  # threshold for clustering grasping orientations
 COV_LIMIT = 0.1  # threshold for changing behavior descriptor in change_bd ns
 N_LAG = int(200 / NB_STEPS_TO_ROLLOUT)  # number of steps before the grip time used in the pos_div_grip BD
 ARCHIVE_LIMIT = 10000
-N_REP_RAND = 5
+N_REP_RAND = 4
 SIGMA_RAND = 0.01
 COUNT_SUCCESS = 0
 
@@ -1565,11 +1565,11 @@ if __name__ == "__main__":
                 
             if BD != 'change_bd':
                 # plot final states
-                archive_behavior = np.array([ind.behavior_descriptor.values for ind in archive])
-                pop_behavior = np.array([ind.behavior_descriptor.values for ind in pop])
-                hof_behavior = np.array([ind.behavior_descriptor.values for ind in hof])
+                archive_behavior = np.array([ind.behavior_descriptor.values for ind in archive]) if len(archive)>0 else None # archive can be empty if the offspring size is too small
+                pop_behavior = np.array([ind.behavior_descriptor.values for ind in pop]) if len(pop)>0 else None
+                hof_behavior = np.array([ind.behavior_descriptor.values for ind in hof]) if len(hof)>0 else None
 
-            if len(archive_behavior[0]) == 2:
+            if archive_behavior and pop_behavior and hof_behavior and len(archive_behavior[0]) == 2:
                 fig, ax = plt.subplots(figsize=(5, 5))
                 ax.set(title='Final position of object', xlabel='x', ylabel='y')
                 ax.scatter(archive_behavior[:, 0], archive_behavior[:, 1], color='red', label='Archive')
@@ -1577,7 +1577,7 @@ if __name__ == "__main__":
                 ax.scatter(hof_behavior[:, 0], hof_behavior[:, 1], color='green', label='Hall of Fame')
                 plt.legend()
                 plt.savefig(run_name + 'bd_plot.png')
-            if len(archive_behavior[0]) == 3:
+            elif archive_behavior and pop_behavior and hof_behavior and len(archive_behavior[0]) == 3:
                 fig = plt.figure(figsize=(5, 5))
                 ax = fig.add_subplot(111, projection='3d')
                 ax.set(title='Final position of object', xlabel='x', ylabel='y', zlabel='z')

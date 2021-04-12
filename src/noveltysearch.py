@@ -6,7 +6,6 @@ from sklearn.neighbors import NearestNeighbors as Nearest
 from scipy.spatial import cKDTree as KDTree
 import scipy.stats as stats
 from scoop import futures
-from multiprocessing import Pool
 import utils
 import math
 from sklearn import mixture
@@ -110,7 +109,7 @@ def initialize_tool(initial_gen_size, mini, pop_size, parallelize, algo_type):
         toolbox.register('map', map)
     else:
         # overwrite map function with scoop for parallelization
-        toolbox.register('map', Pool().map) #futures.map)
+        toolbox.register('map', futures.map)
 
 
     # create function for individual initialization
@@ -241,10 +240,11 @@ def assess_novelties(pop, archive, algo_type, bd_bounds, bd_indexes, bd_filters,
                 if not(None in bd_value):  # if the bd has a value
                     bd_lists[idx].append(bd[bd_filter])
                     tree_ref_pop_indexes[idx].append(ref_pop_idx)
+        
         for idx in range(nb_bd):
             if len(bd_lists[idx]) > 0:
                 neigh = Nearest(n_neighbors=K + 1, metric=novelty_metric[idx])
-                neigh.fit(bd_lists[idx])
+                neigh.fit(np.array(bd_lists[idx]))
                 k_trees.append(neigh)
             else:
                 k_trees.append(None)
@@ -288,7 +288,7 @@ def assess_novelties(pop, archive, algo_type, bd_bounds, bd_indexes, bd_filters,
             
     else:
         # extract all the behavior descriptors that are not None to create the tree
-        b_ds = [ind.behavior_descriptor.values for ind in reference_pop if ind.behavior_descriptor.values is not None]
+        b_ds = np.array([ind.behavior_descriptor.values for ind in reference_pop if ind.behavior_descriptor.values is not None])
         k_tree = Nearest(n_neighbors=K + 1, metric=novelty_metric)
         k_tree.fit(b_ds)
         # compute novelty for current individuals (loop only on the pop)
@@ -991,7 +991,7 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
 
     # begin evolution
     for gen in tqdm.tqdm(range(nb_gen)):
-
+        
         # ###################################### SELECT ############################################
         if algo_type == 'map_elites':
             offsprings = []
@@ -1015,8 +1015,8 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
                     parent_idx = random.choice(grid_indexes)
                     offsprings.append(grid_map[parent_idx])
         else:
-            #if len(pop) == 0:
-                #raise Exception('Empty population.')
+            if len(pop) == 0:
+                raise Exception('Empty population.')
             if len(pop) < nb_offsprings_to_generate:
                 nb_to_fill = pop_size - len(pop)
                 if REFILL_POP == 'new' or len(pop)<10:
@@ -1096,6 +1096,7 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
 
             # transform each BD to its reduced form
             inv_b_descriptors = reduce_behavior_descriptor(model, inv_b_descriptors, device)
+        
         for ind, fit, bd, inf in zip(invalid_ind, inv_fitnesses, inv_b_descriptors, inv_infos):
             ind.behavior_descriptor.values = bd  # can be None in the change_bd case
             ind.info.values = inf
@@ -1107,7 +1108,7 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
         if monitor_print:
             t_eval.update(n=len(invalid_ind))
             t_success.update(n=count_success)
-
+        
         # compute novelty for all current individuals (novelty of population may have changed)
         if algo_type != 'random_search' and algo_type != 'map_elites':
             novelties = assess_novelties(current_pool, archive, algo_type, bd_bounds, bd_indexes, bd_filters,
@@ -1118,7 +1119,7 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
             for ind, nov in zip(current_pool, novelties):
                 ind.novelty.values = nov
         # an individual with bd = None will have 0 novelty
-
+        
         # add all generated individuals to historic and potentially to saved individuals
         if save_ind_cond == 1:
             save_ind.append(offsprings)
@@ -1129,7 +1130,7 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
             if isinstance(save_ind_cond, str):
                 if member.info.values[save_ind_cond]:
                     save_ind.append(member)
-
+        
         # ###################################### FILL ARCHIVE ############################################
         # fill archive with individuals from the offsprings group (direct references to those individuals)
         # grid follows the archive
@@ -1161,7 +1162,7 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
                         member = offsprings[i]
                         archive.append(member)
                         add_to_grid(member, grid, cvt, measures, algo_type, bd_filters)
-        
+            
         # ###################################### REPLACE ############################################
         if algo_type == 'classic_ea':
             # replacement: keep the most fit individuals
@@ -1219,7 +1220,7 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
 
             for ind, bd in zip(pop, pop_behavior_descriptors):
                 ind.behavior_descriptor.values = bd
-
+        
         if archive_limit_size is not None:
             # implement archive size limitation strategy
             if len(archive) >= archive_limit_size:
@@ -1493,8 +1494,9 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
             genes_std = genetic_stats(pop)
             gen_stat_hist.append(genes_std)
         else:
+            print("all individuals are invalid")
             if len(gen_stat_hist)>0: gen_stat_hist.append(gen_stat_hist[-1])
-            else: continue
+            else: continue # this will raise an error later
 
         # compute genetic statistics of the offsprings
         genes_std = genetic_stats(offsprings)
@@ -1507,6 +1509,7 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
         # gather all the ages in one list and compute stats
         ages = np.array([ind.gen_info.values['age'] for ind in pop])
         mean_age = np.mean(ages)
+        
         if measures:
             # re-build population grid (new grid at each generation)
             if algo_type == 'ns_rand_multi_bd':
