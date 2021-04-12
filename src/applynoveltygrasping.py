@@ -40,7 +40,7 @@ BD = 'pos_div_pos_grip'  # behavior descriptor type '2D', '3D', 'pos_div_grip', 
 BOOTSTRAP_FOLDER = None
 QUALITY = sys.argv[2].lower() == 'true' if len(sys.argv)>2 else False
 AUTO_COLLIDE = True
-NB_CELLS = 10; assert NB_CELLS>2  # number of cells for measurement
+NB_CELLS = 1000; assert NB_CELLS>2  # number of cells for measurement
 N_EXP = int(sys.argv[3]) if len(sys.argv)>3 else 10 # second argument
 print(f"pop size={POP_SIZE}, ngen={NB_GEN}, object={OBJECT}, robot={ROBOT}, quality={QUALITY}, autocollide={AUTO_COLLIDE}, nexp={N_EXP}, reset mode={RESET_MODE}, parallelize={PARALLELIZE}, controller={CONTROLLER}, behavior descriptor={BD}")
 
