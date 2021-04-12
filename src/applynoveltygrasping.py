@@ -1569,7 +1569,7 @@ if __name__ == "__main__":
                 pop_behavior = np.array([ind.behavior_descriptor.values for ind in pop]) if len(pop)>0 else None
                 hof_behavior = np.array([ind.behavior_descriptor.values for ind in hof]) if len(hof)>0 else None
 
-            if archive_behavior and pop_behavior and hof_behavior and len(archive_behavior[0]) == 2:
+            if archive_behavior is not None and pop_behavior is not None and hof_behavior is not None and len(archive_behavior[0]) == 2:
                 fig, ax = plt.subplots(figsize=(5, 5))
                 ax.set(title='Final position of object', xlabel='x', ylabel='y')
                 ax.scatter(archive_behavior[:, 0], archive_behavior[:, 1], color='red', label='Archive')
@@ -1577,7 +1577,7 @@ if __name__ == "__main__":
                 ax.scatter(hof_behavior[:, 0], hof_behavior[:, 1], color='green', label='Hall of Fame')
                 plt.legend()
                 plt.savefig(run_name + 'bd_plot.png')
-            elif archive_behavior and pop_behavior and hof_behavior and len(archive_behavior[0]) == 3:
+            elif archive_behavior is not None and pop_behavior is not None and hof_behavior is not None and len(archive_behavior[0]) == 3:
                 fig = plt.figure(figsize=(5, 5))
                 ax = fig.add_subplot(111, projection='3d')
                 ax.set(title='Final position of object', xlabel='x', ylabel='y', zlabel='z')
