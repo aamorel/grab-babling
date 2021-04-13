@@ -1016,7 +1016,8 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
                     offsprings.append(grid_map[parent_idx])
         else:
             if len(pop) == 0:
-                raise Exception('Empty population.')
+                print('Empty population.')
+                return None
             if len(pop) < nb_offsprings_to_generate:
                 nb_to_fill = pop_size - len(pop)
                 if REFILL_POP == 'new' or len(pop)<10:
@@ -1702,4 +1703,4 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
                                         repeat_delay=1000)
         figures['gif'] = ani
 
-    return [pop, archive, hall_of_fame, details, figures, data, save_ind]
+    return [pop, archive, hall_of_fame, details, figures, data, save_ind] # return None if the initial population is invalid

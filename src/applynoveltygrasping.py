@@ -14,6 +14,8 @@ import random
 import math
 import time
 import sys
+import argparse
+from functools import partial
 
 DISPLAY = False
 PARALLELIZE = True
@@ -28,20 +30,35 @@ SAVE_TRAJ = False
 SAVE_ALL = False
 RESET_MODE = True
 
+def greater(name, min, value):
+    v = int(value)
+    if v <= min: raise argparse.ArgumentTypeError(f"The {name.strip()} must be greater than {min}")
+    return v
+
+parser = argparse.ArgumentParser()
+parser.add_argument("-r", "--robot", help="The robot environment", type=str, default="baxter", choices=["baxter", "kuka", "pepper"])
+parser.add_argument("-o", "--object", help="The object to grasp", type=str, default="sphere")
+parser.add_argument("-p", "--population", help="The poulation size", type=partial(greater, "population size", 1), default=96)
+parser.add_argument("-g", "--generation", help="The number of generation", type=partial(greater, "number of generation", 1), default=1000)
+parser.add_argument("-n", "--nruns", help="The number of time to repeat the search", type=partial(greater, "number of runs", 0), default=10)
+parser.add_argument("-c", "--cells", help="The number of cells to measure the coverage", type=partial(greater, "number of cells", 1), default=1000)
+parser.add_argument("-q", "--quality", help="Enable quality", action="store_true")
+args = parser.parse_args()
+
 
 # choose parameters
-POP_SIZE = 96 # -> 48 new individuals wil be evaluated each generation in order to match the nb of cores of MeSu beta with 2 nodes
-NB_GEN = 1000
-OBJECT = sys.argv[1] if len(sys.argv)>1 else 'sphere'  # 'cuboid', 'mug.urdf', 'cylinder', 'deer.urdf', 'cylinder_r', 'glass.urdf'
-ROBOT = 'baxter'  # 'baxter', 'pepper', 'kuka'
+POP_SIZE = args.population # -> 48 new individuals wil be evaluated each generation in order to match the nb of cores of MeSu beta with 2 nodes
+NB_GEN = args.generation
+OBJECT = args.object  # 'cuboid', 'mug.urdf', 'cylinder', 'deer.urdf', 'cylinder_r', 'glass.urdf'
+ROBOT = args.robot  # 'baxter', 'pepper', 'kuka'
 CONTROLLER = 'interpolate keypoints end pause grip'  # see controllers_dict for list
 ALGO = 'ns_rand_multi_bd'  # algorithm
 BD = 'pos_div_pos_grip'  # behavior descriptor type '2D', '3D', 'pos_div_grip', 'pos_div_pos_grip'
 BOOTSTRAP_FOLDER = None
-QUALITY = sys.argv[2].lower() == 'true' if len(sys.argv)>2 else False
+QUALITY = args.quality
 AUTO_COLLIDE = True
-NB_CELLS = 1000; assert NB_CELLS>2  # number of cells for measurement
-N_EXP = int(sys.argv[3]) if len(sys.argv)>3 else 10 # second argument
+NB_CELLS = args.cells; assert NB_CELLS>2  # number of cells for measurement
+N_EXP = args.nruns
 print(f"pop size={POP_SIZE}, ngen={NB_GEN}, object={OBJECT}, robot={ROBOT}, quality={QUALITY}, autocollide={AUTO_COLLIDE}, nexp={N_EXP}, reset mode={RESET_MODE}, parallelize={PARALLELIZE}, controller={CONTROLLER}, behavior descriptor={BD}")
 
 
@@ -1500,12 +1517,6 @@ if __name__ == "__main__":
 
             exit()
 
-        i = 0
-        while os.path.exists('runs/run%i/' % i):
-            i += 1
-        run_name = 'runs/run%i/' % i
-        os.mkdir(run_name)
-
         # deal with possible bootstrap
         boostrap_inds = None
         if BOOTSTRAP_FOLDER is not None:
@@ -1516,20 +1527,31 @@ if __name__ == "__main__":
                 boostrap_inds.append(ind)
             print('Novelty Search boostrapped with ', len(boostrap_inds), ' individuals.')
 
-        t_start = time.time()
-        res = noveltysearch.novelty_algo(evaluation_function, initial_genotype_size, BD_BOUNDS,
-                                         mini=MINI, plot=PLOT, algo_type=ALGO,
-                                         nb_gen=NB_GEN, bound_genotype=1,
-                                         pop_size=POP_SIZE, parallelize=PARALLELIZE,
-                                         measures=True,
-                                         choose_evaluate=choose, bd_indexes=BD_INDEXES,
-                                         archive_limit_size=ARCHIVE_LIMIT, nb_cells=NB_CELLS,
-                                         novelty_metric=NOVELTY_METRIC, save_ind_cond='binary goal',
-                                         bootstrap_individuals=boostrap_inds, multi_quality=MULTI_QUALITY_MEASURES,
-                                         monitor_print=True)
+        res = None
+        i = 0
+        while res is None: # if res is None, it means the whole population is invalid (collision), so we do the search again
+            t_start = time.time()
+            res = noveltysearch.novelty_algo(evaluation_function, initial_genotype_size, BD_BOUNDS,
+                                             mini=MINI,                           plot=PLOT,
+                                             algo_type=ALGO,                      nb_gen=NB_GEN,
+                                             bound_genotype=1,                    pop_size=POP_SIZE,
+                                             parallelize=PARALLELIZE,             measures=True,
+                                             choose_evaluate=choose,              bd_indexes=BD_INDEXES,
+                                             archive_limit_size=ARCHIVE_LIMIT,    nb_cells=NB_CELLS,
+                                             novelty_metric=NOVELTY_METRIC,       save_ind_cond='binary goal',
+                                             bootstrap_individuals=boostrap_inds, multi_quality=MULTI_QUALITY_MEASURES,
+                                             monitor_print=True)
+            i += 1 # raise if failed 100 times
+            if i>=100: raise Exception("The initial population failed 100 times")
         
         pop, archive, hof, details, figures, data, triumphant_archive = res
         print('Number of triumphants: ', len(triumphant_archive))
+        
+        i = 0 # create run directory
+        while os.path.exists('runs/run%i/' % i):
+            i += 1
+        run_name = 'runs/run%i/' % i
+        os.mkdir(run_name)
         
         # analyze triumphant archive diversity
         coverage, uniformity, clustered_triumphants = analyze_triumphants(triumphant_archive, run_name)
@@ -1662,3 +1684,4 @@ if __name__ == "__main__":
                     for j in range(3):
                         if len(clustered_triumphants[i]) > j:
                             evaluation_function(clustered_triumphants[i][j])
+    print("end")
