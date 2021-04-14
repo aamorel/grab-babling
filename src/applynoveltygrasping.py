@@ -59,7 +59,7 @@ QUALITY = args.quality
 AUTO_COLLIDE = True
 NB_CELLS = args.cells; assert NB_CELLS>2  # number of cells for measurement
 N_EXP = args.nruns
-print(f"pop size={POP_SIZE}, ngen={NB_GEN}, object={OBJECT}, robot={ROBOT}, quality={QUALITY}, autocollide={AUTO_COLLIDE}, nexp={N_EXP}, reset mode={RESET_MODE}, parallelize={PARALLELIZE}, controller={CONTROLLER}, behavior descriptor={BD}")
+
 
 
 # for keypoints controllers
@@ -1416,7 +1416,7 @@ bd_dict = {'2D': two_d_bd,
            'aurora': aurora_bd}
 
 if __name__ == "__main__":
- 
+    print(f"pop size={POP_SIZE}, ngen={NB_GEN}, object={OBJECT}, robot={ROBOT}, quality={QUALITY}, autocollide={AUTO_COLLIDE}, nexp={N_EXP}, reset mode={RESET_MODE}, parallelize={PARALLELIZE}, controller={CONTROLLER}, behavior descriptor={BD}")
     for _ in range(N_EXP):
 
         initial_genotype_size = NB_KEYPOINTS * GENE_PER_KEYPOINTS
@@ -1541,8 +1541,8 @@ if __name__ == "__main__":
                                              novelty_metric=NOVELTY_METRIC,       save_ind_cond='binary goal',
                                              bootstrap_individuals=boostrap_inds, multi_quality=MULTI_QUALITY_MEASURES,
                                              monitor_print=True)
-            i += 1 # raise if failed 100 times
-            if i>=100: raise Exception("The initial population failed 100 times")
+            i += 1 # raise if failed 10 times
+            if i>=10: raise Exception("The initial population failed 10 times")
         
         pop, archive, hof, details, figures, data, triumphant_archive = res
         print('Number of triumphants: ', len(triumphant_archive))
@@ -1685,3 +1685,4 @@ if __name__ == "__main__":
                         if len(clustered_triumphants[i]) > j:
                             evaluation_function(clustered_triumphants[i][j])
     print("end")
+    sys.exit(0)

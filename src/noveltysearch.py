@@ -1495,7 +1495,6 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
             genes_std = genetic_stats(pop)
             gen_stat_hist.append(genes_std)
         else:
-            print("all individuals are invalid")
             if len(gen_stat_hist)>0: gen_stat_hist.append(gen_stat_hist[-1])
             else: continue # this will raise an error later
 
