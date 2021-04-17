@@ -16,6 +16,7 @@ import time
 import sys
 import argparse
 from functools import partial
+from pathlib import Path
 
 DISPLAY = False
 PARALLELIZE = True
@@ -683,7 +684,7 @@ def pos_div_grip_bd(individual):
         count = 0
         for rep in range(N_REP_RAND):
             if RESET_MODE:
-                ENV.reset()
+                ENV.reset(delta_pos=D_POS[rep])
             else:
                 ENV = gym.make(ENV_NAME, display=DISPLAY, obj=OBJECT, delta_pos=D_POS[rep],
                            steps_to_roll=NB_STEPS_TO_ROLLOUT)
@@ -912,7 +913,7 @@ def pos_div_pos_bd(individual):
         count = 0
         for rep in range(N_REP_RAND):
             if RESET_MODE:
-                ENV.reset()
+                ENV.reset(delta_pos=D_POS[rep])
             else:
                 ENV = gym.make(ENV_NAME, display=DISPLAY, obj=OBJECT, delta_pos=D_POS[rep],
                            steps_to_roll=NB_STEPS_TO_ROLLOUT)
@@ -989,6 +990,7 @@ def pos_div_pos_grip_bd(individual):
     already_touched = False
     already_grasped = False
     grasped_before_touch = False
+    closing = None
 
     # for measure at lag time
     lag_measured = False
@@ -1002,7 +1004,7 @@ def pos_div_pos_grip_bd(individual):
     positive_dist_slope = 0
     prev_dist = None
 
-    info = {}
+    info, grip_info = {}, {}
 
     if ALGO == 'map_elites':
         # define energy criterion
@@ -1031,6 +1033,8 @@ def pos_div_pos_grip_bd(individual):
             # first action that orders the gripper closure
             # measure_grip_time = diversity_measure(o)
             already_grasped = True
+            grip_info["contact object table"] = inf["contact object table"] # the object should touch the table while grasping
+            closing = i # the object should be grasped right after closing the gripper
 
         touch = len(inf['contact_points']) > 0
         touch_id = 0
@@ -1045,6 +1049,9 @@ def pos_div_pos_grip_bd(individual):
             already_touched = True
             if already_grasped:
                 grasped_before_touch = True
+        if relevant_touch and closing: # get the time step difference between when start closing and touching
+            grip_info["time close touch"] = i - closing
+            closing = None
         
         if i >= lag_time and not lag_measured:
             # gripper orientation
@@ -1104,6 +1111,10 @@ def pos_div_pos_grip_bd(individual):
     # choose if individual satisfied the binary goal
     dist = utils.list_l2_norm(o[0], o[2])
     binary_goal = False
+    
+    #relevant_contact = [c for c in inf['contact_points'] if c[3] in LINK_ID_CONTACT] # contact with the gripper
+    # the object should not touch the table neither the plane, must touch the gripper without penetration (with a margin of 0.005), be grasped right after closing the gripper (within 1s), touch the table when the gripper is closing
+    #if len(inf['contact object plane']+(inf['contact object table'] if 'contact object table' in inf.keys() else []))==0 and len(relevant_contact)>0 and np.all([c[8]>-0.01 for c in inf['contact_points']]) and grip_info['time close touch']<1*240/NB_STEPS_TO_ROLLOUT:# and len(grip_info['contact object table'])>0:
     if o[0][2] > HEIGHT_THRESH and dist < DISTANCE_THRESH:
         binary_goal = True
     info['binary goal'] = binary_goal
@@ -1161,7 +1172,7 @@ def pos_div_pos_grip_bd(individual):
         count = 0
         for rep in range(N_REP_RAND):
             if RESET_MODE:
-                ENV.reset()
+                ENV.reset(delta_pos=D_POS[rep])
             else:
                 ENV = gym.make(ENV_NAME, display=DISPLAY, obj=OBJECT, delta_pos=D_POS[rep],
                            steps_to_roll=NB_STEPS_TO_ROLLOUT)
@@ -1527,6 +1538,7 @@ if __name__ == "__main__":
                 boostrap_inds.append(ind)
             print('Novelty Search boostrapped with ', len(boostrap_inds), ' individuals.')
 
+        assert os.path.exists('runs'), "runs folder doesn't exist"
         res = None
         i = 0
         while res is None: # if res is None, it means the whole population is invalid (collision), so we do the search again
@@ -1685,4 +1697,3 @@ if __name__ == "__main__":
                         if len(clustered_triumphants[i]) > j:
                             evaluation_function(clustered_triumphants[i][j])
     print("end")
-    sys.exit(0)
