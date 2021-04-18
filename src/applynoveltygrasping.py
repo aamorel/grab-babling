@@ -37,7 +37,7 @@ def greater(name, min, value):
     return v
 
 parser = argparse.ArgumentParser()
-parser.add_argument("-r", "--robot", help="The robot environment", type=str, default="baxter", choices=["baxter", "kuka", "pepper"])
+parser.add_argument("-r", "--robot", help="The robot environment", type=str, default="baxter", choices=["baxter", "kuka", "pepper", "crustcrawler"])
 parser.add_argument("-o", "--object", help="The object to grasp", type=str, default="sphere")
 parser.add_argument("-p", "--population", help="The poulation size", type=partial(greater, "population size", 1), default=96)
 parser.add_argument("-g", "--generation", help="The number of generation", type=partial(greater, "number of generation", 1), default=1000)
@@ -88,7 +88,7 @@ if ROBOT == 'baxter':
     else: # otherwise, suppose the object is not that tall
         HEIGHT_THRESH = -0.15
 
-if ROBOT == 'pepper':
+elif ROBOT == 'pepper':
     ENV_NAME = 'gym_baxter_grabbing:pepper_grasping-v0'
     GENE_PER_KEYPOINTS = 7  # pepper is controlled in joints space: 7 joints
     LINK_ID_CONTACT = list(range(36, 50))  # link ids that can have a grasping contact
@@ -104,7 +104,7 @@ if ROBOT == 'pepper':
     elif OBJECT == 'glass.urdf':
         HEIGHT_THRESH = -0.09
 
-if ROBOT == 'kuka':
+elif ROBOT == 'kuka':
     ENV_NAME = 'gym_baxter_grabbing:kuka_grasping-v0'
     GENE_PER_KEYPOINTS = 9  # kuka is controlled in joints space: 7 joints
     LINK_ID_CONTACT = [8, 9, 10, 11, 12, 13]  # link ids that can have a grasping contact
@@ -119,6 +119,13 @@ if ROBOT == 'kuka':
         HEIGHT_THRESH = -0.03
     elif OBJECT == 'glass.urdf':
         HEIGHT_THRESH = -0.03
+        
+elif ROBOT == "crustcrawler":
+    ENV_NAME = 'gym_baxter_grabbing:crustcrawler-v0'
+    GENE_PER_KEYPOINTS = 7
+    LINK_ID_CONTACT = [12,13,14]  # link ids that can have a grasping contact
+    NB_STEPS_TO_ROLLOUT = 1
+    NB_ITER = int(2500 / NB_STEPS_TO_ROLLOUT)
 
 # for closed_loop control
 if ROBOT == 'baxter':
@@ -1112,10 +1119,10 @@ def pos_div_pos_grip_bd(individual):
     dist = utils.list_l2_norm(o[0], o[2])
     binary_goal = False
     
-    #relevant_contact = [c for c in inf['contact_points'] if c[3] in LINK_ID_CONTACT] # contact with the gripper
+    relevant_contact = [c for c in inf['contact_points'] if c[3] in LINK_ID_CONTACT] # contact with the gripper
     # the object should not touch the table neither the plane, must touch the gripper without penetration (with a margin of 0.005), be grasped right after closing the gripper (within 1s), touch the table when the gripper is closing
-    #if len(inf['contact object plane']+(inf['contact object table'] if 'contact object table' in inf.keys() else []))==0 and len(relevant_contact)>0 and np.all([c[8]>-0.01 for c in inf['contact_points']]) and grip_info['time close touch']<1*240/NB_STEPS_TO_ROLLOUT:# and len(grip_info['contact object table'])>0:
-    if o[0][2] > HEIGHT_THRESH and dist < DISTANCE_THRESH:
+    if len(inf['contact object plane']+(inf['contact object table'] if 'contact object table' in inf.keys() else []))==0 and len(relevant_contact)>0 and np.all([c[8]>-0.005 for c in inf['contact_points']]) and grip_info['time close touch']<1*240/NB_STEPS_TO_ROLLOUT and len(grip_info['contact object table'])>0:
+    #if o[0][2] > HEIGHT_THRESH and dist < DISTANCE_THRESH:
         binary_goal = True
     info['binary goal'] = binary_goal
 
