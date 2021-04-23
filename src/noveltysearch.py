@@ -808,6 +808,7 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
 
     # initialize population
     pop = toolbox.population()
+    bound(pop, bound_genotype)
     nb_offsprings_to_generate = int(pop_size * OFFSPRING_NB_COEFF)
 
     # bootstrap if necessary

@@ -4,6 +4,8 @@ import numpy as np
 import torch.nn as nn
 import torch
 import utils
+from DynamicMovementPrimitives import PoseDMP
+from pyquaternion import Quaternion
 
 # ######################################### OPEN LOOP CONTROLLERS #####################################################
 
@@ -41,8 +43,8 @@ class InterpolateKeyPoints():
         n_keypoints = len(actions)
         interval_size = int(info['n_iter'] / n_keypoints)
         interp_x = [int(interval_size / 2 + i * interval_size) for i in range(n_keypoints)]
-        if initial: # add initial state to get a smooth motion
-            actions.insert(0, initial[:-1]) # the gripper is not included
+        if initial is not None: # add initial joint states to get a smooth motion
+            actions.insert(0, initial[0][:-1]) # the gripper is not included
             interp_x.insert(0, 0)
         self.action_polynome = interpolate.interp1d(interp_x, actions, kind='quadratic', axis=0,
                                                     bounds_error=False, fill_value='extrapolate')
@@ -70,8 +72,8 @@ class InterpolateKeyPointsEndPause():
         self.pause_time = info['pause_frac'] * info['n_iter']
         interval_size = int(self.pause_time / n_keypoints)
         interp_x = [int(interval_size / 2 + i * interval_size) for i in range(n_keypoints)]
-        if initial: # add initial state to get a smooth motion
-            actions.insert(0, initial[:-1]) # the gripper is not included
+        if initial is not None: # add initial joint states to get a smooth motion
+            actions.insert(0, initial[0][:-1]) # the gripper is not included
             interp_x.insert(0, 0)
         self.action_polynome = interpolate.interp1d(interp_x, actions, kind='quadratic', axis=0,
                                                     bounds_error=False, fill_value='extrapolate')
@@ -107,8 +109,8 @@ class InterpolateKeyPointsEndPauseGripAssumption():
         self.pause_time = info['pause_frac'] * info['n_iter']
         interval_size = int(self.pause_time / n_keypoints)
         interp_x = [int(interval_size / 2 + i * interval_size) for i in range(n_keypoints)]
-        if initial: # add initial state to get a smooth motion
-            actions.insert(0, initial[:-1]) # the gripper is not included
+        if initial is not None: # add initial joint states to get a smooth motion
+            actions.insert(0, initial[0][:-1]) # the gripper is not included
             interp_x.insert(0, 0)
         self.action_polynome = interpolate.interp1d(interp_x, actions, kind='quadratic', axis=0,
                                                     bounds_error=False, fill_value='extrapolate')
@@ -130,6 +132,35 @@ class InterpolateKeyPointsEndPauseGripAssumption():
             # feed last action
             action = self.last_action
         return action
+
+
+class DMPGripLift():
+    def __init__(self, ind, info, initial):
+        self.n_iter, self.rollout = info['n_iter'], info['n_rollout']
+        self.goalQuaternion, self.liftQuaternion = Quaternion(ind[3:7]).normalised, Quaternion(ind[7:11]).normalised
+        τ = info['τ'] if 'τ' in info.keys() else 1
+        self.dmp = PoseDMP(start=initial[1][0], goal=ind[:3], weights=np.array(ind[11:]).reshape(3,-1), startQuaternion=initial[1][1], goalQuaternion=ind[3:7], weightsQuaternion=2, τ=τ, αz=4, αyx=1000, phaseStopping=True)
+        self.grip_time = float('inf')
+        self.initial_action = initial[0]
+        self.open_loop = False
+        self.liftTime = 2
+
+    def get_action(self, i, observation):
+        end_effetor_pose = observation[2]+[observation[3][j] for j in (3,0,1,2)]
+        for i in range(self.rollout): pose = self.dmp.step(end_effetor_pose)
+        #print("goal error",self.dmp.distance(observation[2], self.dmp.goal), "current error", self.dmp.distance(observation[2], pose[0]),  "goal", self.dmp.goal, "command", pose[0], "current", observation[2])
+        if self.dmp.distance(observation[2], self.dmp.goal) < 1e-3:
+            self.get_action = self.lift
+            self.vertical_inter = interpolate.interp1d(np.array([i, i+self.liftTime*240/self.rollout]), np.array([self.dmp.goal[2], self.dmp.goal[2]+0.1]), kind='linear', bounds_error=False, fill_value='extrapolate')
+            self.quaternion_inter = Quaternion.intermediates(Quaternion(self.goalQuaternion), Quaternion(self.liftQuaternion), n=int(self.liftTime*240/self.rollout), include_endpoints=True)
+            self.grip_time = i
+        return {'position': pose[0], 'quaternion':pose[1], 'gripper close':False}
+        
+    def lift(self, i, observation):
+
+        return {'position': [self.dmp.goal[0], self.dmp.goal[1], self.vertical_inter(i)], 'quaternion':next(self.quaternion_inter, self.liftQuaternion), 'gripper close':True}
+        
+
 
 # ######################################### CLOSE LOOP CONTROLLERS #####################################################
 

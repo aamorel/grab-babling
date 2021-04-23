@@ -2,10 +2,11 @@ import gym
 import noveltysearch
 import utils
 import numpy as np
-import pyquaternion as pyq
+from pyquaternion import Quaternion
 import matplotlib.pyplot as plt
 from deap import base, creator
 from sklearn.cluster import AgglomerativeClustering
+from sklearn.metrics import pairwise_distances
 import controllers
 import os
 import json
@@ -41,7 +42,7 @@ parser.add_argument("-r", "--robot", help="The robot environment", type=str, def
 parser.add_argument("-o", "--object", help="The object to grasp", type=str, default="sphere")
 parser.add_argument("-p", "--population", help="The poulation size", type=partial(greater, "population size", 1), default=96)
 parser.add_argument("-g", "--generation", help="The number of generation", type=partial(greater, "number of generation", 1), default=1000)
-parser.add_argument("-n", "--nruns", help="The number of time to repeat the search", type=partial(greater, "number of runs", 0), default=10)
+parser.add_argument("-n", "--nruns", help="The number of time to repeat the search", type=partial(greater, "number of runs", 0), default=1)
 parser.add_argument("-c", "--cells", help="The number of cells to measure the coverage", type=partial(greater, "number of cells", 1), default=1000)
 parser.add_argument("-q", "--quality", help="Enable quality", action="store_true")
 args = parser.parse_args()
@@ -52,7 +53,7 @@ POP_SIZE = args.population # -> 48 new individuals wil be evaluated each generat
 NB_GEN = args.generation
 OBJECT = args.object  # 'cuboid', 'mug.urdf', 'cylinder', 'deer.urdf', 'cylinder_r', 'glass.urdf'
 ROBOT = args.robot  # 'baxter', 'pepper', 'kuka'
-CONTROLLER = 'interpolate keypoints end pause grip'  # see controllers_dict for list
+CONTROLLER = 'interpolate keypoints end pause grip'#'dynamic movement primitives'#  # see controllers_dict for list
 ALGO = 'ns_rand_multi_bd'  # algorithm
 BD = 'pos_div_pos_grip'  # behavior descriptor type '2D', '3D', 'pos_div_grip', 'pos_div_pos_grip'
 BOOTSTRAP_FOLDER = None
@@ -126,6 +127,7 @@ elif ROBOT == "crustcrawler":
     LINK_ID_CONTACT = [12,13,14]  # link ids that can have a grasping contact
     NB_STEPS_TO_ROLLOUT = 1
     NB_ITER = int(2500 / NB_STEPS_TO_ROLLOUT)
+    HEIGHT_THRESH = -0.15
 
 # for closed_loop control
 if ROBOT == 'baxter':
@@ -140,7 +142,7 @@ DIFF_OR_THRESH = 0.4  # threshold for clustering grasping orientations
 COV_LIMIT = 0.1  # threshold for changing behavior descriptor in change_bd ns
 N_LAG = int(200 / NB_STEPS_TO_ROLLOUT)  # number of steps before the grip time used in the pos_div_grip BD
 ARCHIVE_LIMIT = 10000
-N_REP_RAND = 4
+N_REP_RAND = 5
 SIGMA_RAND = 0.01
 COUNT_SUCCESS = 0
 
@@ -243,15 +245,15 @@ def diversity_measure(o):
         grip_or = o[3]
 
         # pybullet is x, y, z, w whereas pyquaternion is w, x, y, z
-        obj_or = pyq.Quaternion(obj_or[3], obj_or[0], obj_or[1], obj_or[2])
-        grip_or = pyq.Quaternion(grip_or[3], grip_or[0], grip_or[1], grip_or[2])
+        obj_or = Quaternion(obj_or[3], obj_or[0], obj_or[1], obj_or[2])
+        grip_or = Quaternion(grip_or[3], grip_or[0], grip_or[1], grip_or[2])
 
         # difference:
         measure = obj_or.conjugate * grip_or
 
     if DIV_MEASURE == 'gripper orientation':
         grip_or = o[3]
-        measure = pyq.Quaternion(grip_or[3], grip_or[0], grip_or[1], grip_or[2])
+        measure = Quaternion(grip_or[3], grip_or[0], grip_or[1], grip_or[2])
 
     return measure
 
@@ -259,14 +261,14 @@ def diversity_measure(o):
 def analyze_triumphants(triumphant_archive, run_name):
     if len(triumphant_archive) < 2:
         print('No individual completed the binary goal.')
-        return None, None, None
+        return None, None, None, None
     
     # analyze the triumphants following the diversity descriptor
     measure = 'diversity_descriptor'
 
     # sample the triumphant archive to reduce computational cost
-    while len(triumphant_archive) >= 10000:
-        triumphant_archive.pop(random.randint(0, len(triumphant_archive) - 1))
+    #while len(triumphant_archive) >= 10000:
+        #triumphant_archive.pop(random.randint(0, len(triumphant_archive) - 1))
 
     random.shuffle(triumphant_archive)
     
@@ -278,15 +280,14 @@ def analyze_triumphants(triumphant_archive, run_name):
     grid = np.zeros((NB_CELLS,))
     for ind in triumphant_archive:
         or_diff = ind.info.values[measure]
-        or_diff_arr = [or_diff[0], or_diff[1], or_diff[2], or_diff[3]]
-        grid_index = cvt.get_grid_index(or_diff_arr)
-        grid[grid_index] += 1
+        grid[cvt.get_grid_index([or_diff[0], or_diff[1], or_diff[2], or_diff[3]])] += 1
     coverage = np.count_nonzero(grid) / NB_CELLS
     uniformity = utils.compute_uniformity(grid)
 
     # cluster the triumphants with respect to grasping descriptor
     clustering = AgglomerativeClustering(n_clusters=None, affinity='precomputed', compute_full_tree=True,
                                          distance_threshold=DIFF_OR_THRESH, linkage='average')
+    """
     # compute distance matrix
     X = np.zeros((nb_of_triumphants, nb_of_triumphants))
     for x in range(nb_of_triumphants):
@@ -296,14 +297,18 @@ def analyze_triumphants(triumphant_archive, run_name):
             else:
                 triumphant_a = triumphant_archive[x].info.values[measure]
                 triumphant_b = triumphant_archive[y].info.values[measure]
-                X[x, y] = pyq.Quaternion.absolute_distance(triumphant_a, triumphant_b)
-
-    # fit distance matrix
+                X[x, y] = Quaternion.absolute_distance(triumphant_a, triumphant_b)
     clustering.fit(X)
+    """
+    # fit distance matrix
 
+    clustering = clustering.fit(pairwise_distances(X=np.array([m.info.values[measure].elements for m in triumphant_archive]), metric=lambda a,b: Quaternion.absolute_distance(Quaternion(a), Quaternion(b)), n_jobs=-1))#X)
+    
+	
     number_of_clusters = clustering.n_clusters_
     labels = clustering.labels_
 
+    """
     clustered_triumphants = []
     for i in range(number_of_clusters):
         members_of_cluster = []
@@ -311,7 +316,12 @@ def analyze_triumphants(triumphant_archive, run_name):
             if labels[j] == i:
                 members_of_cluster.append(triumphant)
         clustered_triumphants.append(members_of_cluster)
-
+    """
+    triumphants_array = np.array(triumphant_archive)
+    indices, toSplit = np.nonzero(labels==np.arange(number_of_clusters)[:,None])
+    indices = np.cumsum(np.count_nonzero(indices==np.arange(number_of_clusters-1)[:,None], axis=-1))
+    clustered_triumphants = [triumphants_array[i] for i in np.split(toSplit, indices)]
+    
     print(number_of_clusters, 'types of grasping were found.')
     print('Coverage of', coverage, 'and uniformity of', uniformity)
 
@@ -325,7 +335,7 @@ def analyze_triumphants(triumphant_archive, run_name):
                 np.save(run_name + 'type' + str(i) + '_' + str(j), ind,
                         allow_pickle=True)
 
-    return coverage, uniformity, clustered_triumphants
+    return coverage, uniformity, clustered_triumphants, number_of_clusters
     
 
 def two_d_bd(individual):
@@ -469,8 +479,8 @@ def three_d_bd(individual):
             grip_or = o[3]
 
             # pybullet is x, y, z, w whereas pyquaternion is w, x, y, z
-            obj_or = pyq.Quaternion(obj_or[3], obj_or[0], obj_or[1], obj_or[2])
-            grip_or = pyq.Quaternion(grip_or[3], grip_or[0], grip_or[1], grip_or[2])
+            obj_or = Quaternion(obj_or[3], obj_or[0], obj_or[1], obj_or[2])
+            grip_or = Quaternion(grip_or[3], grip_or[0], grip_or[1], grip_or[2])
 
             # difference:
             diff_or = obj_or.conjugate * grip_or
@@ -1011,7 +1021,7 @@ def pos_div_pos_grip_bd(individual):
     positive_dist_slope = 0
     prev_dist = None
 
-    info, grip_info = {}, {}
+    info, grip_info = {}, {"contact object table":[], "time close touch":float("inf")}
 
     if ALGO == 'map_elites':
         # define energy criterion
@@ -1021,14 +1031,10 @@ def pos_div_pos_grip_bd(individual):
         ENV.render()
         # apply previously chosen action
         o, r, eo, inf = ENV.step(action)
-
         prev_action = action
 
         # choose action
-        if controller.open_loop:
-            action = controller.get_action(i)
-        else:
-            action = controller.get_action(i, o)
+        action = controller.get_action(**({'i':i} if controller.open_loop else {'i':i,'obs':o}))
 
         if i == 0:
             initial_object_position = o[0]
@@ -1088,7 +1094,7 @@ def pos_div_pos_grip_bd(individual):
 
         if ALGO == 'map_elites':
             energy += utils.list_l2_norm(action, prev_action) ** 2
-    
+
     if auto_collision:
         behavior = [None]*14#[None, None, None, None, None, None, None, None, None, None, None, None, None, None]
         if ALGO != 'ns_rand_multi_bd':
@@ -1118,12 +1124,12 @@ def pos_div_pos_grip_bd(individual):
     # choose if individual satisfied the binary goal
     dist = utils.list_l2_norm(o[0], o[2])
     binary_goal = False
-    
     relevant_contact = [c for c in inf['contact_points'] if c[3] in LINK_ID_CONTACT] # contact with the gripper
+    #if o[0][2] > HEIGHT_THRESH and dist < DISTANCE_THRESH:
     # the object should not touch the table neither the plane, must touch the gripper without penetration (with a margin of 0.005), be grasped right after closing the gripper (within 1s), touch the table when the gripper is closing
     if len(inf['contact object plane']+(inf['contact object table'] if 'contact object table' in inf.keys() else []))==0 and len(relevant_contact)>0 and np.all([c[8]>-0.005 for c in inf['contact_points']]) and grip_info['time close touch']<1*240/NB_STEPS_TO_ROLLOUT and len(grip_info['contact object table'])>0:
-    #if o[0][2] > HEIGHT_THRESH and dist < DISTANCE_THRESH:
         binary_goal = True
+        #print("height", o[0][2])
     info['binary goal'] = binary_goal
 
     if binary_goal:
@@ -1188,29 +1194,16 @@ def pos_div_pos_grip_bd(individual):
             controller_info = controllers_info_dict[CONTROLLER]
             controller = controllers_dict[CONTROLLER](individual, controller_info, initial=ENV.get_action())
             action = controller.initial_action
-
-            for i in range(NB_ITER):
-                ENV.render()
-                # apply previously chosen action
-                o, r, eo, inf = ENV.step(action)
-
+            initial_object_position = ENV.step(action)[0][0]
+            for i in range(1,NB_ITER):
+                #ENV.render()
                 # choose action
-                if controller.open_loop:
-                    action = controller.get_action(i)
-                else:
-                    action = controller.get_action(i, o)
-
-                if i == 0:
-                    initial_object_position = o[0]
-
-                if eo:
-                    break
+                action = controller.get_action(i) if controller.open_loop else controller.get_action(i, o)
+                o, r, eo, inf = ENV.step(action)
+                if eo: break
             dist = utils.list_l2_norm(o[0], o[2])
-            binary_goal = False
-            if o[0][2] > HEIGHT_THRESH and dist < DISTANCE_THRESH:
-                binary_goal = True
-            
-            if binary_goal:
+            #if o[0][2] > HEIGHT_THRESH and dist < DISTANCE_THRESH:
+            if len(inf['contact object plane']+(inf['contact object table'] if 'contact object table' in inf.keys() else []))==0 and len([c for c in inf['contact_points'] if c[3] in LINK_ID_CONTACT])>0 and np.all([c[8]>-0.005 for c in inf['contact_points']]):
                 count += 1
                 last_pos_obj.append([o[0][0], o[0][1], o[0][2]])
 
@@ -1223,8 +1216,7 @@ def pos_div_pos_grip_bd(individual):
         if count != 0:
             mean_dist = mean_dist / count
 
-        grasp_rob = count + 1 / (1 + 0.00000001 + mean_dist)
-        info['grasp robustness'] = grasp_rob
+        info['grasp robustness'] = count + 1 / (1 + 0.00000001 + mean_dist)
     
     return (behavior, (fitness,), info)
 
@@ -1412,7 +1404,9 @@ controllers_dict = {'discrete keypoints': controllers.DiscreteKeyPoints,
                     'interpolate keypoints': controllers.InterpolateKeyPoints,
                     'interpolate keypoints end pause': controllers.InterpolateKeyPointsEndPause,
                     'interpolate keypoints end pause grip': controllers.InterpolateKeyPointsEndPauseGripAssumption,
-                    'closed loop end pause grip': controllers.ClosedLoopEndPauseGripAssumption}
+                    'closed loop end pause grip': controllers.ClosedLoopEndPauseGripAssumption,
+                    'dynamic movement primitives': controllers.DMPGripLift
+}
 controllers_info_dict = {'interpolate keypoints end pause grip': {'pause_frac': PAUSE_FRAC, 'n_iter': NB_ITER,
                                                                   'NB_KEYPOINTS': NB_KEYPOINTS,
                                                                   'GENE_PER_KEYPOINTS': GENE_PER_KEYPOINTS},
@@ -1425,7 +1419,9 @@ controllers_info_dict = {'interpolate keypoints end pause grip': {'pause_frac': 
                          'interpolate keypoints': {'n_iter': NB_ITER,
                                                    'NB_KEYPOINTS': NB_KEYPOINTS,
                                                    'GENE_PER_KEYPOINTS': GENE_PER_KEYPOINTS},
-                         'closed loop end pause grip': {'n_iter': NB_ITER, 'pause_frac': PAUSE_FRAC}}
+                         'closed loop end pause grip': {'n_iter': NB_ITER, 'pause_frac': PAUSE_FRAC},
+                         'dynamic movement primitives': {'n_iter': NB_ITER, 'n_rollout': NB_STEPS_TO_ROLLOUT, 'τ':1}
+}
 bd_dict = {'2D': two_d_bd,
            '3D': three_d_bd,
            'pos_div_grip': pos_div_grip_bd,
@@ -1440,8 +1436,10 @@ if __name__ == "__main__":
         initial_genotype_size = NB_KEYPOINTS * GENE_PER_KEYPOINTS
         if CONTROLLER == 'interpolate keypoints end pause grip':
             initial_genotype_size = NB_KEYPOINTS * (GENE_PER_KEYPOINTS - 1) + 1
-        if CONTROLLER == 'closed loop end pause grip':
+        elif CONTROLLER == 'closed loop end pause grip':
             initial_genotype_size = GENES
+        elif CONTROLLER == "dynamic movement primitives":
+            initial_genotype_size = 8+3*5 # 3(goal position)+4(goal orientation)+4(lift orientation)+3*5(xyz nb weights)
 
         evaluation_function = bd_dict[BD]
 
@@ -1573,7 +1571,7 @@ if __name__ == "__main__":
         os.mkdir(run_name)
         
         # analyze triumphant archive diversity
-        coverage, uniformity, clustered_triumphants = analyze_triumphants(triumphant_archive, run_name)
+        coverage, uniformity, clustered_triumphants, number_of_clusters = analyze_triumphants(triumphant_archive, run_name)
         t_end = time.time()
 
         # complete run dict
@@ -1588,6 +1586,7 @@ if __name__ == "__main__":
             details['diversity coverage'] = coverage
             details['diversity uniformity'] = uniformity
             details['number of successful'] = len(triumphant_archive)
+            details['number of clusters'] = number_of_clusters
         else:
             details['successful'] = False
         
