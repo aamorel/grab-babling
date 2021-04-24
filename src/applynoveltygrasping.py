@@ -261,18 +261,18 @@ def diversity_measure(o):
 def analyze_triumphants(triumphant_archive, run_name):
     if len(triumphant_archive) < 2:
         print('No individual completed the binary goal.')
-        return None, None, None, None
+        return None, None, None, None, None
     
     # analyze the triumphants following the diversity descriptor
     measure = 'diversity_descriptor'
+    nb_of_triumphants = len(triumphant_archive)
 
     # sample the triumphant archive to reduce computational cost
-    #while len(triumphant_archive) >= 10000:
-        #triumphant_archive.pop(random.randint(0, len(triumphant_archive) - 1))
+    while len(triumphant_archive) >= 10000:
+        triumphant_archive.pop(random.randint(0, len(triumphant_archive) - 1))
 
     random.shuffle(triumphant_archive)
-    
-    nb_of_triumphants = len(triumphant_archive)
+    nb_sub_triumphants = len(triumphant_archive)
 
     # compute coverage and uniformity metrics: easy approach, use CVT cells in quaternion space
     bounds = [[-1, 1], [-1, 1], [-1, 1], [-1, 1]]
@@ -287,22 +287,21 @@ def analyze_triumphants(triumphant_archive, run_name):
     # cluster the triumphants with respect to grasping descriptor
     clustering = AgglomerativeClustering(n_clusters=None, affinity='precomputed', compute_full_tree=True,
                                          distance_threshold=DIFF_OR_THRESH, linkage='average')
-    """
+    #"""
     # compute distance matrix
-    X = np.zeros((nb_of_triumphants, nb_of_triumphants))
-    for x in range(nb_of_triumphants):
-        for y in range(nb_of_triumphants):
+    X = np.zeros((nb_sub_triumphants, nb_sub_triumphants))
+    for x in range(nb_sub_triumphants):
+        for y in range(nb_sub_triumphants):
             if x == y:
                 X[x, y] = 0
             else:
                 triumphant_a = triumphant_archive[x].info.values[measure]
                 triumphant_b = triumphant_archive[y].info.values[measure]
                 X[x, y] = Quaternion.absolute_distance(triumphant_a, triumphant_b)
-    clustering.fit(X)
-    """
+    clustering = clustering.fit(X)
+    #"""
     # fit distance matrix
-
-    clustering = clustering.fit(pairwise_distances(X=np.array([m.info.values[measure].elements for m in triumphant_archive]), metric=lambda a,b: Quaternion.absolute_distance(Quaternion(a), Quaternion(b)), n_jobs=-1))#X)
+    #clustering = clustering.fit(pairwise_distances(X=np.array([m.info.values[measure].elements for m in triumphant_archive]), metric=lambda a,b: Quaternion.absolute_distance(Quaternion(a), Quaternion(b)), n_jobs=os.cpu_count()))#X)
     
 	
     number_of_clusters = clustering.n_clusters_
@@ -335,7 +334,7 @@ def analyze_triumphants(triumphant_archive, run_name):
                 np.save(run_name + 'type' + str(i) + '_' + str(j), ind,
                         allow_pickle=True)
 
-    return coverage, uniformity, clustered_triumphants, number_of_clusters
+    return coverage, uniformity, clustered_triumphants, number_of_clusters, nb_of_triumphants
     
 
 def two_d_bd(individual):
@@ -1571,7 +1570,7 @@ if __name__ == "__main__":
         os.mkdir(run_name)
         
         # analyze triumphant archive diversity
-        coverage, uniformity, clustered_triumphants, number_of_clusters = analyze_triumphants(triumphant_archive, run_name)
+        coverage, uniformity, clustered_triumphants, number_of_clusters, nb_of_triumphants = analyze_triumphants(triumphant_archive, run_name)
         t_end = time.time()
 
         # complete run dict
@@ -1585,7 +1584,7 @@ if __name__ == "__main__":
             details['successful'] = True
             details['diversity coverage'] = coverage
             details['diversity uniformity'] = uniformity
-            details['number of successful'] = len(triumphant_archive)
+            details['number of successful'] = nb_of_triumphants
             details['number of clusters'] = number_of_clusters
         else:
             details['successful'] = False
