@@ -31,22 +31,27 @@ color_list = ["green", "blue", "red",
 
 class CVT():
     def __init__(self, num_centroids=7, bounds=[[-1, 1]], num_samples=100000,
-                 num_replicates=1, max_iterations=20, tolerance=0.001):
+                 num_replicates=1, max_iterations=20, tolerance=0.001, sphere=False):
         
         self.num_centroids = num_centroids
         self.bounds = bounds
+        self.low, self.high = np.array(bounds).T
         self.num_samples = num_samples
         self.num_replicates = num_replicates
         self.max_iterations = max_iterations
         self.tolerance = tolerance
-
+        """
         X = []
         for bound in bounds:
             # idea: give as much importance to all dimensions even if bounds are not -1, 1
             X.append(np.random.uniform(low=-1, high=1, size=self.num_samples))
         X = np.array(X)
         X = np.transpose(X)
-
+        """
+        X = np.random.default_rng().random(size=(num_samples, len(bounds)))
+        if sphere: # normalize all samples to get a sphere
+            X /= np.linalg.norm(X, axis=-1)[:,None]
+        
         kmeans = KMeans(init='k-means++',
                         n_clusters=num_centroids,
                         n_init=num_replicates,
@@ -61,9 +66,12 @@ class CVT():
 
     def get_grid_index(self, sample):
         # map back to [-1, 1]
+        """
         sample_copy = []
         for i, bound in enumerate(self.bounds):
             sample_copy.append(-1 + ((sample[i] - bound[0]) / (bound[1] - bound[0])) * 2)
+        """
+        sample_copy = (np.array(sample)-self.low) / (self.high-self.low) * 2 - 1
         grid_index = self.k_tree.query(sample_copy, k=1)[1]
         return grid_index
 

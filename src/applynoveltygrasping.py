@@ -121,7 +121,7 @@ elif ROBOT == 'kuka':
     elif OBJECT == 'glass.urdf':
         HEIGHT_THRESH = -0.03
         
-elif ROBOT == "crustcrawler":
+elif ROBOT == 'crustcrawler':
     ENV_NAME = 'gym_baxter_grabbing:crustcrawler-v0'
     GENE_PER_KEYPOINTS = 7
     LINK_ID_CONTACT = [12,13,14]  # link ids that can have a grasping contact
@@ -143,11 +143,12 @@ COV_LIMIT = 0.1  # threshold for changing behavior descriptor in change_bd ns
 N_LAG = int(200 / NB_STEPS_TO_ROLLOUT)  # number of steps before the grip time used in the pos_div_grip BD
 ARCHIVE_LIMIT = 10000
 N_REP_RAND = 5
-SIGMA_RAND = 0.01
+DISPLACEMENT_RADIUS = 0.02 # radius of the displacement of the object during quality evaluation
+ANGLE_NOISE = 10 / 180 * np.pi # the yaw rotation of the object will alternate with -ANGLE_NOISE and ANGLE_NOISE during quality evaluation
 COUNT_SUCCESS = 0
 
 if QUALITY:
-    D_POS = utils.circle_coordinates(N_REP_RAND, SIGMA_RAND)
+    D_POS = utils.circle_coordinates(N_REP_RAND, DISPLACEMENT_RADIUS)
 
 if ALGO == 'ns_rand_aurora':
     N_SAMPLES = 4
@@ -236,13 +237,13 @@ if PARALLELIZE:
     noveltysearch.set_creator(creator)
 
 
-def diversity_measure(o):
+def diversity_measure(inf):
     if DIV_MEASURE == 'gripper orientation difference':
         # object orientation at gripping time (quaternion)
-        obj_or = o[1]
+        obj_or = inf['object xyzw']
 
         # gripper orientation at gripping time (quaternion)
-        grip_or = o[3]
+        grip_or = inf['end effector xyzw']
 
         # pybullet is x, y, z, w whereas pyquaternion is w, x, y, z
         obj_or = Quaternion(obj_or[3], obj_or[0], obj_or[1], obj_or[2])
@@ -252,7 +253,7 @@ def diversity_measure(o):
         measure = obj_or.conjugate * grip_or
 
     if DIV_MEASURE == 'gripper orientation':
-        grip_or = o[3]
+        grip_or = inf['end effector xyzw']
         measure = Quaternion(grip_or[3], grip_or[0], grip_or[1], grip_or[2])
 
     return measure
@@ -268,41 +269,45 @@ def analyze_triumphants(triumphant_archive, run_name):
     nb_of_triumphants = len(triumphant_archive)
 
     # sample the triumphant archive to reduce computational cost
-    while len(triumphant_archive) >= 10000:
-        triumphant_archive.pop(random.randint(0, len(triumphant_archive) - 1))
+    #while len(triumphant_archive) >= 10000:
+        #triumphant_archive.pop(random.randint(0, len(triumphant_archive) - 1))
 
     random.shuffle(triumphant_archive)
     nb_sub_triumphants = len(triumphant_archive)
 
     # compute coverage and uniformity metrics: easy approach, use CVT cells in quaternion space
     bounds = [[-1, 1], [-1, 1], [-1, 1], [-1, 1]]
-    cvt = utils.CVT(NB_CELLS, bounds)
+    # a quaternion is defined by a unit vector, so the quaternion space is a sphere
+    cvt = utils.CVT(num_centroids=NB_CELLS, bounds=bounds, sphere=True)
     grid = np.zeros((NB_CELLS,))
-    for ind in triumphant_archive:
-        or_diff = ind.info.values[measure]
-        grid[cvt.get_grid_index([or_diff[0], or_diff[1], or_diff[2], or_diff[3]])] += 1
+    q = np.array([m.info.values[measure].unit.elements for m in triumphant_archive])
+    indices, counts = np.unique(cvt.get_grid_index(q), return_counts=True)
+    grid[indices] = counts
     coverage = np.count_nonzero(grid) / NB_CELLS
     uniformity = utils.compute_uniformity(grid)
 
     # cluster the triumphants with respect to grasping descriptor
     clustering = AgglomerativeClustering(n_clusters=None, affinity='precomputed', compute_full_tree=True,
                                          distance_threshold=DIFF_OR_THRESH, linkage='average')
-    #"""
+    """
     # compute distance matrix
     X = np.zeros((nb_sub_triumphants, nb_sub_triumphants))
     for x in range(nb_sub_triumphants):
-        for y in range(nb_sub_triumphants):
+        for y in range(x,nb_sub_triumphants):
             if x == y:
                 X[x, y] = 0
             else:
                 triumphant_a = triumphant_archive[x].info.values[measure]
                 triumphant_b = triumphant_archive[y].info.values[measure]
                 X[x, y] = Quaternion.absolute_distance(triumphant_a, triumphant_b)
+                X[y, x] = X[x, y]
     clustering = clustering.fit(X)
-    #"""
+    """
     # fit distance matrix
-    #clustering = clustering.fit(pairwise_distances(X=np.array([m.info.values[measure].elements for m in triumphant_archive]), metric=lambda a,b: Quaternion.absolute_distance(Quaternion(a), Quaternion(b)), n_jobs=os.cpu_count()))#X)
+    #clustering = clustering.fit(pairwise_distances(X=np.array([m.info.values[measure].elements for m in triumphant_archive]), metric=lambda a,b: Quaternion.absolute_distance(Quaternion(a), Quaternion(b)), n_jobs=os.cpu_count())))
     
+    # compute absolute_distance matrix in quaternion space, https://github.com/KieranWynn/pyquaternion/blob/99025c17bab1c55265d61add13375433b35251af/pyquaternion/quaternion.py#L772
+    clustering = clustering.fit(np.minimum(np.linalg.norm(q+q[:,None], axis=-1), np.linalg.norm(q-q[:,None], axis=-1)))
 	
     number_of_clusters = clustering.n_clusters_
     labels = clustering.labels_
@@ -358,7 +363,7 @@ def two_d_bd(individual):
     individual = np.around(np.array(individual), 3)
     # initialize controller
     controller_info = controllers_info_dict[CONTROLLER]
-    controller = controllers_dict[CONTROLLER](individual, controller_info, initial=ENV.get_action())
+    controller = controllers_dict[CONTROLLER](individual, controller_info, initial=ENV.get_state())
     action = controller.initial_action
 
     for i in range(NB_ITER):
@@ -367,7 +372,7 @@ def two_d_bd(individual):
         o, r, eo, info = ENV.step(action)
 
         if i == 0:
-            initial_object_position = o[0]
+            initial_object_position = inf['object position']
         if controller.open_loop:
             action = controller.get_action(i)
         else:
@@ -376,7 +381,7 @@ def two_d_bd(individual):
         if eo:
             break
     # use last info to compute behavior and fitness
-    behavior = [o[0][0] - initial_object_position[0], o[0][1] - initial_object_position[1]]  # last position of object
+    behavior = [inf['object position'][0] - initial_object_position[0], inf['object position'][1] - initial_object_position[1]]  # last position of object
 
     # bound behavior descriptor on table
     utils.bound(behavior, BD_BOUNDS)
@@ -413,7 +418,7 @@ def three_d_bd(individual):
     
     # initialize controller
     controller_info = controllers_info_dict[CONTROLLER]
-    controller = controllers_dict[CONTROLLER](individual, controller_info, initial=ENV.get_action())
+    controller = controllers_dict[CONTROLLER](individual, controller_info, initial=ENV.get_state())
     action = controller.initial_action
 
     # for precise measure when we have the gripper assumption
@@ -433,7 +438,7 @@ def three_d_bd(individual):
             action = controller.get_action(i, o)
 
         if i == 0:
-            initial_object_position = o[0]
+            initial_object_position = inf['object position']
 
         if eo:
             break
@@ -444,12 +449,12 @@ def three_d_bd(individual):
             if action[-1] == -1 and not grabbed:
                 # first action that orders the grabbing
 
-                measure_grip_time = diversity_measure(o)
+                measure_grip_time = diversity_measure(inf)
                 grabbed = True
 
     # use last info to compute behavior and fitness
-    behavior = [o[0][0] - initial_object_position[0], o[0][1] - initial_object_position[1],
-                o[0][2]]  # last position of object
+    behavior = [inf['object position'][0] - initial_object_position[0], inf['object position'][1] - initial_object_position[1],
+                inf['object position'][2]]  # last position of object
 
     # bound behavior descriptor on table
     if ALGO == 'ns_rand_change_bd':
@@ -461,9 +466,9 @@ def three_d_bd(individual):
     fitness = behavior[2]
 
     # choose if individual satisfied the binary goal
-    dist = utils.list_l2_norm(o[0], o[2])
+    dist = utils.list_l2_norm(inf['object position'], inf['end effector position'])
     binary_goal = False
-    if o[0][2] > HEIGHT_THRESH and dist < DISTANCE_THRESH:
+    if inf['object position'][2] > HEIGHT_THRESH and dist < DISTANCE_THRESH:
         binary_goal = True
     info['binary goal'] = binary_goal
 
@@ -472,10 +477,10 @@ def three_d_bd(individual):
             info['diversity_descriptor'] = measure_grip_time
         else:
             # last object orientation (quaternion)
-            obj_or = o[1]
+            obj_or = inf['object xyzw']
 
             # last gripper orientation (quaternion)
-            grip_or = o[3]
+            grip_or = inf['end effector xyzw']
 
             # pybullet is x, y, z, w whereas pyquaternion is w, x, y, z
             obj_or = Quaternion(obj_or[3], obj_or[0], obj_or[1], obj_or[2])
@@ -521,7 +526,7 @@ def pos_div_grip_bd(individual):
 
     # initialize controller
     controller_info = controllers_info_dict[CONTROLLER]
-    controller = controllers_dict[CONTROLLER](individual, controller_info, initial=ENV.get_action())
+    controller = controllers_dict[CONTROLLER](individual, controller_info, initial=ENV.get_state())
     assert(hasattr(controller, 'grip_time'))
     # lag_time = controller.grip_time - N_LAG
     lag_time = NB_ITER / 2
@@ -566,32 +571,32 @@ def pos_div_grip_bd(individual):
             action = controller.get_action(i, o)
 
         if i == 0:
-            initial_object_position = o[0]
+            initial_object_position = inf['object position']
 
         if eo:
             break
         
         if i >= controller.grip_time and not already_grasped:
             # first action that orders the gripper closure
-            # measure_grip_time = diversity_measure(o)
+            # measure_grip_time = diversity_measure(inf)
             already_grasped = True
 
-        touch = len(inf['contact_points']) > 0
+        touch = len(inf['contact object robot']) > 0
         touch_id = 0
         if touch:
-            touch_id = inf['contact_points'][0][3]
+            touch_id = inf['contact object robot'][0][4]
             touch_idx.append(touch_id)
         relevant_touch = touch and (touch_id in LINK_ID_CONTACT)
         if relevant_touch and not already_touched:
             # first touch of object
-            measure_grip_time = diversity_measure(o)
+            measure_grip_time = diversity_measure(inf)
             already_touched = True
             if already_grasped:
                 grasped_before_touch = True
         
         if i >= lag_time and not lag_measured:
             # gripper orientation
-            grip_or_lag = o[3]
+            grip_or_lag = inf['end effector xyzw']
             lag_measured = True
 
         # quality 1 measured during the whole trajectory
@@ -599,9 +604,9 @@ def pos_div_grip_bd(individual):
             # only done one step after the start
             if prev_dist is None:
                 # distance between gripper and object
-                prev_dist = utils.list_l2_norm(o[0], o[2])
+                prev_dist = utils.list_l2_norm(inf['object position'], inf['end effector position'])
             else:
-                new_dist = utils.list_l2_norm(o[0], o[2])
+                new_dist = utils.list_l2_norm(inf['object position'], inf['end effector position'])
                 differential_dist = new_dist - prev_dist
                 if differential_dist > 0:
                     positive_dist_slope += differential_dist
@@ -609,8 +614,8 @@ def pos_div_grip_bd(individual):
                 prev_dist = new_dist
 
         # if robot has a self-collision monitoring
-        if 'self contact_points' in inf and AUTO_COLLIDE:
-            if len(inf['self contact_points']) != 0:
+        if 'contact robot robot' in inf and AUTO_COLLIDE:
+            if len(inf['contact robot robot']) != 0:
                 auto_collision = True
                 break
 
@@ -628,8 +633,8 @@ def pos_div_grip_bd(individual):
         return (behavior, (fitness,), info)
 
     # use last info to compute behavior and fitness
-    behavior = [o[0][0] - initial_object_position[0], o[0][1] - initial_object_position[1],
-                o[0][2]]  # last position of object
+    behavior = [inf['object position'][0] - initial_object_position[0], inf['object position'][1] - initial_object_position[1],
+                inf['object position'][2]]  # last position of object
 
     utils.bound(behavior, BD_BOUNDS[0:3])
 
@@ -644,9 +649,9 @@ def pos_div_grip_bd(individual):
         behavior.append(None)
 
     # choose if individual satisfied the binary goal
-    dist = utils.list_l2_norm(o[0], o[2])
+    dist = utils.list_l2_norm(inf['object position'], inf['end effector position'])
     binary_goal = False
-    if o[0][2] > HEIGHT_THRESH and dist < DISTANCE_THRESH:
+    if inf['object position'][2] > HEIGHT_THRESH and dist < DISTANCE_THRESH:
         binary_goal = True
     info['binary goal'] = binary_goal
 
@@ -695,19 +700,19 @@ def pos_div_grip_bd(individual):
 
     if QUALITY and binary_goal:
         # re-evaluate with random initial positions to assess robustness as quality
-        reference = [o[0][0], o[0][1], o[0][2]]
+        reference = [inf['object position'][0], inf['object position'][1], inf['object position'][2]]
         last_pos_obj = []
         count = 0
         for rep in range(N_REP_RAND):
             if RESET_MODE:
-                ENV.reset(delta_pos=D_POS[rep])
+                ENV.reset(delta_pos=D_POS[rep], yaw=ANGLE_NOISE*(rep%2*2-1))
             else:
                 ENV = gym.make(ENV_NAME, display=DISPLAY, obj=OBJECT, delta_pos=D_POS[rep],
                            steps_to_roll=NB_STEPS_TO_ROLLOUT)
 
             # initialize controller
             controller_info = controllers_info_dict[CONTROLLER]
-            controller = controllers_dict[CONTROLLER](individual, controller_info, initial=ENV.get_action())
+            controller = controllers_dict[CONTROLLER](individual, controller_info, initial=ENV.get_state())
             action = controller.initial_action
 
             for i in range(NB_ITER):
@@ -722,18 +727,18 @@ def pos_div_grip_bd(individual):
                     action = controller.get_action(i, o)
 
                 if i == 0:
-                    initial_object_position = o[0]
+                    initial_object_position = inf['object position']
 
                 if eo:
                     break
-            dist = utils.list_l2_norm(o[0], o[2])
+            dist = utils.list_l2_norm(inf['object position'], inf['end effector position'])
             binary_goal = False
-            if o[0][2] > HEIGHT_THRESH and dist < DISTANCE_THRESH:
+            if inf['object position'][2] > HEIGHT_THRESH and dist < DISTANCE_THRESH:
                 binary_goal = True
             
             if binary_goal:
                 count += 1
-                last_pos_obj.append([o[0][0], o[0][1], o[0][2]])
+                last_pos_obj.append([inf['object position'][0], inf['object position'][1], inf['object position'][2]])
 
             if not RESET_MODE:
                 ENV.close()
@@ -764,7 +769,7 @@ def pos_div_pos_bd(individual):
 
     # initialize controller
     controller_info = controllers_info_dict[CONTROLLER]
-    controller = controllers_dict[CONTROLLER](individual, controller_info, initial=ENV.get_action())
+    controller = controllers_dict[CONTROLLER](individual, controller_info, initial=ENV.get_state())
     assert(hasattr(controller, 'grip_time'))
 
     action = controller.initial_action
@@ -806,26 +811,26 @@ def pos_div_pos_bd(individual):
             action = controller.get_action(i, o)
 
         if i == 0:
-            initial_object_position = o[0]
+            initial_object_position = inf['object position']
 
         if eo:
             break
         
         if i >= controller.grip_time and not already_grasped:
             # first action that orders the gripper closure
-            # measure_grip_time = diversity_measure(o)
+            # measure_grip_time = diversity_measure(inf)
             already_grasped = True
 
-        touch = len(inf['contact_points']) > 0
+        touch = len(inf['contact object robot']) > 0
         touch_id = 0
         if touch:
-            touch_id = inf['contact_points'][0][3]
+            touch_id = inf['contact object robot'][0][4]
             touch_idx.append(touch_id)
         relevant_touch = touch and (touch_id in LINK_ID_CONTACT)
         if relevant_touch and not already_touched:
             # first touch of object
-            measure_grip_time = diversity_measure(o)
-            pos_touch_time = o[2]
+            measure_grip_time = diversity_measure(inf)
+            pos_touch_time = inf['end effector position']
             already_touched = True
             if already_grasped:
                 grasped_before_touch = True
@@ -835,9 +840,9 @@ def pos_div_pos_bd(individual):
             # only done one step after the start
             if prev_dist is None:
                 # distance between gripper and object
-                prev_dist = utils.list_l2_norm(o[0], o[2])
+                prev_dist = utils.list_l2_norm(inf['object position'], inf['end effector position'])
             else:
-                new_dist = utils.list_l2_norm(o[0], o[2])
+                new_dist = utils.list_l2_norm(inf['object position'], inf['end effector position'])
                 differential_dist = new_dist - prev_dist
                 if differential_dist > 0:
                     positive_dist_slope += differential_dist
@@ -845,8 +850,8 @@ def pos_div_pos_bd(individual):
                 prev_dist = new_dist
 
         # if robot has a self-collision monitoring
-        if 'self contact_points' in inf and AUTO_COLLIDE:
-            if len(inf['self contact_points']) != 0:
+        if 'contact robot robot' in inf and AUTO_COLLIDE:
+            if len(inf['contact robot robot']) != 0:
                 auto_collision = True
                 break
 
@@ -864,8 +869,8 @@ def pos_div_pos_bd(individual):
         return (behavior, (fitness,), info)
 
     # use last info to compute behavior and fitness
-    behavior = [o[0][0] - initial_object_position[0], o[0][1] - initial_object_position[1],
-                o[0][2]]  # last position of object
+    behavior = [inf['object position'][0] - initial_object_position[0], inf['object position'][1] - initial_object_position[1],
+                inf['object position'][2]]  # last position of object
 
     utils.bound(behavior, BD_BOUNDS[0:3])
 
@@ -880,9 +885,9 @@ def pos_div_pos_bd(individual):
         behavior.append(None)
 
     # choose if individual satisfied the binary goal
-    dist = utils.list_l2_norm(o[0], o[2])
+    dist = utils.list_l2_norm(inf['object position'], inf['end effector position'])
     binary_goal = False
-    if o[0][2] > HEIGHT_THRESH and dist < DISTANCE_THRESH:
+    if inf['object position'][2] > HEIGHT_THRESH and dist < DISTANCE_THRESH:
         binary_goal = True
     info['binary goal'] = binary_goal
 
@@ -924,19 +929,19 @@ def pos_div_pos_bd(individual):
 
     if QUALITY and binary_goal:
         # re-evaluate with random initial positions to assess robustness as quality
-        reference = [o[0][0], o[0][1], o[0][2]]
+        reference = [inf['object position'][0], inf['object position'][1], inf['object position'][2]]
         last_pos_obj = []
         count = 0
         for rep in range(N_REP_RAND):
             if RESET_MODE:
-                ENV.reset(delta_pos=D_POS[rep])
+                ENV.reset(delta_pos=D_POS[rep], yaw=ANGLE_NOISE*(rep%2*2-1))
             else:
                 ENV = gym.make(ENV_NAME, display=DISPLAY, obj=OBJECT, delta_pos=D_POS[rep],
                            steps_to_roll=NB_STEPS_TO_ROLLOUT)
 
             # initialize controller
             controller_info = controllers_info_dict[CONTROLLER]
-            controller = controllers_dict[CONTROLLER](individual, controller_info, initial=ENV.get_action())
+            controller = controllers_dict[CONTROLLER](individual, controller_info, initial=ENV.get_state())
             action = controller.initial_action
 
             for i in range(NB_ITER):
@@ -951,18 +956,18 @@ def pos_div_pos_bd(individual):
                     action = controller.get_action(i, o)
 
                 if i == 0:
-                    initial_object_position = o[0]
+                    initial_object_position = inf['object position']
 
                 if eo:
                     break
-            dist = utils.list_l2_norm(o[0], o[2])
+            dist = utils.list_l2_norm(inf['object position'], inf['end effector position'])
             binary_goal = False
-            if o[0][2] > HEIGHT_THRESH and dist < DISTANCE_THRESH:
+            if inf['object position'][2] > HEIGHT_THRESH and dist < DISTANCE_THRESH:
                 binary_goal = True
             
             if binary_goal:
                 count += 1
-                last_pos_obj.append([o[0][0], o[0][1], o[0][2]])
+                last_pos_obj.append([inf['object position'][0], inf['object position'][1], inf['object position'][2]])
 
             if not RESET_MODE:
                 ENV.close()
@@ -993,7 +998,7 @@ def pos_div_pos_grip_bd(individual):
 
     # initialize controller
     controller_info = controllers_info_dict[CONTROLLER]
-    controller = controllers_dict[CONTROLLER](individual, controller_info, initial=ENV.get_action())
+    controller = controllers_dict[CONTROLLER](individual, controller_info, initial=ENV.get_state())
     assert(hasattr(controller, 'grip_time'))
     # lag_time = controller.grip_time - N_LAG
     lag_time = NB_ITER / 2
@@ -1036,28 +1041,28 @@ def pos_div_pos_grip_bd(individual):
         action = controller.get_action(**({'i':i} if controller.open_loop else {'i':i,'obs':o}))
 
         if i == 0:
-            initial_object_position = o[0]
+            initial_object_position = inf['object position']
 
         if eo:
             break
         
         if i >= controller.grip_time and not already_grasped:
             # first action that orders the gripper closure
-            # measure_grip_time = diversity_measure(o)
+            # measure_grip_time = diversity_measure(inf)
             already_grasped = True
             grip_info["contact object table"] = inf["contact object table"] # the object should touch the table while grasping
             closing = i # the object should be grasped right after closing the gripper
 
-        touch = len(inf['contact_points']) > 0
+        touch = len(inf['contact object robot']) > 0
         touch_id = 0
         if touch:
-            touch_id = inf['contact_points'][0][3]
+            touch_id = inf['contact object robot'][0][4]
             touch_idx.append(touch_id)
         relevant_touch = touch and (touch_id in LINK_ID_CONTACT)
         if relevant_touch and not already_touched:
             # first touch of object
-            measure_grip_time = diversity_measure(o)
-            pos_touch_time = o[2]
+            measure_grip_time = diversity_measure(inf)
+            pos_touch_time = inf['end effector position']
             already_touched = True
             if already_grasped:
                 grasped_before_touch = True
@@ -1067,7 +1072,7 @@ def pos_div_pos_grip_bd(individual):
         
         if i >= lag_time and not lag_measured:
             # gripper orientation
-            grip_or_lag = o[3]
+            grip_or_lag = inf['end effector xyzw']
             lag_measured = True
 
         # quality 1 measured during the whole trajectory
@@ -1075,9 +1080,9 @@ def pos_div_pos_grip_bd(individual):
             # only done one step after the start
             if prev_dist is None:
                 # distance between gripper and object
-                prev_dist = utils.list_l2_norm(o[0], o[2])
+                prev_dist = utils.list_l2_norm(inf['object position'], inf['end effector position'])
             else:
-                new_dist = utils.list_l2_norm(o[0], o[2])
+                new_dist = utils.list_l2_norm(inf['object position'], inf['end effector position'])
                 differential_dist = new_dist - prev_dist
                 if differential_dist > 0:
                     positive_dist_slope += differential_dist
@@ -1085,9 +1090,9 @@ def pos_div_pos_grip_bd(individual):
                 prev_dist = new_dist
 
         # if robot has a self-collision monitoring
-        if 'self contact_points' in inf and AUTO_COLLIDE:
-            if len(inf['self contact_points']) != 0:
-                #print("collision", i, inf['self contact_points'][0][3], inf['self contact_points'][0][4])
+        if 'contact robot robot' in inf and AUTO_COLLIDE:
+            if len(inf['contact robot robot']) != 0:
+                #print("collision", i, inf['contact robot robot'][0][3], inf['contact robot robot'][0][4])
                 auto_collision = True
                 break
 
@@ -1105,8 +1110,7 @@ def pos_div_pos_grip_bd(individual):
         return (behavior, (fitness,), info)
 
     # use last info to compute behavior and fitness
-    behavior = [o[0][0] - initial_object_position[0], o[0][1] - initial_object_position[1],
-                o[0][2]]  # last position of object
+    behavior = [inf['object position'][0] - initial_object_position[0], inf['object position'][1] - initial_object_position[1], inf['object position'][2]]  # last position of object
 
     utils.bound(behavior, BD_BOUNDS[0:3])
 
@@ -1121,14 +1125,13 @@ def pos_div_pos_grip_bd(individual):
         behavior.append(None)
 
     # choose if individual satisfied the binary goal
-    dist = utils.list_l2_norm(o[0], o[2])
+    dist = utils.list_l2_norm(inf['object position'], inf['end effector position'])
     binary_goal = False
-    relevant_contact = [c for c in inf['contact_points'] if c[3] in LINK_ID_CONTACT] # contact with the gripper
-    #if o[0][2] > HEIGHT_THRESH and dist < DISTANCE_THRESH:
+    #if inf['object position'][2] > HEIGHT_THRESH and dist < DISTANCE_THRESH:
     # the object should not touch the table neither the plane, must touch the gripper without penetration (with a margin of 0.005), be grasped right after closing the gripper (within 1s), touch the table when the gripper is closing
-    if len(inf['contact object plane']+(inf['contact object table'] if 'contact object table' in inf.keys() else []))==0 and len(relevant_contact)>0 and np.all([c[8]>-0.005 for c in inf['contact_points']]) and grip_info['time close touch']<1*240/NB_STEPS_TO_ROLLOUT and len(grip_info['contact object table'])>0:
+    if r and grip_info['time close touch']<1*240/NB_STEPS_TO_ROLLOUT and len(grip_info['contact object table'])>0:
         binary_goal = True
-        #print("height", o[0][2])
+        #print("height", inf['object position'][2])
     info['binary goal'] = binary_goal
 
     if binary_goal:
@@ -1179,32 +1182,33 @@ def pos_div_pos_grip_bd(individual):
 
     if QUALITY and binary_goal:
         # re-evaluate with random initial positions to assess robustness as quality
-        reference = [o[0][0], o[0][1], o[0][2]]
+        reference = [inf['object position'][0], inf['object position'][1], inf['object position'][2]]
         last_pos_obj = []
         count = 0
         for rep in range(N_REP_RAND):
             if RESET_MODE:
-                ENV.reset(delta_pos=D_POS[rep])
+                ENV.reset(delta_pos=D_POS[rep], yaw=ANGLE_NOISE*(rep%2*2-1))
             else:
                 ENV = gym.make(ENV_NAME, display=DISPLAY, obj=OBJECT, delta_pos=D_POS[rep],
                            steps_to_roll=NB_STEPS_TO_ROLLOUT)
 
             # initialize controller
             controller_info = controllers_info_dict[CONTROLLER]
-            controller = controllers_dict[CONTROLLER](individual, controller_info, initial=ENV.get_action())
+            controller = controllers_dict[CONTROLLER](individual, controller_info, initial=ENV.get_state())
             action = controller.initial_action
-            initial_object_position = ENV.step(action)[0][0]
+            o, r, eo, inf = ENV.step(action)
+            initial_object_position = inf['object position']
             for i in range(1,NB_ITER):
                 #ENV.render()
                 # choose action
                 action = controller.get_action(i) if controller.open_loop else controller.get_action(i, o)
                 o, r, eo, inf = ENV.step(action)
                 if eo: break
-            dist = utils.list_l2_norm(o[0], o[2])
-            #if o[0][2] > HEIGHT_THRESH and dist < DISTANCE_THRESH:
-            if len(inf['contact object plane']+(inf['contact object table'] if 'contact object table' in inf.keys() else []))==0 and len([c for c in inf['contact_points'] if c[3] in LINK_ID_CONTACT])>0 and np.all([c[8]>-0.005 for c in inf['contact_points']]):
+            dist = utils.list_l2_norm(inf['object position'], inf['end effector position'])
+            #if inf['object position'][2] > HEIGHT_THRESH and dist < DISTANCE_THRESH:
+            if r:
                 count += 1
-                last_pos_obj.append([o[0][0], o[0][1], o[0][2]])
+                last_pos_obj.append([inf['object position'][0], inf['object position'][1], inf['object position'][2]])
 
             if not RESET_MODE:
                 ENV.close()
@@ -1232,7 +1236,7 @@ def eval_sucessfull_ind(individual, obstacle_pos=None, obstacle_size=None):
 
     # initialize controller
     controller_info = controllers_info_dict[CONTROLLER]
-    controller = controllers_dict[CONTROLLER](individual, controller_info, initial=ENV.get_action())
+    controller = controllers_dict[CONTROLLER](individual, controller_info, initial=ENV.get_state())
     action = controller.initial_action
 
     # for precise measure when we have the gripper assumption
@@ -1256,7 +1260,7 @@ def eval_sucessfull_ind(individual, obstacle_pos=None, obstacle_size=None):
 
         if i % 15 == 0 and SAVE_TRAJ:
             count_keypoint += 1
-            joint_config = o[4][10:17]
+            joint_config = o[7:7+GENE_PER_KEYPOINTS][10:17]
             traj_array.append(joint_config)
             if not closed and already_grasped:
                 closed = True
@@ -1270,14 +1274,14 @@ def eval_sucessfull_ind(individual, obstacle_pos=None, obstacle_size=None):
             already_grasped = True
 
         # if robot has a self-collision monitoring
-        if 'self contact_points' in inf and AUTO_COLLIDE:
-            if len(inf['self contact_points']) != 0:
+        if 'contact robot robot' in inf and AUTO_COLLIDE:
+            if len(inf['contact robot robot']) != 0:
                 raise Exception('Auto collision detected')
 
     # choose if individual satisfied the binary goal
-    dist = utils.list_l2_norm(o[0], o[2])
+    dist = utils.list_l2_norm(inf['object position'], inf['end effector position'])
     binary_goal = False
-    if o[0][2] > HEIGHT_THRESH and dist < DISTANCE_THRESH:
+    if inf['object position'][2] > HEIGHT_THRESH and dist < DISTANCE_THRESH:
         binary_goal = True
 
     if not RESET_MODE:
@@ -1301,7 +1305,7 @@ def aurora_bd(individual):
 
     # initialize controller
     controller_info = controllers_info_dict[CONTROLLER]
-    controller = controllers_dict[CONTROLLER](individual, controller_info, initial=ENV.get_action())
+    controller = controllers_dict[CONTROLLER](individual, controller_info, initial=ENV.get_state())
 
     action = controller.initial_action
 
@@ -1334,32 +1338,32 @@ def aurora_bd(individual):
         if eo:
             break
 
-        touch = len(inf['contact_points']) > 0
+        touch = len(inf['contact object robot']) > 0
         touch_id = 0
         if touch:
-            touch_id = inf['contact_points'][0][3]
+            touch_id = inf['contact object robot'][0][4]
             touch_idx.append(touch_id)
         relevant_touch = touch and (touch_id in LINK_ID_CONTACT)
         if relevant_touch and not already_touched:
             # first touch of object
-            measure_grip_time = diversity_measure(o)
+            measure_grip_time = diversity_measure(inf)
             already_touched = True
 
         if i in sample_points:
             # we sample the trajectory to feed the high dimensional BD
             flattened_obs = [item for sublist in o for item in sublist]
-            obs_bounds = [[-1, 1]] * 14 + [[-math.pi, math.pi]] * len(o[4])
+            obs_bounds = [[-1, 1]] * 14 + [[-math.pi, math.pi]] * len(o[7:7+GENE_PER_KEYPOINTS])
             utils.bound(flattened_obs, obs_bounds)
             utils.normalize(flattened_obs, obs_bounds)
             behavior.append(flattened_obs)
 
     # compute fitness
-    fitness = o[0][2]
+    fitness = inf['object position'][2]
 
     # choose if individual satisfied the binary goal
-    dist = utils.list_l2_norm(o[0], o[2])
+    dist = utils.list_l2_norm(inf['object position'], inf['end effector position'])
     binary_goal = False
-    if o[0][2] > HEIGHT_THRESH and dist < DISTANCE_THRESH:
+    if inf['object position'][2] > HEIGHT_THRESH and dist < DISTANCE_THRESH:
         binary_goal = True
     info['binary goal'] = binary_goal
 
@@ -1562,6 +1566,7 @@ if __name__ == "__main__":
         
         pop, archive, hof, details, figures, data, triumphant_archive = res
         print('Number of triumphants: ', len(triumphant_archive))
+        #print("grasp robustness", [(ind.info.values["grasp robustness"],ind.info.values["grasp robustness_local"]) for ind in triumphant_archive])
         
         i = 0 # create run directory
         while os.path.exists('runs/run%i/' % i):
