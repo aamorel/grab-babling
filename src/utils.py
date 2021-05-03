@@ -40,14 +40,7 @@ class CVT():
         self.num_replicates = num_replicates
         self.max_iterations = max_iterations
         self.tolerance = tolerance
-        """
-        X = []
-        for bound in bounds:
-            # idea: give as much importance to all dimensions even if bounds are not -1, 1
-            X.append(np.random.uniform(low=-1, high=1, size=self.num_samples))
-        X = np.array(X)
-        X = np.transpose(X)
-        """
+
         X = np.random.default_rng().random(size=(num_samples, len(bounds)))
         if sphere: # normalize all samples to get a sphere
             X /= np.linalg.norm(X, axis=-1)[:,None]
@@ -66,11 +59,6 @@ class CVT():
 
     def get_grid_index(self, sample):
         # map back to [-1, 1]
-        """
-        sample_copy = []
-        for i, bound in enumerate(self.bounds):
-            sample_copy.append(-1 + ((sample[i] - bound[0]) / (bound[1] - bound[0])) * 2)
-        """
         sample_copy = (np.array(sample)-self.low) / (self.high-self.low) * 2 - 1
         grid_index = self.k_tree.query(sample_copy, k=1)[1]
         return grid_index
