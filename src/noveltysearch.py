@@ -722,7 +722,7 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
                  measures=False, choose_evaluate=None, bd_indexes=None, archive_limit_size=None,
                  archive_limit_strat='random', nb_cells=1000, analyze_archive=False, altered_novelty=False,
                  alteration_degree=None, novelty_metric='minkowski', save_ind_cond=None, plot_gif=False,
-                 bootstrap_individuals=None, multi_quality=None, monitor_print=False):
+                 bootstrap_individuals=None, multi_quality=None, monitor_print=False, final_filter=None):
 
     # keep track of stats
     mean_hist = []
@@ -1665,6 +1665,8 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
                     im_l.append(plt.scatter(bds_arr[:, 0], bds_arr[:, 1], color=color, label='Historic'))
                 ims.append(im_l)
     
+    if final_filter is not None: # re-evaluate if asked
+        save_ind = [ind for ind, (bd, fit, inf) in zip(save_ind, toolbox.map(evaluate_individual, save_ind)) if inf[final_filter]]
     data['population genetic statistics'] = gen_stat_hist
     data['offsprings genetic statistics'] = gen_stat_hist_off
     data['archive coverage'] = coverage_hist

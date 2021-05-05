@@ -46,6 +46,7 @@ parser.add_argument("-g", "--generation", help="The number of generation", type=
 parser.add_argument("-n", "--nruns", help="The number of time to repeat the search", type=partial(greater, "number of runs", 0), default=1)
 parser.add_argument("-c", "--cells", help="The number of cells to measure the coverage", type=partial(greater, "number of cells", 1), default=1000)
 parser.add_argument("-q", "--quality", help="Enable quality", action="store_true")
+parser.add_argument("-i", "--initial-random", help="Set reset_random_initial_object_pose to False, default to None", action="store_true")
 args = parser.parse_args()
 
 
@@ -157,8 +158,10 @@ if ALGO == 'ns_rand_aurora':
 
 # if reset, create global env
 # TODO: debug, for now RESET_MODE should be False
-if RESET_MODE:
-    ENV = gym.make(ENV_NAME, display=DISPLAY, obj=OBJECT, steps_to_roll=NB_STEPS_TO_ROLLOUT)
+ENV = gym.make(ENV_NAME, display=DISPLAY, obj=OBJECT, steps_to_roll=NB_STEPS_TO_ROLLOUT, reset_random_initial_object_pose=False if args.initial_random else None)
+OBJECT_POSITION, OBJECT_XYZW = ENV.get_object_pose() # get the pose to share
+if not RESET_MODE: # we don't use the global ENV
+    ENV.close()
 
 
 # choose diversity measure if gripping time is given by the controller
@@ -167,7 +170,7 @@ DIV_MEASURE = 'gripper orientation'  # 'gripper orientation', 'gripper orientati
 NOVELTY_METRIC = 'minkowski'
 
 BD_INDEXES = None
-MULTI_QUALITY_MEASURES = None
+MULTI_QUALITY_MEASURES = None # if it is left None, quality is not involved. By default, minimizing 'energy' is the quality
 if BD == '2D':
     BD_BOUNDS = [[-0.35, 0.35], [-0.15, 0.2]]
 if BD == '3D':
@@ -180,7 +183,9 @@ if BD == 'pos_div_grip':
         NOVELTY_METRIC = ['minkowski', 'minkowski', 'minkowski']
         if QUALITY:
             # MULTI_QUALITY_MEASURES = [['mean positive slope', 'grasp robustness', None], ['min', 'min', None]]
-            MULTI_QUALITY_MEASURES = [[None, 'grasp robustness', None], [None, 'max', None]]
+            MULTI_QUALITY_MEASURES = [['energy', 'grasp robustness', 'energy'], ['min', 'max', 'min']]
+        else:
+            MULTI_QUALITY_MEASURES = [['energy', 'energy', 'energy'], ['min', 'min', 'min']]
 if BD == 'pos_div_pos':
     BD_BOUNDS = [[-0.35, 0.35], [-0.15, 0.2], [-0.2, 0.5], [-1, 1], [-1, 1], [-1, 1], [-1, 1],
                  [-0.35, 0.35], [-0.15, 0.2], [-0.2, 0.5]]
@@ -189,7 +194,9 @@ if BD == 'pos_div_pos':
         NOVELTY_METRIC = ['minkowski', 'minkowski', 'minkowski']
         if QUALITY:
             # MULTI_QUALITY_MEASURES = [['mean positive slope', 'grasp robustness', None], ['min', 'min', None]]
-            MULTI_QUALITY_MEASURES = [[None, 'grasp robustness', 'grasp robustness'], [None, 'max', 'max']]
+            MULTI_QUALITY_MEASURES = [['energy', 'grasp robustness', 'grasp robustness'], ['min', 'max', 'max']]
+        else:
+            MULTI_QUALITY_MEASURES = [['energy', 'energy', 'energy'], ['min', 'min', 'min']]
 if BD == 'pos_div_pos_grip':
     BD_BOUNDS = [[-0.35, 0.35], [-0.15, 0.2], [-0.2, 0.5], [-1, 1], [-1, 1], [-1, 1], [-1, 1],
                  [-0.35, 0.35], [-0.15, 0.2], [-0.2, 0.5], [-1, 1], [-1, 1], [-1, 1], [-1, 1]]
@@ -197,8 +204,9 @@ if BD == 'pos_div_pos_grip':
         BD_INDEXES = [0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 3, 3, 3, 3]
         NOVELTY_METRIC = ['minkowski', 'minkowski', 'minkowski', 'minkowski']
         if QUALITY:
-            MULTI_QUALITY_MEASURES = [[None, 'grasp robustness', 'grasp robustness', None],
-                                      [None, 'max', 'max', None]]
+            MULTI_QUALITY_MEASURES = [['energy', 'grasp robustness', 'grasp robustness', 'energy'], ['min', 'max', 'max', 'min']]
+        else:
+            MULTI_QUALITY_MEASURES = [['energy', 'energy', 'energy', 'energy'], ['min', 'min', 'min', 'min']]
 if BD == 'aurora':
     BD_BOUNDS = None
 if ALGO == 'ns_rand_change_bd':
@@ -285,7 +293,7 @@ def analyze_triumphants(triumphant_archive, run_name):
     indices, counts = np.unique(cvt.get_grid_index(q), return_counts=True)
     grid[indices] = counts
     coverage = np.count_nonzero(grid) / NB_CELLS
-    uniformity = utils.compute_uniformity(grid)
+    uniformity = utils.compute_uniformity(grid).item()
 
     # cluster the triumphants with respect to grasping descriptor
     clustering = AgglomerativeClustering(n_clusters=None, affinity='precomputed', compute_full_tree=True,
@@ -335,7 +343,8 @@ def two_d_bd(individual):
         global ENV
         ENV.reset()
     else:
-        ENV = gym.make(ENV_NAME, display=DISPLAY, obj=OBJECT, steps_to_roll=NB_STEPS_TO_ROLLOUT)
+        ENV = gym.make(ENV_NAME, display=DISPLAY, obj=OBJECT, steps_to_roll=NB_STEPS_TO_ROLLOUT, object_position=OBJECT_POSITION, object_xyzw=OBJECT_XYZW)
+        ENV.reset()
 
     individual = np.around(np.array(individual), 3)
     # initialize controller
@@ -389,7 +398,8 @@ def three_d_bd(individual):
         global ENV
         ENV.reset()
     else:
-        ENV = gym.make(ENV_NAME, display=DISPLAY, obj=OBJECT, steps_to_roll=NB_STEPS_TO_ROLLOUT)
+        ENV = gym.make(ENV_NAME, display=DISPLAY, obj=OBJECT, steps_to_roll=NB_STEPS_TO_ROLLOUT, object_position=OBJECT_POSITION, object_xyzw=OBJECT_XYZW)
+        ENV.reset()
 
     individual = np.around(np.array(individual), 3)
     
@@ -466,7 +476,7 @@ def three_d_bd(individual):
     return (behavior, (fitness,), info)
 
 
-def pos_div_grip_bd(individual):
+def pos_div_pos_grip_bd(individual):
     """Evaluates an individual: computes its value in the behavior descriptor space,
     and its fitness value.
     In this case, we consider the behavior space where we give the maximum amount of information
@@ -474,476 +484,29 @@ def pos_div_grip_bd(individual):
 
     controller with grip_time is required
 
-    3 descriptors:
-    -the end position of the object in the 3D volume, always eligible
-    -the measure described by diversity_measure, eligible if the object is grabbed
-    -the orientation of the gripper N_LAG steps before the gripping time, always eligible
+    4 descriptors:
+    pos: the end position of the object in the 3D volume, always eligible
+    div: the measure described by diversity_measure, eligible if the object is grabbed
+    pos: the final position of the end effector, eligible if the object is grasped
+    grip: the orientation of the gripper N_LAG steps before the gripping time, eligible if the object is touched
+    
+    This evaluation function can be used with either BD as:
+    pos_div_pos
+    pos_div_grip
+    pos_div_pos_grip
 
     Args:
         individual (Individual): an individual
 
     Returns:
-        tuple: tuple of behavior (list) and fitness(tuple)
+        tuple: tuple of behavior (list) fitness(tuple) info(dict)
     """
     if RESET_MODE:
         global ENV
         ENV.reset()
     else:
-        ENV = gym.make(ENV_NAME, display=DISPLAY, obj=OBJECT, steps_to_roll=NB_STEPS_TO_ROLLOUT)
-
-    global COUNT_SUCCESS
-
-    individual = np.around(np.array(individual), 3)
-
-    # initialize controller
-    controller_info = controllers_info_dict[CONTROLLER]
-    controller = controllers_dict[CONTROLLER](individual, controller_info, initial=ENV.get_state())
-    assert(hasattr(controller, 'grip_time'))
-    # lag_time = controller.grip_time - N_LAG
-    lag_time = NB_ITER / 2
-    action = controller.initial_action
-
-    # monitor auto-collision
-    auto_collision = False
-
-    # for precise measure when we have the gripper assumption
-    already_touched = False
-    already_grasped = False
-    grasped_before_touch = False
-
-    # for measure at lag time
-    lag_measured = False
-
-    measure_grip_time = None
-
-    touch_idx = []
-
-    # to compute quality for B1
-    positive_dist_slope = 0
-    prev_dist = None
-
-    info = {}
-
-    if ALGO == 'map_elites':
-        # define energy criterion
-        energy = 0
-
-    for i in range(NB_ITER):
-        ENV.render()
-        # apply previously chosen action
-        o, r, eo, inf = ENV.step(action)
-
-        prev_action = action
-
-        # choose action
-        if controller.open_loop:
-            action = controller.get_action(i)
-        else:
-            action = controller.get_action(i, o)
-
-        if i == 0:
-            initial_object_position = inf['object position']
-
-        if eo:
-            break
-        
-        if i >= controller.grip_time and not already_grasped:
-            # first action that orders the gripper closure
-            # measure_grip_time = diversity_measure(inf)
-            already_grasped = True
-
-        touch = len(inf['contact object robot']) > 0
-        touch_id = 0
-        if touch:
-            touch_id = inf['contact object robot'][0][4]
-            touch_idx.append(touch_id)
-        relevant_touch = touch and (touch_id in LINK_ID_CONTACT)
-        if relevant_touch and not already_touched:
-            # first touch of object
-            measure_grip_time = diversity_measure(inf)
-            already_touched = True
-            if already_grasped:
-                grasped_before_touch = True
-        
-        if i >= lag_time and not lag_measured:
-            # gripper orientation
-            grip_or_lag = inf['end effector xyzw']
-            lag_measured = True
-
-        # quality 1 measured during the whole trajectory
-        if QUALITY:
-            # only done one step after the start
-            if prev_dist is None:
-                # distance between gripper and object
-                prev_dist = utils.list_l2_norm(inf['object position'], inf['end effector position'])
-            else:
-                new_dist = utils.list_l2_norm(inf['object position'], inf['end effector position'])
-                differential_dist = new_dist - prev_dist
-                if differential_dist > 0:
-                    positive_dist_slope += differential_dist
-            
-                prev_dist = new_dist
-
-        # if robot has a self-collision monitoring
-        if 'contact robot robot' in inf and AUTO_COLLIDE:
-            if len(inf['contact robot robot']) != 0:
-                auto_collision = True
-                break
-
-        if ALGO == 'map_elites':
-            energy += utils.list_l2_norm(action, prev_action) ** 2
-    
-    if auto_collision:
-        behavior = [None, None, None, None, None, None, None, None, None, None, None]
-        if ALGO != 'ns_rand_multi_bd':
-            behavior = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-        fitness = -float('inf')
-        info = {'binary goal': False, 'auto_collided': True}
-        if not RESET_MODE:
-            ENV.close()
-        return (behavior, (fitness,), info)
-
-    # use last info to compute behavior and fitness
-    behavior = [inf['object position'][0] - initial_object_position[0], inf['object position'][1] - initial_object_position[1],
-                inf['object position'][2]]  # last position of object
-
-    utils.bound(behavior, BD_BOUNDS[0:3])
-
-    # compute fitness
-    if ALGO == 'map_elites':
-        fitness = energy
-    else:
-        fitness = behavior[2]
-
-    # append 4 times None to behavior in case no grasping (modified later)
-    for _ in range(4):
-        behavior.append(None)
-
-    info['binary goal'] = binary_goal = r # choose if individual satisfied the binary goal
-
-    if binary_goal:
-        COUNT_SUCCESS += 1
-        if measure_grip_time is None:
-            # print('Individual grasped without touching any contact links')
-            info['binary goal'] = False
-        else:
-            info['diversity_descriptor'] = measure_grip_time
-            behavior[3] = measure_grip_time[0]  # Quat to array
-            behavior[4] = measure_grip_time[1]
-            behavior[5] = measure_grip_time[2]
-            behavior[6] = measure_grip_time[3]
-    
-    # BD 3 only active if trajectory touched the object
-    if already_touched:
-        behavior.append(grip_or_lag[3])
-        behavior.append(grip_or_lag[0])
-        behavior.append(grip_or_lag[1])
-        behavior.append(grip_or_lag[2])
-    else:
-        for _ in range(4):
-            behavior.append(None)
-
-    if not RESET_MODE:
-        ENV.close()
-
-    if ALGO != 'ns_rand_multi_bd':
-        for i, b in enumerate(behavior):
-            if b is None:
-                behavior[i] = 0
-        return (behavior, (fitness,), info)
-
-    if QUALITY:
-        if grasped_before_touch:
-            # penalize more
-            info['mean positive slope'] = 4 * positive_dist_slope / NB_ITER
-        elif already_touched:
-            info['mean positive slope'] = positive_dist_slope / NB_ITER
-            if (not inf['closed gripper']) and relevant_touch:
-                # gripper is not entirely closed at the end, and is touching the object
-                info['mean positive slope'] -= 1
-        else:
-            info['mean positive slope'] = positive_dist_slope / NB_ITER + 1
-
-    if QUALITY and binary_goal:
-        # re-evaluate with random initial positions to assess robustness as quality
-        reference = [inf['object position'][0], inf['object position'][1], inf['object position'][2]]
-        last_pos_obj = []
-        count = 0
-        for rep in range(N_REP_RAND):
-            if RESET_MODE:
-                ENV.reset(delta_pos=D_POS[rep], yaw=ANGLE_NOISE*(rep%2*2-1))
-            else:
-                ENV = gym.make(ENV_NAME, display=DISPLAY, obj=OBJECT, delta_pos=D_POS[rep],
-                           steps_to_roll=NB_STEPS_TO_ROLLOUT)
-
-            # initialize controller
-            controller_info = controllers_info_dict[CONTROLLER]
-            controller = controllers_dict[CONTROLLER](individual, controller_info, initial=ENV.get_state())
-            action = controller.initial_action
-
-            for i in range(NB_ITER):
-                ENV.render()
-                # apply previously chosen action
-                o, r, eo, inf = ENV.step(action)
-
-                # choose action
-                if controller.open_loop:
-                    action = controller.get_action(i)
-                else:
-                    action = controller.get_action(i, o)
-
-                if i == 0:
-                    initial_object_position = inf['object position']
-
-                if eo:
-                    break
-            
-            if r: # if there is a grasp
-                count += 1
-                last_pos_obj.append([inf['object position'][0], inf['object position'][1], inf['object position'][2]])
-
-            if not RESET_MODE:
-                ENV.close()
-
-        mean_dist = 0
-        for last_pos in last_pos_obj:
-            mean_dist += utils.list_l2_norm(reference, last_pos)
-        if count != 0:
-            mean_dist = mean_dist / count
-
-        grasp_rob = count + 1 / (1 + 0.00000001 + mean_dist)
-        info['grasp robustness'] = grasp_rob
-    
-    return (behavior, (fitness,), info)
-
-
-def pos_div_pos_bd(individual):
-
-    if RESET_MODE:
-        global ENV
+        ENV = gym.make(ENV_NAME, display=DISPLAY, obj=OBJECT, steps_to_roll=NB_STEPS_TO_ROLLOUT, object_position=OBJECT_POSITION, object_xyzw=OBJECT_XYZW)
         ENV.reset()
-    else:
-        ENV = gym.make(ENV_NAME, display=DISPLAY, obj=OBJECT, steps_to_roll=NB_STEPS_TO_ROLLOUT)
-
-    global COUNT_SUCCESS
-
-    individual = np.around(np.array(individual), 3)
-
-    # initialize controller
-    controller_info = controllers_info_dict[CONTROLLER]
-    controller = controllers_dict[CONTROLLER](individual, controller_info, initial=ENV.get_state())
-    assert(hasattr(controller, 'grip_time'))
-
-    action = controller.initial_action
-
-    # monitor auto-collision
-    auto_collision = False
-
-    # for precise measure when we have the gripper assumption
-    already_touched = False
-    already_grasped = False
-    grasped_before_touch = False
-
-    measure_grip_time = None
-    pos_touch_time = None
-
-    touch_idx = []
-
-    # to compute quality for B1
-    positive_dist_slope = 0
-    prev_dist = None
-
-    info = {}
-
-    if ALGO == 'map_elites':
-        # define energy criterion
-        energy = 0
-
-    for i in range(NB_ITER):
-        ENV.render()
-        # apply previously chosen action
-        o, r, eo, inf = ENV.step(action)
-
-        prev_action = action
-
-        # choose action
-        if controller.open_loop:
-            action = controller.get_action(i)
-        else:
-            action = controller.get_action(i, o)
-
-        if i == 0:
-            initial_object_position = inf['object position']
-
-        if eo:
-            break
-        
-        if i >= controller.grip_time and not already_grasped:
-            # first action that orders the gripper closure
-            # measure_grip_time = diversity_measure(inf)
-            already_grasped = True
-
-        touch = len(inf['contact object robot']) > 0
-        touch_id = 0
-        if touch:
-            touch_id = inf['contact object robot'][0][4]
-            touch_idx.append(touch_id)
-        relevant_touch = touch and (touch_id in LINK_ID_CONTACT)
-        if relevant_touch and not already_touched:
-            # first touch of object
-            measure_grip_time = diversity_measure(inf)
-            pos_touch_time = inf['end effector position']
-            already_touched = True
-            if already_grasped:
-                grasped_before_touch = True
-
-        # quality 1 measured during the whole trajectory
-        if QUALITY:
-            # only done one step after the start
-            if prev_dist is None:
-                # distance between gripper and object
-                prev_dist = utils.list_l2_norm(inf['object position'], inf['end effector position'])
-            else:
-                new_dist = utils.list_l2_norm(inf['object position'], inf['end effector position'])
-                differential_dist = new_dist - prev_dist
-                if differential_dist > 0:
-                    positive_dist_slope += differential_dist
-            
-                prev_dist = new_dist
-
-        # if robot has a self-collision monitoring
-        if 'contact robot robot' in inf and AUTO_COLLIDE:
-            if len(inf['contact robot robot']) != 0:
-                auto_collision = True
-                break
-
-        if ALGO == 'map_elites':
-            energy += utils.list_l2_norm(action, prev_action) ** 2
-    
-    if auto_collision:
-        behavior = [None]*10#[None, None, None, None, None, None, None, None, None, None, None, None, None, None]
-        if ALGO != 'ns_rand_multi_bd':
-            behavior = [0]*10#[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-        fitness = -float('inf')
-        info = {'binary goal': False, 'auto_collided': True}
-        if not RESET_MODE:
-            ENV.close()
-        return (behavior, (fitness,), info)
-
-    # use last info to compute behavior and fitness
-    behavior = [inf['object position'][0] - initial_object_position[0], inf['object position'][1] - initial_object_position[1],
-                inf['object position'][2]]  # last position of object
-
-    utils.bound(behavior, BD_BOUNDS[0:3])
-
-    # compute fitness
-    if ALGO == 'map_elites':
-        fitness = energy
-    else:
-        fitness = behavior[2]
-
-    # append 4 times None to behavior in case no grasping (modified later)
-    for _ in range(7):
-        behavior.append(None)
-
-    info['binary goal'] = binary_goal = r # choose if individual satisfied the binary goal
-
-    if binary_goal:
-        COUNT_SUCCESS += 1
-        if measure_grip_time is None:
-            # print('Individual grasped without touching any contact links')
-            info['binary goal'] = False
-        else:
-            info['diversity_descriptor'] = measure_grip_time
-            behavior[3] = measure_grip_time[0]  # Quat to array
-            behavior[4] = measure_grip_time[1]
-            behavior[5] = measure_grip_time[2]
-            behavior[6] = measure_grip_time[3]
-            behavior[7] = pos_touch_time[0]
-            behavior[8] = pos_touch_time[1]
-            behavior[9] = pos_touch_time[2]
-
-    if not RESET_MODE:
-        ENV.close()
-
-    if ALGO != 'ns_rand_multi_bd':
-        for i, b in enumerate(behavior):
-            if b is None:
-                behavior[i] = 0
-        return (behavior, (fitness,), info)
-
-    if QUALITY:
-        if grasped_before_touch:
-            # penalize more
-            info['mean positive slope'] = 4 * positive_dist_slope / NB_ITER
-        elif already_touched:
-            info['mean positive slope'] = positive_dist_slope / NB_ITER
-            if (not inf['closed gripper']) and relevant_touch:
-                # gripper is not entirely closed at the end, and is touching the object
-                info['mean positive slope'] -= 1
-        else:
-            info['mean positive slope'] = positive_dist_slope / NB_ITER + 1
-
-    if QUALITY and binary_goal:
-        # re-evaluate with random initial positions to assess robustness as quality
-        reference = [inf['object position'][0], inf['object position'][1], inf['object position'][2]]
-        last_pos_obj = []
-        count = 0
-        for rep in range(N_REP_RAND):
-            if RESET_MODE:
-                ENV.reset(delta_pos=D_POS[rep], yaw=ANGLE_NOISE*(rep%2*2-1))
-            else:
-                ENV = gym.make(ENV_NAME, display=DISPLAY, obj=OBJECT, delta_pos=D_POS[rep],
-                           steps_to_roll=NB_STEPS_TO_ROLLOUT)
-
-            # initialize controller
-            controller_info = controllers_info_dict[CONTROLLER]
-            controller = controllers_dict[CONTROLLER](individual, controller_info, initial=ENV.get_state())
-            action = controller.initial_action
-
-            for i in range(NB_ITER):
-                ENV.render()
-                # apply previously chosen action
-                o, r, eo, inf = ENV.step(action)
-
-                # choose action
-                if controller.open_loop:
-                    action = controller.get_action(i)
-                else:
-                    action = controller.get_action(i, o)
-
-                if i == 0:
-                    initial_object_position = inf['object position']
-
-                if eo:
-                    break
-            
-            if r: # if there is a grasp
-                count += 1
-                last_pos_obj.append([inf['object position'][0], inf['object position'][1], inf['object position'][2]])
-
-            if not RESET_MODE:
-                ENV.close()
-
-        mean_dist = 0
-        for last_pos in last_pos_obj:
-            mean_dist += utils.list_l2_norm(reference, last_pos)
-        if count != 0:
-            mean_dist = mean_dist / count
-
-        grasp_rob = count + 1 / (1 + 0.00000001 + mean_dist)
-        info['grasp robustness'] = grasp_rob
-    
-    return (behavior, (fitness,), info)
-
-
-def pos_div_pos_grip_bd(individual):
-
-    if RESET_MODE:
-        global ENV
-        ENV.reset()
-    else:
-        ENV = gym.make(ENV_NAME, display=DISPLAY, obj=OBJECT, steps_to_roll=NB_STEPS_TO_ROLLOUT)
 
     global COUNT_SUCCESS
 
@@ -962,6 +525,7 @@ def pos_div_pos_grip_bd(individual):
     already_touched = False
     already_grasped = False
     grasped_before_touch = False
+    contact_robot_table = False
     closing = None
 
     # for measure at lag time
@@ -976,7 +540,7 @@ def pos_div_pos_grip_bd(individual):
     positive_dist_slope = 0
     prev_dist = None
 
-    info, grip_info = {}, {"contact object table":[], "time close touch":float("inf")}
+    info, grip_info = {'energy':0}, {"contact object table":[], "time close touch":float("inf")}
 
     if ALGO == 'map_elites':
         # define energy criterion
@@ -1018,7 +582,7 @@ def pos_div_pos_grip_bd(individual):
         
         if i >= lag_time and not lag_measured:
             # gripper orientation
-            grip_or_lag = inf['end effector xyzw']
+            grip_or_lag = np.array(inf['end effector xyzw'])
             lag_measured = True
 
         if QUALITY: # quality 1 measured during the whole trajectory
@@ -1036,7 +600,7 @@ def pos_div_pos_grip_bd(individual):
 
         # if robot has a self-collision monitoring
         if AUTO_COLLIDE and inf['autocollision']:
-            behavior = [None if ALGO=='ns_rand_multi_bd' else 0]*14
+            behavior = [None if ALGO=='ns_rand_multi_bd' else 0] * len(BD_INDEXES)
             fitness = -float('inf')
             info = {'binary goal': False, 'auto_collided': True}
             if not RESET_MODE:
@@ -1045,9 +609,12 @@ def pos_div_pos_grip_bd(individual):
 
         if ALGO == 'map_elites':
             energy += utils.list_l2_norm(action, prev_action) ** 2
+            
+        info['energy'] += np.abs(inf['applied joint motor torques']).sum()
+        contact_robot_table = contact_robot_table or len(inf['contact robot table'])>0
 
     # use last info to compute behavior and fitness
-    behavior = np.array([None]*14, dtype=object)
+    behavior = np.array([None]*len(BD_INDEXES), dtype=object)
     behavior[:3] = [inf['object position'][0] - initial_object_position[0], inf['object position'][1] - initial_object_position[1], inf['object position'][2]]  # last position of object
 
     utils.bound(behavior[:3], BD_BOUNDS[:3])
@@ -1055,25 +622,34 @@ def pos_div_pos_grip_bd(individual):
     fitness = energy if ALGO == 'map_elites' else behavior[2] # compute fitness
 
     # choose if individual satisfied the binary goal
-    binary_goal = False
     # the object should not touch the table neither the plane, must touch the gripper without penetration (with a margin of 0.005), be grasped right after closing the gripper (within 1s), touch the table when the gripper is closing
-    if r and grip_info['time close touch']<1*240/NB_STEPS_TO_ROLLOUT and len(grip_info['contact object table'])>0:
-        binary_goal = True
-        #print("height", inf['object position'][2])
-    info['binary goal'] = binary_goal
+    info['binary goal'] = binary_goal = r and grip_info['time close touch']<1*240/NB_STEPS_TO_ROLLOUT and len(grip_info['contact object table'])>0 and not contact_robot_table
 
     if binary_goal:
         COUNT_SUCCESS += 1
         if measure_grip_time is None:
             # print('Individual grasped without touching any contact links')
             info['binary goal'] = False
+            pos_touch_time = None
         else:
             info['diversity_descriptor'] = measure_grip_time
-            behavior[3:7] = measure_grip_time # quaternion wxyz
-            behavior[7:10] = pos_touch_time # position
 
-    if already_touched: # BD 3 only active if trajectory touched the object
-        behavior[10:] = grip_or_lag[3], *grip_or_lag[:3] # wxyz
+
+    if already_touched: # this BD only active if trajectory touched the object
+        grip_or_lag = np.array([grip_or_lag[3], *grip_or_lag[:3]]) # wxyz
+    else:
+        grip_or_lag = None
+    
+    behavior[3:7] = measure_grip_time # this one is common to the 3
+    if BD == 'pos_div_pos':
+        behavior[7:10] = pos_touch_time
+    elif BD == 'pos_div_grip':
+        behavior[7:11] = grip_or_lag
+    elif BD == 'pos_div_pos_grip':
+        behavior[7:10] = pos_touch_time
+        behavior[10:] = grip_or_lag
+    else:
+        raise Exception(f"BD should be either: pos_div_pos, pos_div_grip or pos_div_pos_grip. BD={BD}")
 
 
     if not RESET_MODE:
@@ -1141,7 +717,8 @@ def pos_div_pos_grip_bd(individual):
 def eval_sucessfull_ind(individual, obstacle_pos=None, obstacle_size=None):
 
     if obstacle_pos is None:
-        ENV = gym.make(ENV_NAME, display=DISPLAY, obj=OBJECT, steps_to_roll=NB_STEPS_TO_ROLLOUT)
+        ENV = gym.make(ENV_NAME, display=DISPLAY, obj=OBJECT, steps_to_roll=NB_STEPS_TO_ROLLOUT, object_position=OBJECT_POSITION, object_xyzw=OBJECT_XYZW)
+        ENV.reset()
     else:
         ENV = gym.make(ENV_NAME, display=DISPLAY, obj=OBJECT, steps_to_roll=NB_STEPS_TO_ROLLOUT,
                        obstacle=True, obstacle_pos=obstacle_pos, obstacle_size=obstacle_size)
@@ -1209,7 +786,8 @@ def aurora_bd(individual):
         global ENV
         ENV.reset()
     else:
-        ENV = gym.make(ENV_NAME, display=DISPLAY, obj=OBJECT, steps_to_roll=NB_STEPS_TO_ROLLOUT)
+        ENV = gym.make(ENV_NAME, display=DISPLAY, obj=OBJECT, steps_to_roll=NB_STEPS_TO_ROLLOUT, object_position=OBJECT_POSITION, object_xyzw=OBJECT_XYZW)
+        ENV.reset()
 
     individual = np.around(np.array(individual), 3)
 
@@ -1331,13 +909,14 @@ controllers_info_dict = {'interpolate keypoints end pause grip': {'pause_frac': 
 }
 bd_dict = {'2D': two_d_bd,
            '3D': three_d_bd,
-           'pos_div_grip': pos_div_grip_bd,
+           'pos_div_grip': pos_div_pos_grip_bd,
            'pos_div_pos_grip': pos_div_pos_grip_bd,
-           'pos_div_pos': pos_div_pos_bd,
+           'pos_div_pos': pos_div_pos_grip_bd,
            'aurora': aurora_bd}
 
 if __name__ == "__main__":
     print(f"pop size={POP_SIZE}, ngen={NB_GEN}, object={OBJECT}, robot={ROBOT}, quality={QUALITY}, autocollide={AUTO_COLLIDE}, nexp={N_EXP}, reset mode={RESET_MODE}, parallelize={PARALLELIZE}, controller={CONTROLLER}, behavior descriptor={BD}")
+    
     for _ in range(N_EXP):
 
         initial_genotype_size = NB_KEYPOINTS * GENE_PER_KEYPOINTS
@@ -1368,7 +947,7 @@ if __name__ == "__main__":
 
                     if SAVE_TRAJ:
                         with open('traj.json', 'w') as outfile:
-                            json.dump(res[1], outfile)
+                            yaml.dump(res[1], outfile)
 
             exit()
 
@@ -1464,13 +1043,14 @@ if __name__ == "__main__":
                                              archive_limit_size=ARCHIVE_LIMIT,    nb_cells=NB_CELLS,
                                              novelty_metric=NOVELTY_METRIC,       save_ind_cond='binary goal',
                                              bootstrap_individuals=boostrap_inds, multi_quality=MULTI_QUALITY_MEASURES,
-                                             monitor_print=True)
+                                             monitor_print=True,
+                                             final_filter='binary goal' if RESET_MODE and not QUALITY else None)
             i += 1 # raise if failed 10 times
             if i>=10: raise Exception("The initial population failed 10 times")
         
         pop, archive, hof, details, figures, data, triumphant_archive = res
         print('Number of triumphants: ', len(triumphant_archive))
-        
+        if len(triumphant_archive)==0: continue # do not report the logs
         
         i = 0 # create run directory
         while os.path.exists('runs/run%i/' % i):
@@ -1486,9 +1066,13 @@ if __name__ == "__main__":
         details['run id'] = i
         details['controller'] = CONTROLLER
         details['object'] = OBJECT
+        details['object position'] = OBJECT_POSITION
+        details['object xyzw'] = OBJECT_XYZW
         details['robot'] = ROBOT
         details['bootstrap folder'] = BOOTSTRAP_FOLDER
         details['run time'] = t_end - t_start
+        details['steps to roll'] = NB_STEPS_TO_ROLLOUT
+        details['controller info'] = controllers_info_dict[CONTROLLER]
         if coverage is not None:
             details['successful'] = True
             details['diversity coverage'] = coverage
@@ -1571,18 +1155,20 @@ if __name__ == "__main__":
                         ax[1].plot(gen_div_off[:, i], color=utils.color_list[color_index])
                 ax[1].legend()
                 plt.savefig(run_name + 'genetic_diversity_plot.png')
-            #plt.show()
+            plt.close('all')
         # don't save some stuff
         if not SAVE_ALL:
             data['novelty distribution'] = None
             data['population genetic statistics'] = None
             data['offsprings genetic statistics'] = None
 
+        
         # saving the run
-        with open(run_name + 'run_details.json', 'w') as fp:
-            json.dump(details, fp)
-        with open(run_name + 'run_data.json', 'w') as fp:
-            json.dump(data, fp)
+        utils.save_yaml(details, run_name + 'run_details.yaml')
+        #with open(run_name + 'run_details.yaml', 'w') as f:
+            #yaml.dump(details, f)
+        #with open(run_name + 'run_data.yaml', 'w') as fp:
+            #yaml.dump(data, fp)
 
         # display some individuals
         if DISPLAY_HOF:

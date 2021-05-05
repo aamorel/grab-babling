@@ -9,6 +9,10 @@ import torch
 import torch.nn as nn
 import math
 from torch.utils.data import Dataset
+import ruamel.yaml
+
+yaml = ruamel.yaml.YAML()
+yaml.width = 10000 # this is the output line width after which wrapping occurs
 
 color_list = ["green", "blue", "red",
               "#FFFF00", "#1CE6FF", "#FF34FF", "#006FA6", "#A30059",
@@ -337,3 +341,17 @@ class AE(nn.Module):
         code = self.encoder_output_layer(activation)
         code = torch.sigmoid(code)
         return code
+
+def setFlowStyle(seq): # represent seq in flow style in the yaml file
+    if isinstance(seq, np.ndarray) and np.isscalar(seq):
+        return seq.item()
+    s = ruamel.yaml.comments.CommentedSeq(seq)
+    s.fa.set_flow_style()
+    return s
+    
+def save_yaml(data:dict, path:str):
+    for key, value in data.items(): # setup yaml
+        if isinstance(value, (tuple, list, np.ndarray)):
+            data[key] = setFlowStyle(value)
+    with open(path, 'w') as f:
+        yaml.dump(data, f)

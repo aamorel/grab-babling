@@ -116,7 +116,7 @@ class InterpolateKeyPointsEndPauseGripAssumption():
                                                     bounds_error=False, fill_value='extrapolate')
         self.open_loop = True
         self.last_action = 0
-        self.grip_time = math.floor((additional_gene / 2 + 0.5) * self.pause_time)
+        self.grip_time = int((additional_gene / 2 + 0.5) * self.pause_time)
         self.initial_action = actions[0]
         self.initial_action = np.append(self.initial_action, 1)
 
