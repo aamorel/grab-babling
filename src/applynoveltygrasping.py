@@ -633,6 +633,8 @@ def pos_div_pos_grip_bd(individual):
             pos_touch_time = None
         else:
             info['diversity_descriptor'] = measure_grip_time
+    else:
+        measure_grip_time, pos_touch_time = None, None
 
 
     if already_touched: # this BD only active if trajectory touched the object
