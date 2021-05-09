@@ -204,6 +204,9 @@ def assess_novelties(pop, archive, algo_type, bd_bounds, bd_indexes, bd_filters,
     Returns:
         list: list of novelties of current individuals
     """
+        
+    concatenated_quality_names = None if multi_qual is None else [', '.join([quality_name.strip()[1:] for quality_name in quality_names]) for quality_names in multi_qual]
+    
     if not archive:
         # archive is empty --> only consider current population
         reference_pop = pop
@@ -265,23 +268,19 @@ def assess_novelties(pop, archive, algo_type, bd_bounds, bd_indexes, bd_filters,
                     novelty.append(nov_bd)
 
                     neigh_indices = search[1]  # list of relative tree indices
-                    if multi_qual is not None and multi_qual[0][idx] is not None:
+                    if multi_qual is not None and len(multi_qual[idx])>0:
                         # attribute local quality to individual
                         if len(neigh_indices) == 0:
                             local_qual = INF
                         else:
-                            ind_qual = ind.info.values[multi_qual[0][idx]]
-                            quals = []
-                            for neigh_idx in neigh_indices:
+                            w = [1. if qual[0]=='+' else -1. for qual in multi_qual[idx]] # maximization weights
+                            ind_qual = np.array([ind.info.values[qual[1:]] for qual in multi_qual[idx]]) * w
+                            quals = np.repeat(w, len(neigh_indices), axis=0).reshape(len(neigh_indices), len(multi_qual[idx])) # initialize with maximization weights
+                            for j, neigh_idx in enumerate(neigh_indices):
                                 ref_pop_idx = tree_ref_pop_indexes[idx][neigh_idx]
-                                quals.append(reference_pop[ref_pop_idx].info.values[multi_qual[0][idx]])
-                            if multi_qual[1][idx] == 'max':
-                                absolute_local_qual = sum(1 if ind_qual > val else 0 for val in quals)
-                            else:
-                                absolute_local_qual = sum(0 if ind_qual > val else 1 for val in quals)
-
-                            local_qual = absolute_local_qual / len(neigh_indices)
-                        ind.info.values[multi_qual[0][idx] + '_local'] = local_qual
+                                quals[j] *= [reference_pop[ref_pop_idx].info.values[qual[1:]] for qual in multi_qual[idx]]
+                            local_qual = -np.count_nonzero(np.all(ind_qual<quals, axis=1)) # negative rank (-1 * nb neighbours dominating the ind)
+                        ind.info.values[concatenated_quality_names[idx] + '_local'] = local_qual
                 else:
                     novelty.append(None)
             novelty = tuple(novelty)
@@ -527,6 +526,7 @@ def select_n_multi_bd_tournsize(pop, n, tournsize, bd_filters, multi_quality, pu
     unwanted_list = []  # in case of no putback
     pop_size = len(pop)
     nb_of_bd = len(bd_filters)
+    concatenated_quality_names = None if multi_quality is None else [', '.join([quality_name.strip()[1:] for quality_name in quality_names]) for quality_names in multi_quality]
     for i in range(n):
         # prepare the tournament
         # make sure selected individuals are different and deal with empty tournament
@@ -570,18 +570,13 @@ def select_n_multi_bd_tournsize(pop, n, tournsize, bd_filters, multi_quality, pu
             pass
         else:
             # decide if should use quality or not for selection
-            use_quality = (multi_quality is not None) and (multi_quality[0][bd_idx] is not None)
+            use_quality = (multi_quality is not None) and (len(multi_quality[bd_idx])>0)
 
             # find all the individuals that are evaluated inside the chosen bd and their novelties
             possible_individuals_idxs = []
             possible_individuals_novelties = []
-
-            if use_quality:
-                possible_individuals_qualities = []
-                if LOCAL_QUALITY:
-                    minimization = False
-                else:
-                    minimization = multi_quality[1][bd_idx] == 'min'
+            possible_individuals_qualities = []
+            quality_array = np.array([]).reshape(-1,len(multi_quality[bd_idx])) if use_quality else None
 
             for idx in tourn_idxs:
                 ind = pop[idx]
@@ -590,14 +585,13 @@ def select_n_multi_bd_tournsize(pop, n, tournsize, bd_filters, multi_quality, pu
                 if nov_to_compare is not None:
                     possible_individuals_idxs.append(idx)
                     possible_individuals_novelties.append(nov_to_compare)
-                    if use_quality:
-                        name_of_quality = multi_quality[0][bd_idx]
-                        if LOCAL_QUALITY:
-                            quality_to_compare = ind.info.values[name_of_quality + '_local']
-                        else:
-                            quality_to_compare = ind.info.values[name_of_quality]
-                        possible_individuals_qualities.append(quality_to_compare)
-            
+                    if use_quality: # append the local quality
+                        possible_individuals_qualities.append(ind.info.values[concatenated_quality_names[bd_idx] + '_local'])
+                        quality_array = np.vstack((quality_array, [ind.info.values[qual[1:]] for qual in multi_quality[bd_idx]]))
+
+            if use_quality and not LOCAL_QUALITY:
+                quality_array *= [1 if qual[0]=='+' else -1 for qual in multi_quality[idx]] # convert to maximisation
+                possible_individuals_qualities = -np.count_nonzero(np.all(quality_array < quality_array[:,None], axis=-1), axis=1) # negative pareto rank
             # find most novel individual and select it
             # sanity check
             assert(len(possible_individuals_novelties) > 0)
@@ -610,7 +604,7 @@ def select_n_multi_bd_tournsize(pop, n, tournsize, bd_filters, multi_quality, pu
                 # multi objective selection
                 possible_individuals_qualities = np.array(possible_individuals_qualities)
                 temp_idx = multi_objective_selection(possible_individuals_novelties,
-                                                     possible_individuals_qualities, minimization)
+                                                     possible_individuals_qualities, minimization=False)
 
             ind_idx = possible_individuals_idxs[temp_idx]
             selected.append(pop[ind_idx])
@@ -723,6 +717,14 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
                  archive_limit_strat='random', nb_cells=1000, analyze_archive=False, altered_novelty=False,
                  alteration_degree=None, novelty_metric='minkowski', save_ind_cond=None, plot_gif=False,
                  bootstrap_individuals=None, multi_quality=None, monitor_print=False, final_filter=None):
+                 
+    if multi_quality is not None:
+        quality_names = np.unique([quality_name.strip() for bd_qual in multi_quality for quality_name in bd_qual]) # get unqiue quality names
+        for quality_name in quality_names:
+            assert quality_name[0] in {'+', '-'}, f"the quality name must begin with + or - indicating maximization or minimization, quality_name={quality_name}"
+            quality_name = quality_name[1:] # discard + or -
+    else:
+        quality_names = None
 
     # keep track of stats
     mean_hist = []
@@ -741,7 +743,7 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
         uniformity_hist = []
         full_uni_hist = []
         pop_uni_hist = []
-        multi_quality_hist = []
+        multi_quality_hist = {} if multi_quality is None else {quality_name:[] for quality_name in quality_names}
         if algo_type == 'ns_rand_multi_bd':
             bd_rates = []
     if monitor_print:
@@ -876,7 +878,7 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
         nb_bd = len(np.unique(bd_indexes))
 
         if multi_quality is not None:
-            if len(multi_quality[0]) != nb_bd:
+            if len(multi_quality) != nb_bd:
                 raise Exception('Number of quality measures not equal to number of behavioral descriptors.')
 
         bd_filters = []  # will contain the boolean filters for the different bds
@@ -1565,6 +1567,11 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
 
                 # save the qualities
                 if multi_quality is not None:
+                    for quality_name in quality_names:
+                        mean_quality = [ind.info.values[quality_name[1:]] for ind in offsprings if quality_name[1:] in ind.info.values]
+                        mean_quality = np.mean(mean_quality).item() if len(mean_quality)>0 else 0
+                        multi_quality_hist[quality_name].append(mean_quality)
+                    """
                     qualities = [[] for _ in range(len(multi_quality[0]))]
                     for ind in offsprings:
                         for i, quality in enumerate(multi_quality[0]):
@@ -1578,6 +1585,7 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
                         else:
                             quality_means.append(0)
                     multi_quality_hist.append(quality_means)
+                    """
 
             else:
  

@@ -204,9 +204,9 @@ if BD == 'pos_div_pos_grip':
         BD_INDEXES = [0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 3, 3, 3, 3]
         NOVELTY_METRIC = ['minkowski', 'minkowski', 'minkowski', 'minkowski']
         if QUALITY:
-            MULTI_QUALITY_MEASURES = [['energy', 'grasp robustness', 'grasp robustness', 'energy'], ['min', 'max', 'max', 'min']]
+            MULTI_QUALITY_MEASURES = [['-energy'], ['-energy', '+grasp robustness'], ['-energy', '+grasp robustness'], ['-energy']]#[['energy', 'grasp robustness', 'grasp robustness', 'energy'], ['min', 'max', 'max', 'min']]
         else:
-            MULTI_QUALITY_MEASURES = [['energy', 'energy', 'energy', 'energy'], ['min', 'min', 'min', 'min']]
+            MULTI_QUALITY_MEASURES = [['-energy'], ['-energy'], ['-energy'], ['-energy']]#[['energy', 'energy', 'energy', 'energy'], ['min', 'min', 'min', 'min']]
 if BD == 'aurora':
     BD_BOUNDS = None
 if ALGO == 'ns_rand_change_bd':
@@ -281,7 +281,7 @@ def analyze_triumphants(triumphant_archive, run_name):
     #while len(triumphant_archive) >= 10000:
         #triumphant_archive.pop(random.randint(0, len(triumphant_archive) - 1))
 
-    random.shuffle(triumphant_archive)
+    #random.shuffle(triumphant_archive)
     nb_sub_triumphants = len(triumphant_archive)
 
     # compute coverage and uniformity metrics: easy approach, use CVT cells in quaternion space
@@ -316,7 +316,9 @@ def analyze_triumphants(triumphant_archive, run_name):
     for i, clustered in enumerate(clustered_triumphants):
         # save first 3 grasping of each types
         if QUALITY:
-            clustered = sorted(clustered, key=lambda ind: ind.info.values['grasp robustness'], reverse=True) # operator.attrgetter("info.values['grasp robustness']") operator not working
+            clustered = sorted(clustered, key=lambda ind: ind.info.values['grasp robustness'], reverse=True)
+        else:
+            clustered = sorted(clustered, key=lambda ind: ind.info.values['energy'], reverse=False)
         for j in range(3):
             if len(clustered) > j:
                 ind = np.around(np.array(clustered[j]), 3)
@@ -623,7 +625,7 @@ def pos_div_pos_grip_bd(individual):
 
     # choose if individual satisfied the binary goal
     # the object should not touch the table neither the plane, must touch the gripper without penetration (with a margin of 0.005), be grasped right after closing the gripper (within 1s), touch the table when the gripper is closing
-    info['binary goal'] = binary_goal = r and grip_info['time close touch']<1*240/NB_STEPS_TO_ROLLOUT and len(grip_info['contact object table'])>0 and not contact_robot_table
+    info['binary goal'] = binary_goal = r and grip_info['time close touch']<1*240/NB_STEPS_TO_ROLLOUT and len(grip_info['contact object table'])>0# and not contact_robot_table
 
     if binary_goal:
         COUNT_SUCCESS += 1
@@ -1081,6 +1083,7 @@ if __name__ == "__main__":
             details['diversity uniformity'] = uniformity
             details['number of successful'] = nb_of_triumphants
             details['number of clusters'] = number_of_clusters
+            details['first success generation'] = data['first saved ind gen']
         else:
             details['successful'] = False
         

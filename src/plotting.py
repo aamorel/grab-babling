@@ -283,6 +283,7 @@ def plot_launch(details, data):
     
     fig_3 = 0
     if multi_qual is not None:
+        """
         qualities = np.array(qualities)
         count = 0
         for i, qual in enumerate(multi_qual[0]):
@@ -295,6 +296,12 @@ def plot_launch(details, data):
                 ax_3[count].plot(qualities[:, i], color=utils.color_list[i])
                 ax_3[count].set(title='Evolution of mean ' + qual + ' in offsprings', xlabel='Generations')
                 count += 1
+        """
+        fig_3, ax_3 = plt.subplots(nrows=len(qualities))
+        ax_3 = np.array(ax_3).reshape(len(qualities))
+        for i, (quality_name, quality_mean) in enumerate(qualities.items()):
+            ax_3[i].plot(quality_mean)#, color=utils.color_list[i])
+            ax_3[i].set(title='Evolution of mean ' + quality_name[1:] + ' in offsprings', xlabel='Generations')
     
     fig_4 = 0
     if algo_type == 'ns_rand_multi_bd':
