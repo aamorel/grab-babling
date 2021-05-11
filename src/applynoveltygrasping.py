@@ -47,6 +47,7 @@ parser.add_argument("-n", "--nruns", help="The number of time to repeat the sear
 parser.add_argument("-c", "--cells", help="The number of cells to measure the coverage", type=partial(greater, "number of cells", 1), default=1000)
 parser.add_argument("-q", "--quality", help="Enable quality", action="store_true")
 parser.add_argument("-i", "--initial-random", help="Set reset_random_initial_object_pose to False, default to None", action="store_true")
+parser.add_argument("-t", "--contact-table", help="Enable grasp success without touching the table", action="store_true")
 args = parser.parse_args()
 
 
@@ -148,6 +149,7 @@ N_REP_RAND = 5
 DISPLACEMENT_RADIUS = 0.02 # radius of the displacement of the object during quality evaluation
 ANGLE_NOISE = 10 / 180 * np.pi # the yaw rotation of the object will alternate with -ANGLE_NOISE and ANGLE_NOISE during quality evaluation
 COUNT_SUCCESS = 0
+NO_CONTACT_TABLE = args.contact_table
 
 if QUALITY:
     D_POS = utils.circle_coordinates(N_REP_RAND, DISPLACEMENT_RADIUS)
@@ -158,8 +160,8 @@ if ALGO == 'ns_rand_aurora':
 
 # if reset, create global env
 # TODO: debug, for now RESET_MODE should be False
-ENV = gym.make(ENV_NAME, display=DISPLAY, obj=OBJECT, steps_to_roll=NB_STEPS_TO_ROLLOUT, reset_random_initial_object_pose=False if args.initial_random else None)
-OBJECT_POSITION, OBJECT_XYZW = ENV.get_object_pose() # get the pose to share
+ENV = gym.make(ENV_NAME, display=DISPLAY, obj=OBJECT, steps_to_roll=NB_STEPS_TO_ROLLOUT, reset_random_initial_state=False if args.initial_random else None)
+INITIAL_STATE = ENV.get_state() # get the pose to share
 if not RESET_MODE: # we don't use the global ENV
     ENV.close()
 
@@ -351,7 +353,7 @@ def two_d_bd(individual):
     individual = np.around(np.array(individual), 3)
     # initialize controller
     controller_info = controllers_info_dict[CONTROLLER]
-    controller = controllers_dict[CONTROLLER](individual, controller_info, initial=ENV.get_state())
+    controller = controllers_dict[CONTROLLER](individual, controller_info, initial=ENV.get_joint_state())
     action = controller.initial_action
 
     for i in range(NB_ITER):
@@ -407,7 +409,7 @@ def three_d_bd(individual):
     
     # initialize controller
     controller_info = controllers_info_dict[CONTROLLER]
-    controller = controllers_dict[CONTROLLER](individual, controller_info, initial=ENV.get_state())
+    controller = controllers_dict[CONTROLLER](individual, controller_info, initial=ENV.get_joint_state())
     action = controller.initial_action
 
     # for precise measure when we have the gripper assumption
@@ -516,7 +518,7 @@ def pos_div_pos_grip_bd(individual):
 
     # initialize controller
     controller_info = controllers_info_dict[CONTROLLER]
-    controller = controllers_dict[CONTROLLER](individual, controller_info, initial=ENV.get_state())
+    controller = controllers_dict[CONTROLLER](individual, controller_info, initial=ENV.get_joint_state())
     assert(hasattr(controller, 'grip_time'))
     # lag_time = controller.grip_time - N_LAG
     lag_time = NB_ITER / 2
@@ -625,9 +627,9 @@ def pos_div_pos_grip_bd(individual):
 
     # choose if individual satisfied the binary goal
     # the object should not touch the table neither the plane, must touch the gripper without penetration (with a margin of 0.005), be grasped right after closing the gripper (within 1s), touch the table when the gripper is closing
-    info['binary goal'] = binary_goal = r and grip_info['time close touch']<1*240/NB_STEPS_TO_ROLLOUT and len(grip_info['contact object table'])>0# and not contact_robot_table
-
-    if binary_goal:
+    grasp = r and grip_info['time close touch']<1*240/NB_STEPS_TO_ROLLOUT and len(grip_info['contact object table'])>0# and not contact_robot_table
+    info['binary goal'] = binary_goal = False
+    if grasp:
         COUNT_SUCCESS += 1
         if measure_grip_time is None:
             # print('Individual grasped without touching any contact links')
@@ -635,6 +637,10 @@ def pos_div_pos_grip_bd(individual):
             pos_touch_time = None
         else:
             info['diversity_descriptor'] = measure_grip_time
+            if NO_CONTACT_TABLE and contact_robot_table:
+                measure_grip_time = None
+            else:
+                info['binary goal'] = binary_goal = True
     else:
         measure_grip_time, pos_touch_time = None, None
 
@@ -680,6 +686,7 @@ def pos_div_pos_grip_bd(individual):
         reference = [inf['object position'][0], inf['object position'][1], inf['object position'][2]]
         last_pos_obj = []
         count = 0
+        mean_dist = 0
         for rep in range(N_REP_RAND):
             if RESET_MODE:
                 ENV.reset(delta_pos=D_POS[rep], yaw=ANGLE_NOISE*(rep%2*2-1))
@@ -689,7 +696,7 @@ def pos_div_pos_grip_bd(individual):
 
             # initialize controller
             controller_info = controllers_info_dict[CONTROLLER]
-            controller = controllers_dict[CONTROLLER](individual, controller_info, initial=ENV.get_state())
+            controller = controllers_dict[CONTROLLER](individual, controller_info, initial=ENV.get_joint_state())
             action = controller.initial_action
             o, r, eo, inf = ENV.step(action)
             initial_object_position = inf['object position']
@@ -703,17 +710,13 @@ def pos_div_pos_grip_bd(individual):
             if r: # if there is a grasp
                 count += 1
                 last_pos_obj.append([inf['object position'][0], inf['object position'][1], inf['object position'][2]])
+                mean_dist += utils.list_l2_norm(reference, last_pos[-1])
 
             if not RESET_MODE:
                 ENV.close()
 
-        mean_dist = 0
-        for last_pos in last_pos_obj:
-            mean_dist += utils.list_l2_norm(reference, last_pos)
-        if count != 0:
-            mean_dist = mean_dist / count
 
-        info['grasp robustness'] = count + 1 / (1 + 0.00000001 + mean_dist)
+        info['grasp robustness'] = count + 1 / (1 + 0.00000001 + mean_dist/count) if count>0 else 0
     
     return (behavior.tolist(), (fitness,), info)
 
@@ -731,7 +734,7 @@ def eval_sucessfull_ind(individual, obstacle_pos=None, obstacle_size=None):
 
     # initialize controller
     controller_info = controllers_info_dict[CONTROLLER]
-    controller = controllers_dict[CONTROLLER](individual, controller_info, initial=ENV.get_state())
+    controller = controllers_dict[CONTROLLER](individual, controller_info, initial=ENV.get_joint_state())
     action = controller.initial_action
 
     # for precise measure when we have the gripper assumption
@@ -797,7 +800,7 @@ def aurora_bd(individual):
 
     # initialize controller
     controller_info = controllers_info_dict[CONTROLLER]
-    controller = controllers_dict[CONTROLLER](individual, controller_info, initial=ENV.get_state())
+    controller = controllers_dict[CONTROLLER](individual, controller_info, initial=ENV.get_joint_state())
 
     action = controller.initial_action
 
@@ -1070,13 +1073,13 @@ if __name__ == "__main__":
         details['run id'] = i
         details['controller'] = CONTROLLER
         details['object'] = OBJECT
-        details['object position'] = OBJECT_POSITION
-        details['object xyzw'] = OBJECT_XYZW
         details['robot'] = ROBOT
         details['bootstrap folder'] = BOOTSTRAP_FOLDER
         details['run time'] = t_end - t_start
         details['steps to roll'] = NB_STEPS_TO_ROLLOUT
         details['controller info'] = controllers_info_dict[CONTROLLER]
+        for key, value in INITIAL_STATE.items():
+            details[key] = value
         if coverage is not None:
             details['successful'] = True
             details['diversity coverage'] = coverage
