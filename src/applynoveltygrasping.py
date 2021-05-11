@@ -205,7 +205,9 @@ if BD == 'pos_div_pos_grip':
     if ALGO == 'ns_rand_multi_bd':
         BD_INDEXES = [0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 3, 3, 3, 3]
         NOVELTY_METRIC = ['minkowski', 'minkowski', 'minkowski', 'minkowski']
-        if QUALITY:
+        if QUALITY and NO_CONTACT_TABLE:
+            MULTI_QUALITY_MEASURES = [['-energy'], ['+grasp robustness'], ['-energy'], ['-energy']]
+        elif QUALITY:
             MULTI_QUALITY_MEASURES = [['-energy'], ['-energy', '+grasp robustness'], ['-energy', '+grasp robustness'], ['-energy']]#[['energy', 'grasp robustness', 'grasp robustness', 'energy'], ['min', 'max', 'max', 'min']]
         else:
             MULTI_QUALITY_MEASURES = [['-energy'], ['-energy'], ['-energy'], ['-energy']]#[['energy', 'energy', 'energy', 'energy'], ['min', 'min', 'min', 'min']]
