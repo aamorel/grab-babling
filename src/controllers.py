@@ -50,9 +50,11 @@ class InterpolateKeyPoints():
                                                     bounds_error=False, fill_value='extrapolate')
         self.open_loop = True
         self.initial_actions = actions[0]
+        self.grip_time = int(additional_gene / 2 + 0.5)
 
     def get_action(self, i):
         action = self.action_polynome(i)
+        action = np.append(action, (i<self.grip_time)*2-1)
         return action
 
 

@@ -1674,7 +1674,8 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
                 ims.append(im_l)
     
     if final_filter is not None: # re-evaluate if asked
-        save_ind = [ind for ind, (bd, fit, inf) in zip(save_ind, toolbox.map(evaluate_individual, save_ind)) if inf[final_filter]]
+        for i in range(2):
+            save_ind = [ind for ind, (bd, fit, inf) in zip(save_ind, toolbox.map(evaluate_individual, save_ind)) if inf[final_filter]]
     data['population genetic statistics'] = gen_stat_hist
     data['offsprings genetic statistics'] = gen_stat_hist_off
     data['archive coverage'] = coverage_hist

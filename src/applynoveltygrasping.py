@@ -48,6 +48,8 @@ parser.add_argument("-c", "--cells", help="The number of cells to measure the co
 parser.add_argument("-q", "--quality", help="Enable quality", action="store_true")
 parser.add_argument("-i", "--initial-random", help="Set reset_random_initial_object_pose to False, default to None", action="store_true")
 parser.add_argument("-t", "--contact-table", help="Enable grasp success without touching the table", action="store_true")
+parser.add_argument("-m", "--mode", help="Controller mode", type=str, default="joint positions", choices=["joint positions", "joint velocities", "end effector", "joint torques"])
+parser.add_argument("-b", "--bootstrap", help="Bootstrap folder", type=str, default=None)
 args = parser.parse_args()
 
 
@@ -59,7 +61,7 @@ ROBOT = args.robot  # 'baxter', 'pepper', 'kuka'
 CONTROLLER = 'interpolate keypoints end pause grip'#'dynamic movement primitives'#  # see controllers_dict for list
 ALGO = 'ns_rand_multi_bd'  # algorithm
 BD = 'pos_div_pos_grip'  # behavior descriptor type '2D', '3D', 'pos_div_grip', 'pos_div_pos_grip'
-BOOTSTRAP_FOLDER = None
+BOOTSTRAP_FOLDER = args.bootstrap
 QUALITY = args.quality
 AUTO_COLLIDE = True
 NB_CELLS = args.cells; assert NB_CELLS>2  # number of cells for measurement
@@ -68,7 +70,7 @@ N_EXP = args.nruns
 
 
 # for keypoints controllers
-NB_KEYPOINTS = 3
+NB_KEYPOINTS = {'joint positions':3, 'joint torques':4}[args.mode]
 
 if ROBOT == 'baxter':
     ENV_NAME = 'gym_baxter_grabbing:baxter_grasping-v0'
@@ -110,7 +112,7 @@ elif ROBOT == 'pepper':
 
 elif ROBOT == 'kuka':
     ENV_NAME = 'gym_baxter_grabbing:kuka_grasping-v0'
-    GENE_PER_KEYPOINTS = 9  # kuka is controlled in joints space: 7 joints
+    GENE_PER_KEYPOINTS = 8  # kuka is controlled in joints space: 7 joints
     LINK_ID_CONTACT = [8, 9, 10, 11, 12, 13]  # link ids that can have a grasping contact
     NB_STEPS_TO_ROLLOUT = 1
     NB_ITER = int(2500 / NB_STEPS_TO_ROLLOUT)
@@ -160,7 +162,7 @@ if ALGO == 'ns_rand_aurora':
 
 # if reset, create global env
 # TODO: debug, for now RESET_MODE should be False
-ENV = gym.make(ENV_NAME, display=DISPLAY, obj=OBJECT, steps_to_roll=NB_STEPS_TO_ROLLOUT, reset_random_initial_state=False if args.initial_random else None)
+ENV = gym.make(ENV_NAME, display=DISPLAY, obj=OBJECT, steps_to_roll=NB_STEPS_TO_ROLLOUT, reset_random_initial_state=False if args.initial_random else None, mode=args.mode)
 INITIAL_STATE = ENV.get_state() # get the pose to share
 if not RESET_MODE: # we don't use the global ENV
     ENV.close()
@@ -185,9 +187,9 @@ if BD == 'pos_div_grip':
         NOVELTY_METRIC = ['minkowski', 'minkowski', 'minkowski']
         if QUALITY:
             # MULTI_QUALITY_MEASURES = [['mean positive slope', 'grasp robustness', None], ['min', 'min', None]]
-            MULTI_QUALITY_MEASURES = [['energy', 'grasp robustness', 'energy'], ['min', 'max', 'min']]
+            MULTI_QUALITY_MEASURES = [['-energy'], ['+grasp robustness'], ['-energy']]
         else:
-            MULTI_QUALITY_MEASURES = [['energy', 'energy', 'energy'], ['min', 'min', 'min']]
+            MULTI_QUALITY_MEASURES = [['-energy'], ['-energy'], ['-energy']]
 if BD == 'pos_div_pos':
     BD_BOUNDS = [[-0.35, 0.35], [-0.15, 0.2], [-0.2, 0.5], [-1, 1], [-1, 1], [-1, 1], [-1, 1],
                  [-0.35, 0.35], [-0.15, 0.2], [-0.2, 0.5]]
@@ -196,9 +198,9 @@ if BD == 'pos_div_pos':
         NOVELTY_METRIC = ['minkowski', 'minkowski', 'minkowski']
         if QUALITY:
             # MULTI_QUALITY_MEASURES = [['mean positive slope', 'grasp robustness', None], ['min', 'min', None]]
-            MULTI_QUALITY_MEASURES = [['energy', 'grasp robustness', 'grasp robustness'], ['min', 'max', 'max']]
+            MULTI_QUALITY_MEASURES = [['-energy'], ['+grasp robustness'], ['+grasp robustness']]
         else:
-            MULTI_QUALITY_MEASURES = [['energy', 'energy', 'energy'], ['min', 'min', 'min']]
+            MULTI_QUALITY_MEASURES = [['-energy'], ['-energy'], ['-energy']]
 if BD == 'pos_div_pos_grip':
     BD_BOUNDS = [[-0.35, 0.35], [-0.15, 0.2], [-0.2, 0.5], [-1, 1], [-1, 1], [-1, 1], [-1, 1],
                  [-0.35, 0.35], [-0.15, 0.2], [-0.2, 0.5], [-1, 1], [-1, 1], [-1, 1], [-1, 1]]
@@ -208,9 +210,9 @@ if BD == 'pos_div_pos_grip':
         if QUALITY and NO_CONTACT_TABLE:
             MULTI_QUALITY_MEASURES = [['-energy'], ['+grasp robustness'], ['-energy'], ['-energy']]
         elif QUALITY:
-            MULTI_QUALITY_MEASURES = [['-energy'], ['-energy', '+grasp robustness'], ['-energy', '+grasp robustness'], ['-energy']]#[['energy', 'grasp robustness', 'grasp robustness', 'energy'], ['min', 'max', 'max', 'min']]
+            MULTI_QUALITY_MEASURES = [['-energy'], ['-energy', '+grasp robustness'], ['-energy', '+grasp robustness'], ['-energy']]
         else:
-            MULTI_QUALITY_MEASURES = [['-energy'], ['-energy'], ['-energy'], ['-energy']]#[['energy', 'energy', 'energy', 'energy'], ['min', 'min', 'min', 'min']]
+            MULTI_QUALITY_MEASURES = None if args.mode=='joint torques' else [['-energy'], ['-energy'], ['-energy'], ['-energy']]
 if BD == 'aurora':
     BD_BOUNDS = None
 if ALGO == 'ns_rand_change_bd':
@@ -355,7 +357,7 @@ def two_d_bd(individual):
     individual = np.around(np.array(individual), 3)
     # initialize controller
     controller_info = controllers_info_dict[CONTROLLER]
-    controller = controllers_dict[CONTROLLER](individual, controller_info, initial=ENV.get_joint_state())
+    controller = controllers_dict[CONTROLLER](individual, controller_info, initial=None if args.mode == 'torque' else ENV.get_joint_state())
     action = controller.initial_action
 
     for i in range(NB_ITER):
@@ -411,7 +413,7 @@ def three_d_bd(individual):
     
     # initialize controller
     controller_info = controllers_info_dict[CONTROLLER]
-    controller = controllers_dict[CONTROLLER](individual, controller_info, initial=ENV.get_joint_state())
+    controller = controllers_dict[CONTROLLER](individual, controller_info, initial=None if args.mode == 'torque' else ENV.get_joint_state())
     action = controller.initial_action
 
     # for precise measure when we have the gripper assumption
@@ -520,7 +522,7 @@ def pos_div_pos_grip_bd(individual):
 
     # initialize controller
     controller_info = controllers_info_dict[CONTROLLER]
-    controller = controllers_dict[CONTROLLER](individual, controller_info, initial=ENV.get_joint_state())
+    controller = controllers_dict[CONTROLLER](individual, controller_info, initial=None if args.mode == 'torque' else ENV.get_joint_state())
     assert(hasattr(controller, 'grip_time'))
     # lag_time = controller.grip_time - N_LAG
     lag_time = NB_ITER / 2
@@ -616,7 +618,7 @@ def pos_div_pos_grip_bd(individual):
         if ALGO == 'map_elites':
             energy += utils.list_l2_norm(action, prev_action) ** 2
             
-        info['energy'] += np.abs(inf['applied joint motor torques']).sum()
+        info['energy'] = np.maximum(info['energy'], np.abs(inf['applied joint motor torques']).sum())
         contact_robot_table = contact_robot_table or len(inf['contact robot table'])>0
 
     # use last info to compute behavior and fitness
@@ -629,7 +631,7 @@ def pos_div_pos_grip_bd(individual):
 
     # choose if individual satisfied the binary goal
     # the object should not touch the table neither the plane, must touch the gripper without penetration (with a margin of 0.005), be grasped right after closing the gripper (within 1s), touch the table when the gripper is closing
-    grasp = r and grip_info['time close touch']<1*240/NB_STEPS_TO_ROLLOUT and len(grip_info['contact object table'])>0# and not contact_robot_table
+    grasp = r and grip_info['time close touch']<1*240/NB_STEPS_TO_ROLLOUT and len(grip_info['contact object table'])>0 # and not contact_robot_table
     info['binary goal'] = binary_goal = False
     if grasp:
         COUNT_SUCCESS += 1
@@ -639,7 +641,7 @@ def pos_div_pos_grip_bd(individual):
             pos_touch_time = None
         else:
             info['diversity_descriptor'] = measure_grip_time
-            if NO_CONTACT_TABLE and contact_robot_table:
+            if (NO_CONTACT_TABLE and contact_robot_table) or (args.mode=='joint torques' and len(inf['contact robot table'])>0):
                 measure_grip_time = None
             else:
                 info['binary goal'] = binary_goal = True
@@ -698,7 +700,7 @@ def pos_div_pos_grip_bd(individual):
 
             # initialize controller
             controller_info = controllers_info_dict[CONTROLLER]
-            controller = controllers_dict[CONTROLLER](individual, controller_info, initial=ENV.get_joint_state())
+            controller = controllers_dict[CONTROLLER](individual, controller_info, initial=None if args.mode == 'torque' else ENV.get_joint_state())
             action = controller.initial_action
             o, r, eo, inf = ENV.step(action)
             initial_object_position = inf['object position']
@@ -736,7 +738,7 @@ def eval_sucessfull_ind(individual, obstacle_pos=None, obstacle_size=None):
 
     # initialize controller
     controller_info = controllers_info_dict[CONTROLLER]
-    controller = controllers_dict[CONTROLLER](individual, controller_info, initial=ENV.get_joint_state())
+    controller = controllers_dict[CONTROLLER](individual, controller_info, initial=None if args.mode == 'torque' else ENV.get_joint_state())
     action = controller.initial_action
 
     # for precise measure when we have the gripper assumption
@@ -802,7 +804,7 @@ def aurora_bd(individual):
 
     # initialize controller
     controller_info = controllers_info_dict[CONTROLLER]
-    controller = controllers_dict[CONTROLLER](individual, controller_info, initial=ENV.get_joint_state())
+    controller = controllers_dict[CONTROLLER](individual, controller_info, initial=None if args.mode == 'torque' else ENV.get_joint_state())
 
     action = controller.initial_action
 
@@ -924,7 +926,7 @@ bd_dict = {'2D': two_d_bd,
            'aurora': aurora_bd}
 
 if __name__ == "__main__":
-    print(f"pop size={POP_SIZE}, ngen={NB_GEN}, object={OBJECT}, robot={ROBOT}, quality={QUALITY}, autocollide={AUTO_COLLIDE}, nexp={N_EXP}, reset mode={RESET_MODE}, parallelize={PARALLELIZE}, controller={CONTROLLER}, behavior descriptor={BD}")
+    print(f"pop size={POP_SIZE}, ngen={NB_GEN}, object={OBJECT}, robot={ROBOT}, quality={QUALITY}, autocollide={AUTO_COLLIDE}, nexp={N_EXP}, reset mode={RESET_MODE}, parallelize={PARALLELIZE}, controller={CONTROLLER}, behavior descriptor={BD}, mode={args.mode}")
     
     for _ in range(N_EXP):
 
@@ -1031,7 +1033,7 @@ if __name__ == "__main__":
         # deal with possible bootstrap
         boostrap_inds = None
         if BOOTSTRAP_FOLDER is not None:
-            bootstrap_files = glob.glob(BOOTSTRAP_FOLDER + '*.npy')
+            bootstrap_files = Path(BOOTSTRAP_FOLDER).glob('type*.npy')
             boostrap_inds = []
             for ind_file in bootstrap_files:
                 ind = np.load(ind_file, allow_pickle=True)
@@ -1080,6 +1082,7 @@ if __name__ == "__main__":
         details['run time'] = t_end - t_start
         details['steps to roll'] = NB_STEPS_TO_ROLLOUT
         details['controller info'] = controllers_info_dict[CONTROLLER]
+        details['mode'] = args.mode
         for key, value in INITIAL_STATE.items():
             details[key] = value
         if coverage is not None:
