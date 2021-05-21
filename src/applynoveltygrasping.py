@@ -149,7 +149,8 @@ N_LAG = int(200 / NB_STEPS_TO_ROLLOUT)  # number of steps before the grip time u
 ARCHIVE_LIMIT = 10000
 N_REP_RAND = 5
 DISPLACEMENT_RADIUS = 0.02 # radius of the displacement of the object during quality evaluation
-ANGLE_NOISE = 10 / 180 * np.pi # the yaw rotation of the object will alternate with -ANGLE_NOISE and ANGLE_NOISE during quality evaluation
+ANGLE_NOISE = 10 / 180 * np.pi # the yaw rotation of the object will alternate with -ANGLE_NOISE and ANGLE_NOISE during robustness evaluation
+FRICTION_NOISE = 1.1 # the lateral friction of the object will be multiplied by FRICTION_NOISE and 1/FRICTION_NOISE when evaluating robustness
 COUNT_SUCCESS = 0
 NO_CONTACT_TABLE = args.contact_table
 
@@ -210,9 +211,9 @@ if BD == 'pos_div_pos_grip':
         if QUALITY and NO_CONTACT_TABLE:
             MULTI_QUALITY_MEASURES = [['-energy'], ['+grasp robustness'], ['-energy'], ['-energy']]
         elif QUALITY:
-            MULTI_QUALITY_MEASURES = [['-energy'], ['-energy', '+grasp robustness'], ['-energy', '+grasp robustness'], ['-energy']]
+            MULTI_QUALITY_MEASURES = [['-energy'], ['+grasp robustness'], ['+grasp robustness'], ['-energy']]
         else:
-            MULTI_QUALITY_MEASURES = None if args.mode=='joint torques' else [['-energy'], ['-energy'], ['-energy'], ['-energy']]
+            MULTI_QUALITY_MEASURES = None if args.mode=='joint torques' else [['-energy'], ['+reward'], ['-energy'], ['-energy']]
 if BD == 'aurora':
     BD_BOUNDS = None
 if ALGO == 'ns_rand_change_bd':
@@ -548,7 +549,7 @@ def pos_div_pos_grip_bd(individual):
     positive_dist_slope = 0
     prev_dist = None
 
-    info, grip_info = {'energy':0}, {"contact object table":[], "time close touch":float("inf")}
+    info, grip_info = {'energy':0, 'reward':0}, {"contact object table":[], "time close touch":float("inf")}
 
     if ALGO == 'map_elites':
         # define energy criterion
@@ -615,10 +616,10 @@ def pos_div_pos_grip_bd(individual):
                 ENV.close()
             return (behavior, (fitness,), info)
 
-        if ALGO == 'map_elites':
-            energy += utils.list_l2_norm(action, prev_action) ** 2
-            
-        info['energy'] = np.maximum(info['energy'], np.abs(inf['applied joint motor torques']).sum())
+
+        
+        info['reward'] += r
+        info['energy'] += np.abs(inf['applied joint motor torques']).sum()
         contact_robot_table = contact_robot_table or len(inf['contact robot table'])>0
 
     # use last info to compute behavior and fitness
@@ -627,7 +628,7 @@ def pos_div_pos_grip_bd(individual):
 
     utils.bound(behavior[:3], BD_BOUNDS[:3])
 
-    fitness = energy if ALGO == 'map_elites' else behavior[2] # compute fitness
+    fitness = info['energy'] if ALGO == 'map_elites' else behavior[2] # compute fitness
 
     # choose if individual satisfied the binary goal
     # the object should not touch the table neither the plane, must touch the gripper without penetration (with a margin of 0.005), be grasped right after closing the gripper (within 1s), touch the table when the gripper is closing
@@ -693,7 +694,7 @@ def pos_div_pos_grip_bd(individual):
         mean_dist = 0
         for rep in range(N_REP_RAND):
             if RESET_MODE:
-                ENV.reset(delta_pos=D_POS[rep], yaw=ANGLE_NOISE*(rep%2*2-1))
+                ENV.reset(delta_pos=D_POS[rep], delta_yaw=ANGLE_NOISE*(rep%2*2-1), multiply_lateral_friction=FRICTION_NOISE if rep%2==0 else 1/FRICTION_NOISE)
             else:
                 ENV = gym.make(ENV_NAME, display=DISPLAY, obj=OBJECT, delta_pos=D_POS[rep],
                            steps_to_roll=NB_STEPS_TO_ROLLOUT)

@@ -273,12 +273,12 @@ def assess_novelties(pop, archive, algo_type, bd_bounds, bd_indexes, bd_filters,
                         if len(neigh_indices) == 0:
                             local_qual = INF
                         else:
-                            w = [1. if qual[0]=='+' else -1. for qual in multi_qual[idx]] # maximization weights
+                            w = np.array([1. if qual[0]=='+' else -1. for qual in multi_qual[idx]]) # maximization weights
                             ind_qual = np.array([ind.info.values[qual[1:]] for qual in multi_qual[idx]]) * w
-                            quals = np.repeat(w, len(neigh_indices), axis=0).reshape(len(neigh_indices), len(multi_qual[idx])) # initialize with maximization weights
+                            quals = np.zeros((len(neigh_indices), len(multi_qual[idx]))) # initialize with maximization weights
                             for j, neigh_idx in enumerate(neigh_indices):
                                 ref_pop_idx = tree_ref_pop_indexes[idx][neigh_idx]
-                                quals[j] *= [reference_pop[ref_pop_idx].info.values[qual[1:]] for qual in multi_qual[idx]]
+                                quals[j] = [reference_pop[ref_pop_idx].info.values[qual[1:]] for qual in multi_qual[idx]] * w
                             local_qual = -np.count_nonzero(np.all(ind_qual<quals, axis=1)) # negative rank (-1 * nb neighbours dominating the ind)
                         ind.info.values[concatenated_quality_names[idx] + '_local'] = local_qual
                 else:
