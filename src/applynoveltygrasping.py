@@ -688,8 +688,7 @@ def pos_div_pos_grip_bd(individual):
 
     if QUALITY and binary_goal:
         # re-evaluate with random initial positions to assess robustness as quality
-        reference = [inf['object position'][0], inf['object position'][1], inf['object position'][2]]
-        last_pos_obj = []
+        reference = np.array(inf['object position'])
         count = 0
         mean_dist = 0
         for rep in range(N_REP_RAND):
@@ -714,8 +713,7 @@ def pos_div_pos_grip_bd(individual):
             
             if r: # if there is a grasp
                 count += 1
-                last_pos_obj.append([inf['object position'][0], inf['object position'][1], inf['object position'][2]])
-                mean_dist += utils.list_l2_norm(reference, last_pos[-1])
+                mean_dist += np.linalg.norm(reference - np.array(inf['object position']))
 
             if not RESET_MODE:
                 ENV.close()
