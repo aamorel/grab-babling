@@ -150,7 +150,7 @@ ARCHIVE_LIMIT = 10000
 N_REP_RAND = 5
 DISPLACEMENT_RADIUS = 0.02 # radius of the displacement of the object during quality evaluation
 ANGLE_NOISE = 10 / 180 * np.pi # the yaw rotation of the object will alternate with -ANGLE_NOISE and ANGLE_NOISE during robustness evaluation
-FRICTION_NOISE = 1.1 # the lateral friction of the object will be multiplied by FRICTION_NOISE and 1/FRICTION_NOISE when evaluating robustness
+FRICTION_NOISE = {'lateral':1.2, 'rolling':10, 'spinning':10} # the lateral friction of the object will be multiplied by FRICTION_NOISE and 1/FRICTION_NOISE when evaluating robustness
 COUNT_SUCCESS = 0
 NO_CONTACT_TABLE = args.contact_table
 
@@ -693,7 +693,7 @@ def pos_div_pos_grip_bd(individual):
         mean_dist = 0
         for rep in range(N_REP_RAND):
             if RESET_MODE:
-                ENV.reset(delta_pos=D_POS[rep], delta_yaw=ANGLE_NOISE*(rep%2*2-1), multiply_lateral_friction=FRICTION_NOISE if rep%2==0 else 1/FRICTION_NOISE)
+                ENV.reset(delta_pos=D_POS[rep], delta_yaw=ANGLE_NOISE*(rep%2*2-1), multiply_friction=FRICTION_NOISE if rep%2==0 else {key:1/value for key, value in FRICTION_NOISE.items()})
             else:
                 ENV = gym.make(ENV_NAME, display=DISPLAY, obj=OBJECT, delta_pos=D_POS[rep],
                            steps_to_roll=NB_STEPS_TO_ROLLOUT)
@@ -706,14 +706,13 @@ def pos_div_pos_grip_bd(individual):
             initial_object_position = inf['object position']
             for i in range(1,NB_ITER):
                 #ENV.render()
-                # choose action
-                action = controller.get_action(i) if controller.open_loop else controller.get_action(i, o)
                 o, r, eo, inf = ENV.step(action)
+                action = controller.get_action(i) if controller.open_loop else controller.get_action(i, o)
                 if eo: break
             
             if r: # if there is a grasp
                 count += 1
-                mean_dist += np.linalg.norm(reference - np.array(inf['object position']))
+                mean_dist += np.linalg.norm(reference - inf['object position'])
 
             if not RESET_MODE:
                 ENV.close()
