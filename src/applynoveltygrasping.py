@@ -358,7 +358,7 @@ def two_d_bd(individual):
     individual = np.around(np.array(individual), 3)
     # initialize controller
     controller_info = controllers_info_dict[CONTROLLER]
-    controller = controllers_dict[CONTROLLER](individual, controller_info, initial=None if args.mode == 'torque' else ENV.get_joint_state())
+    controller = controllers_dict[CONTROLLER](individual, controller_info, initial=None if args.mode == 'joint torques' else ENV.get_joint_state())
     action = controller.initial_action
 
     for i in range(NB_ITER):
@@ -414,7 +414,7 @@ def three_d_bd(individual):
     
     # initialize controller
     controller_info = controllers_info_dict[CONTROLLER]
-    controller = controllers_dict[CONTROLLER](individual, controller_info, initial=None if args.mode == 'torque' else ENV.get_joint_state())
+    controller = controllers_dict[CONTROLLER](individual, controller_info, initial=None if args.mode == 'joint torques' else ENV.get_joint_state())
     action = controller.initial_action
 
     # for precise measure when we have the gripper assumption
@@ -523,7 +523,7 @@ def pos_div_pos_grip_bd(individual):
 
     # initialize controller
     controller_info = controllers_info_dict[CONTROLLER]
-    controller = controllers_dict[CONTROLLER](individual, controller_info, initial=None if args.mode == 'torque' else ENV.get_joint_state())
+    controller = controllers_dict[CONTROLLER](individual, controller_info, initial=None if args.mode == 'joint torques' else ENV.get_joint_state())
     assert(hasattr(controller, 'grip_time'))
     # lag_time = controller.grip_time - N_LAG
     lag_time = NB_ITER / 2
@@ -700,11 +700,9 @@ def pos_div_pos_grip_bd(individual):
 
             # initialize controller
             controller_info = controllers_info_dict[CONTROLLER]
-            controller = controllers_dict[CONTROLLER](individual, controller_info, initial=None if args.mode == 'torque' else ENV.get_joint_state())
+            controller = controllers_dict[CONTROLLER](individual, controller_info, initial=None if args.mode == 'joint torques' else ENV.get_joint_state())
             action = controller.initial_action
-            o, r, eo, inf = ENV.step(action)
-            initial_object_position = inf['object position']
-            for i in range(1,NB_ITER):
+            for i in range(NB_ITER):
                 #ENV.render()
                 o, r, eo, inf = ENV.step(action)
                 action = controller.get_action(i) if controller.open_loop else controller.get_action(i, o)
@@ -736,7 +734,7 @@ def eval_sucessfull_ind(individual, obstacle_pos=None, obstacle_size=None):
 
     # initialize controller
     controller_info = controllers_info_dict[CONTROLLER]
-    controller = controllers_dict[CONTROLLER](individual, controller_info, initial=None if args.mode == 'torque' else ENV.get_joint_state())
+    controller = controllers_dict[CONTROLLER](individual, controller_info, initial=None if args.mode == 'joint torques' else ENV.get_joint_state())
     action = controller.initial_action
 
     # for precise measure when we have the gripper assumption
@@ -802,7 +800,7 @@ def aurora_bd(individual):
 
     # initialize controller
     controller_info = controllers_info_dict[CONTROLLER]
-    controller = controllers_dict[CONTROLLER](individual, controller_info, initial=None if args.mode == 'torque' else ENV.get_joint_state())
+    controller = controllers_dict[CONTROLLER](individual, controller_info, initial=None if args.mode == 'joint torques' else ENV.get_joint_state())
 
     action = controller.initial_action
 
