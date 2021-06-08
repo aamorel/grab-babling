@@ -5,7 +5,7 @@ from stable_baselines3 import HER, SAC
 # from stable_baselines3.common.noise import NormalActionNoise
 DISPLAY = False
 
-env = gym.make('gym_baxter_grabbing:baxter_grabbing-v2', display=False, steps_to_roll=10)
+env = gym.make('gym_grabbing:baxter_grabbing-v2', display=False, steps_to_roll=10)
 
 # Create 4 artificial transitions per real transition
 n_sampled_goal = 4

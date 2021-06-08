@@ -73,7 +73,7 @@ N_EXP = args.nruns
 NB_KEYPOINTS = {'joint positions':3, 'joint torques':4, 'inverse dynamics':3}[args.mode]
 
 if ROBOT == 'baxter':
-    ENV_NAME = 'gym_baxter_grabbing:baxter_grasping-v0'
+    ENV_NAME = 'gym_grabbing:baxter_grasping-v0'
     GENE_PER_KEYPOINTS = 8  # baxter is joints space: 8 joints
     LINK_ID_CONTACT = [47, 48, 49, 50, 51, 52]  # link ids that can have a grasping contact
     NB_STEPS_TO_ROLLOUT = 10
@@ -95,7 +95,7 @@ if ROBOT == 'baxter':
         HEIGHT_THRESH = -0.15
 
 elif ROBOT == 'pepper':
-    ENV_NAME = 'gym_baxter_grabbing:pepper_grasping-v0'
+    ENV_NAME = 'gym_grabbing:pepper_grasping-v0'
     GENE_PER_KEYPOINTS = 7  # pepper is controlled in joints space: 7 joints
     LINK_ID_CONTACT = list(range(36, 50))  # link ids that can have a grasping contact
     NB_STEPS_TO_ROLLOUT = 1
@@ -111,7 +111,7 @@ elif ROBOT == 'pepper':
         HEIGHT_THRESH = -0.09
 
 elif ROBOT == 'kuka':
-    ENV_NAME = 'gym_baxter_grabbing:kuka_grasping-v0'
+    ENV_NAME = 'gym_grabbing:kuka_grasping-v0'
     GENE_PER_KEYPOINTS = 8  # kuka is controlled in joints space: 7 joints
     LINK_ID_CONTACT = [8, 9, 10, 11, 12, 13]  # link ids that can have a grasping contact
     NB_STEPS_TO_ROLLOUT = 1
@@ -127,7 +127,7 @@ elif ROBOT == 'kuka':
         HEIGHT_THRESH = -0.03
         
 elif ROBOT == 'crustcrawler':
-    ENV_NAME = 'gym_baxter_grabbing:crustcrawler-v0'
+    ENV_NAME = 'gym_grabbing:crustcrawler-v0'
     GENE_PER_KEYPOINTS = 7
     LINK_ID_CONTACT = [12,13,14]  # link ids that can have a grasping contact
     NB_STEPS_TO_ROLLOUT = 1

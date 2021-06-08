@@ -15,7 +15,7 @@ from stable_baselines3.common.logger import Logger, CSVOutputFormat, configure, 
 #from stable_baselines3.common.utils import configure_logger
 from stable_baselines3.common import results_plotter
 import gym
-import gym_baxter_grabbing
+import gym_grabbing
 import numpy as np
 from algoRL import TQC_RCE, TQC_SQIL, TQC_RED, SAC_RCE, InverseModel, ForwardModel, train_dynamic_model, initialize_bc_policy, behaviouralCloningWithModel
 from sb3_contrib import TQC

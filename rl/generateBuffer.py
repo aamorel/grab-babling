@@ -11,7 +11,7 @@ import json, yaml
 from multiprocessing import Pool
 import sys
 from itertools import starmap
-import gym_baxter_grabbing
+import gym_grabbing
 
 # bad!
 import sys, os
