@@ -13,3 +13,5 @@ past_results/
 *.gif
 *.png
 .DS_Store
+log/
+/rl/data/
