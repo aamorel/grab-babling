@@ -48,7 +48,7 @@ parser.add_argument("-c", "--cells", help="The number of cells to measure the co
 parser.add_argument("-q", "--quality", help="Enable quality", action="store_true")
 parser.add_argument("-i", "--initial-random", help="Set reset_random_initial_object_pose to False, default to None", action="store_true")
 parser.add_argument("-t", "--contact-table", help="Enable grasp success without touching the table", action="store_true")
-parser.add_argument("-m", "--mode", help="Controller mode", type=str, default="joint positions", choices=["joint positions", "joint velocities", "end effector", "joint torques"])
+parser.add_argument("-m", "--mode", help="Controller mode", type=str, default="joint positions", choices=["joint positions", "joint velocities", "joint torques", "inverse kinematics", "inverse dynamics"])
 parser.add_argument("-b", "--bootstrap", help="Bootstrap folder", type=str, default=None)
 args = parser.parse_args()
 
@@ -70,7 +70,7 @@ N_EXP = args.nruns
 
 
 # for keypoints controllers
-NB_KEYPOINTS = {'joint positions':3, 'joint torques':4}[args.mode]
+NB_KEYPOINTS = {'joint positions':3, 'joint torques':4, 'inverse dynamics':3}[args.mode]
 
 if ROBOT == 'baxter':
     ENV_NAME = 'gym_baxter_grabbing:baxter_grasping-v0'
@@ -358,7 +358,7 @@ def two_d_bd(individual):
     individual = np.around(np.array(individual), 3)
     # initialize controller
     controller_info = controllers_info_dict[CONTROLLER]
-    controller = controllers_dict[CONTROLLER](individual, controller_info, initial=None if args.mode == 'joint torques' else ENV.get_joint_state())
+    controller = controllers_dict[CONTROLLER](individual, controller_info, initial=None if args.mode in {'joint torques', 'inverse dynamics'} else ENV.get_joint_state())
     action = controller.initial_action
 
     for i in range(NB_ITER):
@@ -414,7 +414,7 @@ def three_d_bd(individual):
     
     # initialize controller
     controller_info = controllers_info_dict[CONTROLLER]
-    controller = controllers_dict[CONTROLLER](individual, controller_info, initial=None if args.mode == 'joint torques' else ENV.get_joint_state())
+    controller = controllers_dict[CONTROLLER](individual, controller_info, initial=None if args.mode in {'joint torques', 'inverse dynamics'} else ENV.get_joint_state())
     action = controller.initial_action
 
     # for precise measure when we have the gripper assumption
@@ -523,7 +523,7 @@ def pos_div_pos_grip_bd(individual):
 
     # initialize controller
     controller_info = controllers_info_dict[CONTROLLER]
-    controller = controllers_dict[CONTROLLER](individual, controller_info, initial=None if args.mode == 'joint torques' else ENV.get_joint_state())
+    controller = controllers_dict[CONTROLLER](individual, controller_info, initial=None if args.mode in {'joint torques', 'inverse dynamics'} else ENV.get_joint_state())
     assert(hasattr(controller, 'grip_time'))
     # lag_time = controller.grip_time - N_LAG
     lag_time = NB_ITER / 2
@@ -556,7 +556,7 @@ def pos_div_pos_grip_bd(individual):
         energy = 0
 
     for i in range(NB_ITER):
-        ENV.render()
+        #ENV.render()
         # apply previously chosen action
         o, r, eo, inf = ENV.step(action)
         prev_action = action
@@ -685,41 +685,85 @@ def pos_div_pos_grip_bd(individual):
                 info['mean positive slope'] -= 1
         else:
             info['mean positive slope'] = positive_dist_slope / NB_ITER + 1
-
+    
+    
     if QUALITY and binary_goal:
+        """
         # re-evaluate with random initial positions to assess robustness as quality
-        reference = np.array(inf['object position'])
         count = 0
         mean_dist = 0
-        for rep in range(N_REP_RAND):
-            if RESET_MODE:
-                ENV.reset(delta_pos=D_POS[rep], delta_yaw=ANGLE_NOISE*(rep%2*2-1), multiply_friction=FRICTION_NOISE if rep%2==0 else {key:1/value for key, value in FRICTION_NOISE.items()})
-            else:
-                ENV = gym.make(ENV_NAME, display=DISPLAY, obj=OBJECT, delta_pos=D_POS[rep],
-                           steps_to_roll=NB_STEPS_TO_ROLLOUT)
-
-            # initialize controller
-            controller_info = controllers_info_dict[CONTROLLER]
-            controller = controllers_dict[CONTROLLER](individual, controller_info, initial=None if args.mode == 'joint torques' else ENV.get_joint_state())
-            action = controller.initial_action
-            for i in range(NB_ITER):
-                #ENV.render()
-                o, r, eo, inf = ENV.step(action)
-                action = controller.get_action(i) if controller.open_loop else controller.get_action(i, o)
-                if eo: break
+        
+        # repeat the simulation with the same configuration and different frictions
+        r = simulate(individual, multiply_friction=FRICTION_NOISE if rep%2==0 else {key:1/value for key, value in FRICTION_NOISE.items()})
+        
+        if r: # if grasped
+        
+            for rep in range(N_REP_RAND):
+#            if RESET_MODE:
+#                ENV.reset(delta_pos=D_POS[rep], delta_yaw=ANGLE_NOISE*(rep%2*2-1), multiply_friction=FRICTION_NOISE if rep%2==0 else {key:1/value for key, value in FRICTION_NOISE.items()})
+#            else:
+#                ENV = gym.make(ENV_NAME, display=DISPLAY, obj=OBJECT, delta_pos=D_POS[rep],
+#                           steps_to_roll=NB_STEPS_TO_ROLLOUT)
+#
+#            # initialize controller
+#            controller_info = controllers_info_dict[CONTROLLER]
+#            controller = controllers_dict[CONTROLLER](individual, controller_info, initial=None if args.mode in {'joint torques', 'inverse dynamics'} else ENV.get_joint_state())
+#            action = controller.initial_action
+#            for i in range(NB_ITER):
+#                #ENV.render()
+#                o, r, eo, inf = ENV.step(action)
+#                action = controller.get_action(i) if controller.open_loop else controller.get_action(i, o)
+#                if eo: break
+                r, inf = simulate(individual, delta_pos=D_POS[rep], delta_yaw=ANGLE_NOISE*(rep%2*2-1), multiply_friction=FRICTION_NOISE if rep%2==0 else {key:1/value for key, value in FRICTION_NOISE.items()}, return_inf=True)
             
-            if r: # if there is a grasp
-                count += 1
-                mean_dist += np.linalg.norm(reference - inf['object position'])
+                if r: # if there is a grasp
+                    count += 1
+                    mean_dist += np.linalg.norm(reference - inf['object position'])
 
-            if not RESET_MODE:
-                ENV.close()
-
-
-        info['grasp robustness'] = count + 1 / (1 + 0.00000001 + mean_dist/count) if count>0 else 0
-    
+            info['grasp robustness'] = count + 1 / (1 + 0.00000001 + mean_dist/count) if count>0 else 0
+            
+        else: # set the robustness to 0
+            info['grasp robustness'] = 0
+    """
+        info['repeat_kwargs'] = [dict(delta_pos=D_POS[rep], delta_yaw=ANGLE_NOISE*(rep%2*2-1), multiply_friction=FRICTION_NOISE if rep%2==0 else {key:1/value for key, value in FRICTION_NOISE.items()}, return_inf=True, reference=np.array(inf['object position'])) for rep in range(N_REP_RAND)]
     return (behavior.tolist(), (fitness,), info)
 
+def simulate(ind, delta_pos=[0,0], delta_yaw=0, multiply_friction={}, return_inf=False, reference=None):
+    global ENV
+    if RESET_MODE:
+        ENV.reset(delta_pos=delta_pos, delta_yaw=delta_yaw, multiply_friction=multiply_friction)
+    else:
+        ENV = gym.make(ENV_NAME, display=DISPLAY, obj=OBJECT, delta_pos=D_POS[rep], steps_to_roll=NB_STEPS_TO_ROLLOUT)
+
+    # initialize controller
+    controller_info = controllers_info_dict[CONTROLLER]
+    controller = controllers_dict[CONTROLLER](ind, controller_info, initial=None if args.mode in {'joint torques', 'inverse dynamics'} else ENV.get_joint_state())
+    action = controller.initial_action
+    for i in range(NB_ITER):
+        #ENV.render()
+        o, r, eo, inf = ENV.step(action)
+        action = controller.get_action(i) if controller.open_loop else controller.get_action(i, o)
+        if eo: break
+
+    if not RESET_MODE:
+        ENV.close()
+    
+    if reference is not None:
+        inf['distance to reference'] = reference - inf['object position']
+    
+    return r, inf if return_inf else r
+    
+def fuse_repeat(ind, results):
+    info = ind.info.values
+    successes = 0
+    mean_dist = 0
+    for r, inf in results:
+        successes += r
+        mean_dist += inf['distance to reference']
+    info['grasp robustness'] = successes + 1 / (1.00000001 + mean_dist/successes) if successes>0 else 0
+    info.pop('repeat_kwargs')
+    
+    return ind.behavior_descriptor.values, tuple(ind.fitness.values), info
 
 def eval_sucessfull_ind(individual, obstacle_pos=None, obstacle_size=None):
 
@@ -734,7 +778,7 @@ def eval_sucessfull_ind(individual, obstacle_pos=None, obstacle_size=None):
 
     # initialize controller
     controller_info = controllers_info_dict[CONTROLLER]
-    controller = controllers_dict[CONTROLLER](individual, controller_info, initial=None if args.mode == 'joint torques' else ENV.get_joint_state())
+    controller = controllers_dict[CONTROLLER](individual, controller_info, initial=None if args.mode in {'joint torques', 'inverse dynamics'} else ENV.get_joint_state())
     action = controller.initial_action
 
     # for precise measure when we have the gripper assumption
@@ -800,7 +844,7 @@ def aurora_bd(individual):
 
     # initialize controller
     controller_info = controllers_info_dict[CONTROLLER]
-    controller = controllers_dict[CONTROLLER](individual, controller_info, initial=None if args.mode == 'joint torques' else ENV.get_joint_state())
+    controller = controllers_dict[CONTROLLER](individual, controller_info, initial=None if args.mode in {'joint torques', 'inverse dynamics'} else ENV.get_joint_state())
 
     action = controller.initial_action
 
@@ -1041,17 +1085,19 @@ if __name__ == "__main__":
         i = 0
         while res is None: # if res is None, it means the whole population is invalid (collision), so we do the search again
             t_start = time.time()
-            res = noveltysearch.novelty_algo(evaluation_function, initial_genotype_size, BD_BOUNDS,
-                                             mini=MINI,                           plot=PLOT,
-                                             algo_type=ALGO,                      nb_gen=NB_GEN,
-                                             bound_genotype=1,                    pop_size=POP_SIZE,
-                                             parallelize=PARALLELIZE,             measures=True,
-                                             choose_evaluate=choose,              bd_indexes=BD_INDEXES,
-                                             archive_limit_size=ARCHIVE_LIMIT,    nb_cells=NB_CELLS,
-                                             novelty_metric=NOVELTY_METRIC,       save_ind_cond='binary goal',
-                                             bootstrap_individuals=boostrap_inds, multi_quality=MULTI_QUALITY_MEASURES,
-                                             monitor_print=True,
-                                             final_filter='binary goal' if RESET_MODE and not QUALITY else None)
+            res = noveltysearch.novelty_algo(
+                evaluation_function, initial_genotype_size, BD_BOUNDS,
+                mini=MINI,                           plot=PLOT,
+                algo_type=ALGO,                      nb_gen=NB_GEN,
+                bound_genotype=1,                    pop_size=POP_SIZE,
+                parallelize=PARALLELIZE,             measures=True,
+                choose_evaluate=choose,              bd_indexes=BD_INDEXES,
+                archive_limit_size=ARCHIVE_LIMIT,    nb_cells=NB_CELLS,
+                novelty_metric=NOVELTY_METRIC,       save_ind_cond='binary goal',
+                bootstrap_individuals=boostrap_inds, multi_quality=MULTI_QUALITY_MEASURES,
+                monitor_print=True,                  final_filter=simulate,
+                repeat=simulate if QUALITY else None,fuse_repeat=fuse_repeat if QUALITY else None,
+            )
             i += 1 # raise if failed 10 times
             if i>=10: raise Exception("The initial population failed 10 times")
         
@@ -1206,3 +1252,6 @@ if __name__ == "__main__":
                         if len(clustered_triumphants[i]) > j:
                             evaluation_function(clustered_triumphants[i][j])
     print("end")
+
+    if RESET_MODE:
+        ENV.close()
