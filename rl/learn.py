@@ -72,8 +72,10 @@ def learnReach(log_path, device='auto', algorithm=TQC, vec_env=False):
 	# Use deterministic actions for evaluation
 	eval_callback = Callback(env(), best_model_save_path=log_path, log_path=log_path, eval_freq=25000, deterministic=False, render=False, n_eval_episodes=2)
 	policy_kwargs = {'net_arch':[dict(qf=[256, 256], pi=[256, 256])], 'activation_fn':th.nn.LeakyReLU}
+	other_kwargs = dict()
 	if algorithm not in {PPO}:
 		policy_kwargs['net_arch'] = policy_kwargs['net_arch'][-1] # unpack
+		other_kwargs['target_update_interval'] = 100
 	model = algorithm(
 		policy='MlpPolicy',
 		env=make_vec_env(env_id=env_kwargs.pop('id'), n_envs=8, env_kwargs=env_kwargs) if vec_env else env(),
@@ -82,6 +84,7 @@ def learnReach(log_path, device='auto', algorithm=TQC, vec_env=False):
 		device=device,
 		use_sde=True,
 		policy_kwargs=policy_kwargs,
+		**other_kwargs,
 	)
 	model.learn(10000000, callback=eval_callback, tb_log_name=algorithm.__name__+'reach')
 	print('end')
@@ -104,6 +107,7 @@ def learnSimple(log_path, ReplayBufferPath=None, sqil=False, action_strategy='in
 		device=device,
 		use_sde=False,
 		policy_kwargs={'net_arch':dict(qf=[256, 256, 128, 128], pi=[256, 256, 256]), 'activation_fn':th.nn.LeakyReLU},
+		target_update_interval=100,
 	) #ent_coef=1e-3)#, train_freq=1, batch_size=512)
 	if sqil:
 		assert isinstance('ReplayBufferPath', str), 'ReplayBufferPath must be provided if using SQIL'
@@ -136,6 +140,7 @@ def learnRCE(log_path, examplesPath, pretrain=None, device='auto', action_strate
 		action_strategy=action_strategy,
 		use_sde=False,
 		policy_kwargs={'net_arch':dict(qf=[256, 256, 128, 128], pi=[256, 256, 256]), 'activation_fn':th.nn.LeakyReLU},
+		target_update_interval=100,
 	) #, batch_size=1024, train_freq=10, policy_kwargs={'net_arch':dict(pi=[256, 128], qf=[512, 256])}, target_update_interval=10
 	if pretrain is not None:
 		model, inverseModel = behaviouralCloningWithModel(collection_timesteps=10000, use_inverse=True, repeat=5, model=model, expert_replay_buffer=pretrain, device=device)
@@ -156,7 +161,8 @@ def learnRED(log_path, demonstration_replay_buffer, action_strategy='current pol
 		action_strategy=action_strategy,
 		use_actions=False,
 		use_sde=False,
-		policy_kwargs={'net_arch':dict(qf=[256, 256, 128, 128], pi=[256, 256, 256]), 'activation_fn':th.nn.LeakyReLU}
+		policy_kwargs={'net_arch':dict(qf=[256, 256, 128, 128], pi=[256, 256, 256]), 'activation_fn':th.nn.LeakyReLU},
+		target_update_interval=100,
 	)
 	#model.pretrain(collection_timesteps=10000, repeat=2, expert_replay_buffer=demonstration_replay_buffer)
 	model.learn(total_timesteps=10000000, callback=eval_callback, tb_log_name='RED')
