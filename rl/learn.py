@@ -21,6 +21,7 @@ from algoRL import TQC_RCE, TQC_SQIL, TQC_RED, SAC_RCE, InverseModel, ForwardMod
 from sb3_contrib import TQC
 from functools import partial
 from pathlib import Path
+import os
 import yaml
 import imageio
 import torch as th
@@ -66,28 +67,27 @@ class Callback(EvalCallback):
 		
 	
 
-def learnReach(log_path, device='auto', algorithm=TQC, vec_env=False):
-	env_kwargs = dict(id='kuka_grasping-v0', display=False, obj='cube', steps_to_roll=1, mode='joint velocities', reset_random_initial_state=True, reach=True)
+def learnReach(log_path, vec_env=False):
+	env_kwargs = dict(id='kuka_grasping-v0', display=False, obj='cube', steps_to_roll=1, mode='inverse dynamics', reset_random_initial_state=False, reach=True)
 	env = lambda : gym.make(**env_kwargs)#'kuka_grasping-v0', display=display, obj='cube', steps_to_roll=1, mode='joint torques', reset_random_initial_state=True, reach=True)
-	# Use deterministic actions for evaluation
-	eval_callback = Callback(env(), best_model_save_path=log_path, log_path=log_path, eval_freq=25000, deterministic=False, render=False, n_eval_episodes=2)
-	policy_kwargs = {'net_arch':[dict(qf=[256, 256], pi=[256, 256])], 'activation_fn':th.nn.LeakyReLU}
-	other_kwargs = dict()
-	if algorithm not in {PPO}:
-		policy_kwargs['net_arch'] = policy_kwargs['net_arch'][-1] # unpack
-		other_kwargs['target_update_interval'] = 2
-	model = algorithm(
+	
+	eval_callback = Callback(env(), best_model_save_path=log_path, log_path=log_path, eval_freq=25000, deterministic=True, render=False, n_eval_episodes=5)
+	interval = 64
+		
+	model = TQC(
 		policy='MlpPolicy',
-		env=make_vec_env(env_id=env_kwargs.pop('id'), n_envs=8, env_kwargs=env_kwargs) if vec_env else env(),
+		env=make_vec_env(env_id=env_kwargs.pop('id'), n_envs=os.cpu_count(), env_kwargs=env_kwargs) if vec_env else env(),
 		tensorboard_log=log_path,
 		#learning_starts=200000,
-		device=device,
-		use_sde=True,
-		policy_kwargs=policy_kwargs,
-		**other_kwargs,
+		tau=0.01,
+		train_freq=interval,
+		gradient_steps=interval,
+		target_update_interval=1,
+		policy_kwargs={'net_arch':dict(qf=[400, 300], pi=[256, 256]), 'activation_fn':th.nn.LeakyReLU},
+		device='cpu',
 	)
-	model.learn(10000000, callback=eval_callback, tb_log_name=algorithm.__name__+'reach')
-	print('end')
+	model.learn(10000000, callback=eval_callback, tb_log_name='TQC_reach')
+	
 	
 def learnSimple(log_path, ReplayBufferPath=None, sqil=False, action_strategy='inverse model', device='auto'):
 	""" ReplayBufferPath is the path of the pickled ReplayBuffer
@@ -119,7 +119,6 @@ def learnSimple(log_path, ReplayBufferPath=None, sqil=False, action_strategy='in
 			model.load_replay_buffer(ReplayBufferPath)
 	
 	model.learn(10000000, callback=eval_callback, tb_log_name='sqil' if sqil else 'TQC')
-	print('end')
 	
 def learnRCE(log_path, examplesPath, pretrain=None, device='auto', action_strategy='inverse model'):
 	env = lambda: gym.make('kuka_grasping-v0', display=False, obj='cube', steps_to_roll=1, mode='joint torques')#, reset_random_initial_state=True)
@@ -139,14 +138,13 @@ def learnRCE(log_path, examplesPath, pretrain=None, device='auto', action_strate
 		device=device,
 		action_strategy=action_strategy,
 		use_sde=False,
-		policy_kwargs={'net_arch':dict(qf=[256, 256, 128, 128], pi=[256, 256, 256]), 'activation_fn':th.nn.LeakyReLU},
-		target_update_interval=2,
+		policy_kwargs={'net_arch':dict(qf=[256, 256], pi=[256, 256]), 'activation_fn':th.nn.LeakyReLU},
+		target_update_interval=1,
 	) #, batch_size=1024, train_freq=10, policy_kwargs={'net_arch':dict(pi=[256, 128], qf=[512, 256])}, target_update_interval=10
 	if pretrain is not None:
 		model, inverseModel = behaviouralCloningWithModel(collection_timesteps=10000, use_inverse=True, repeat=5, model=model, expert_replay_buffer=pretrain, device=device)
 	
 	model.learn(10000000, callback=eval_callback, tb_log_name='RCE')
-	print('end')
 	
 def learnRED(log_path, demonstration_replay_buffer, action_strategy='current policy', device='auto'):
 	env = lambda display=False: gym.make('kuka_grasping-v0', display=display, obj='cube', steps_to_roll=1, mode='joint torques')#, reset_random_initial_state=True, reach=True)
@@ -162,7 +160,7 @@ def learnRED(log_path, demonstration_replay_buffer, action_strategy='current pol
 		use_actions=False,
 		use_sde=False,
 		policy_kwargs={'net_arch':dict(qf=[256, 256, 128, 128], pi=[256, 256, 256]), 'activation_fn':th.nn.LeakyReLU},
-		target_update_interval=2,
+		target_update_interval=1,
 	)
 	#model.pretrain(collection_timesteps=10000, repeat=2, expert_replay_buffer=demonstration_replay_buffer)
 	model.learn(total_timesteps=10000000, callback=eval_callback, tb_log_name='RED')
@@ -203,7 +201,8 @@ if __name__ == '__main__':
 	log_path = folder/"log"
 	data_path = folder/"data"
 	log_path.mkdir(exist_ok=True)
-	learnReach(log_path=log_path, device='cpu', algorithm=TQC, vec_env=False)
+	
+	learnReach(log_path=log_path, vec_env=False)
 	#learnSimple(log_path=log_path, ReplayBufferPath='/Users/Yakumo/Downloads/replayBufferCubeSingleConfigRewardOff.pkl', sqil=True, action_strategy='inverse model')
 	#learnSimple(log_path=log_path, ReplayBufferPath='/home/yakumo/Documents/AurelienMorel/rl/replayBufferCubeSingleConfigRewardOff.pkl', sqil=True, action_strategy='inverse model')
 	#learnRCE(log_path=log_path, '/Users/Yakumo/Downloads/examples_cube.npz', pretrain='/Users/Yakumo/Downloads/replayBufferCubeSingleConfigRewardOff.pkl', action_strategy='inverse model')
@@ -213,5 +212,5 @@ if __name__ == '__main__':
 	#testBC2()
 	#plot('/Users/Yakumo/Downloads/TQC')
 	#learnRED(log_path=log_path, demonstration_replay_buffer='/Users/Yakumo/Downloads/replayBufferCubeSingleConfigRewardOff.pkl')
-	
+	print('end')
 	

@@ -688,44 +688,15 @@ def pos_div_pos_grip_bd(individual):
     
     
     if QUALITY and binary_goal:
-        """
-        # re-evaluate with random initial positions to assess robustness as quality
-        count = 0
-        mean_dist = 0
-        
-        # repeat the simulation with the same configuration and different frictions
-        r = simulate(individual, multiply_friction=FRICTION_NOISE if rep%2==0 else {key:1/value for key, value in FRICTION_NOISE.items()})
-        
-        if r: # if grasped
-        
-            for rep in range(N_REP_RAND):
-#            if RESET_MODE:
-#                ENV.reset(delta_pos=D_POS[rep], delta_yaw=ANGLE_NOISE*(rep%2*2-1), multiply_friction=FRICTION_NOISE if rep%2==0 else {key:1/value for key, value in FRICTION_NOISE.items()})
-#            else:
-#                ENV = gym.make(ENV_NAME, display=DISPLAY, obj=OBJECT, delta_pos=D_POS[rep],
-#                           steps_to_roll=NB_STEPS_TO_ROLLOUT)
-#
-#            # initialize controller
-#            controller_info = controllers_info_dict[CONTROLLER]
-#            controller = controllers_dict[CONTROLLER](individual, controller_info, initial=None if args.mode in {'joint torques', 'inverse dynamics'} else ENV.get_joint_state())
-#            action = controller.initial_action
-#            for i in range(NB_ITER):
-#                #ENV.render()
-#                o, r, eo, inf = ENV.step(action)
-#                action = controller.get_action(i) if controller.open_loop else controller.get_action(i, o)
-#                if eo: break
-                r, inf = simulate(individual, delta_pos=D_POS[rep], delta_yaw=ANGLE_NOISE*(rep%2*2-1), multiply_friction=FRICTION_NOISE if rep%2==0 else {key:1/value for key, value in FRICTION_NOISE.items()}, return_inf=True)
-            
-                if r: # if there is a grasp
-                    count += 1
-                    mean_dist += np.linalg.norm(reference - inf['object position'])
-
-            info['grasp robustness'] = count + 1 / (1 + 0.00000001 + mean_dist/count) if count>0 else 0
-            
-        else: # set the robustness to 0
-            info['grasp robustness'] = 0
-    """
-        info['repeat_kwargs'] = [dict(delta_pos=D_POS[rep], delta_yaw=ANGLE_NOISE*(rep%2*2-1), multiply_friction=FRICTION_NOISE if rep%2==0 else {key:1/value for key, value in FRICTION_NOISE.items()}, return_inf=True, reference=np.array(inf['object position'])) for rep in range(N_REP_RAND)]
+        info['repeat_kwargs'] = [
+            dict(
+                delta_pos=D_POS[rep],
+                delta_yaw=ANGLE_NOISE*(rep%2*2-1),
+                multiply_friction=FRICTION_NOISE if rep%2==0 else {key:1/value for key, value in FRICTION_NOISE.items()},
+                return_inf=True,
+                reference=np.array(inf['object position'])
+            ) for rep in range(N_REP_RAND)
+        ]
     return (behavior.tolist(), (fitness,), info)
 
 def simulate(ind, delta_pos=[0,0], delta_yaw=0, multiply_friction={}, return_inf=False, reference=None):
@@ -749,7 +720,7 @@ def simulate(ind, delta_pos=[0,0], delta_yaw=0, multiply_friction={}, return_inf
         ENV.close()
     
     if reference is not None:
-        inf['distance to reference'] = reference - inf['object position']
+        inf['distance to reference'] = np.linalg.norm(reference - inf['object position'])
     
     return r, inf if return_inf else r
     
@@ -1103,7 +1074,7 @@ if __name__ == "__main__":
         
         pop, archive, hof, details, figures, data, triumphant_archive = res
         print('Number of triumphants: ', len(triumphant_archive))
-        if len(triumphant_archive)==0: continue # do not report the logs
+        #if len(triumphant_archive)==0: continue # do not report the logs
         
         i = 0 # create run directory
         while os.path.exists('runs/run%i/' % i):

@@ -292,8 +292,8 @@ class RobotGrasping(gym.Env):
         
         if self.reach: # compute distance as reward
             finger_pos = np.array([s[0] for s in self.p.getLinkStates(bodyUniqueId=self.robot_id, linkIndices=self.joint_ids[:self.n_control_gripper])])
-            reward = -np.linalg.norm(self.target - finger_pos).mean() # the reward is the negative mean distance between the object and the fingers
-            reward -= 1e-4*np.linalg.norm(self.info['applied joint motor torques']) # regularization: penalize excessive torque
+            reward = -np.sqrt(np.linalg.norm(self.target - finger_pos).mean()) # the reward is the negative sqrt mean distance between the object and the fingers
+            reward -= 1e-4*np.square(np.linalg.norm(self.info['applied joint motor torques'])) # regularization: penalize excessive torque
             self.p.resetBasePositionAndOrientation(self.obj_id, self.target, (0,0,0,1))
         else: # binary reward: grasped or not
             reward = len(self.info['contact object table'] + self.info['contact object plane'])==0 and self.info['touch'] and not penetration
