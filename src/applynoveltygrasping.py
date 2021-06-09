@@ -687,7 +687,7 @@ def pos_div_pos_grip_bd(individual):
             info['mean positive slope'] = positive_dist_slope / NB_ITER + 1
     
     
-    if np.random.randint(2):#QUALITY and binary_goal:
+    if QUALITY and binary_goal:
         info['repeat_kwargs'] = [
             dict(
                 delta_pos=D_POS[rep],
