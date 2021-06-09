@@ -1108,6 +1108,7 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
                         to_repeat.append((ind, repeat_kwargs)) # add to the queue ind and kwargs
                     ind_indices.append(i)
                     split_indices.append(len(inf['repeat_kwargs']))
+            
             split_indices = split_indices[:-1] # pop the last element
             repeat_results = list(toolbox.map(partial(unpack_repeat, f=repeat), to_repeat)) # re-evaluate
             repeat_gathered = [repeat_results[i:j] for i,j in zip([0]+split_indices, split_indices+[None])] # split, map returns an ordered result

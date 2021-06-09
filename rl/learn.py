@@ -67,8 +67,8 @@ class Callback(EvalCallback):
 		
 	
 
-def learnReach(log_path, vec_env=False):
-	env_kwargs = dict(id='kuka_grasping-v0', display=False, obj='cube', steps_to_roll=1, mode='inverse dynamics', reset_random_initial_state=False, reach=True)
+def learnReach(log_path, vec_env=False, mode='joint torques'):
+	env_kwargs = dict(id='kuka_grasping-v0', display=False, obj='cube', steps_to_roll=1, mode=mode, reset_random_initial_state=True, reach=True)
 	env = lambda : gym.make(**env_kwargs)#'kuka_grasping-v0', display=display, obj='cube', steps_to_roll=1, mode='joint torques', reset_random_initial_state=True, reach=True)
 	
 	eval_callback = Callback(env(), best_model_save_path=log_path, log_path=log_path, eval_freq=25000, deterministic=True, render=False, n_eval_episodes=5)
@@ -106,8 +106,8 @@ def learnSimple(log_path, ReplayBufferPath=None, sqil=False, action_strategy='in
 		learning_starts=20000,
 		device=device,
 		use_sde=False,
-		policy_kwargs={'net_arch':dict(qf=[256, 256, 128, 128], pi=[256, 256, 256]), 'activation_fn':th.nn.LeakyReLU},
-		target_update_interval=2,
+		policy_kwargs={'net_arch':dict(qf=[400,300], pi=[256, 256]), 'activation_fn':th.nn.LeakyReLU},
+		target_update_interval=1,
 	) #ent_coef=1e-3)#, train_freq=1, batch_size=512)
 	if sqil:
 		assert isinstance('ReplayBufferPath', str), 'ReplayBufferPath must be provided if using SQIL'
@@ -159,7 +159,7 @@ def learnRED(log_path, demonstration_replay_buffer, action_strategy='current pol
 		action_strategy=action_strategy,
 		use_actions=False,
 		use_sde=False,
-		policy_kwargs={'net_arch':dict(qf=[256, 256, 128, 128], pi=[256, 256, 256]), 'activation_fn':th.nn.LeakyReLU},
+		policy_kwargs={'net_arch':dict(qf=[400, 300], pi=[256, 256]), 'activation_fn':th.nn.LeakyReLU},
 		target_update_interval=1,
 	)
 	#model.pretrain(collection_timesteps=10000, repeat=2, expert_replay_buffer=demonstration_replay_buffer)
@@ -202,7 +202,7 @@ if __name__ == '__main__':
 	data_path = folder/"data"
 	log_path.mkdir(exist_ok=True)
 	
-	learnReach(log_path=log_path, vec_env=False)
+	learnReach(log_path=log_path, vec_env=False, mode='inverse dynamics')
 	#learnSimple(log_path=log_path, ReplayBufferPath='/Users/Yakumo/Downloads/replayBufferCubeSingleConfigRewardOff.pkl', sqil=True, action_strategy='inverse model')
 	#learnSimple(log_path=log_path, ReplayBufferPath='/home/yakumo/Documents/AurelienMorel/rl/replayBufferCubeSingleConfigRewardOff.pkl', sqil=True, action_strategy='inverse model')
 	#learnRCE(log_path=log_path, '/Users/Yakumo/Downloads/examples_cube.npz', pretrain='/Users/Yakumo/Downloads/replayBufferCubeSingleConfigRewardOff.pkl', action_strategy='inverse model')

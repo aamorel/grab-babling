@@ -225,6 +225,8 @@ class RobotGrasping(gym.Env):
         self.step = newstep
         
         self.target = np.zeros(3) # expressed in the cartesian world
+        dynamicsInfo = self.p.getDynamicsInfo(self.obj_id, -1) # save intial friction coeficients of the object
+        self.frictions = {'lateral':dynamicsInfo[1], 'rolling':dynamicsInfo[6], 'spinning':dynamicsInfo[7]}
         
 
 
@@ -435,12 +437,10 @@ class RobotGrasping(gym.Env):
         self.p.resetBasePositionAndOrientation(self.obj_id, pos, qua)
         for id, jp in zip(self.joint_ids, joint_pos): # reset the robot
             self.p.resetJointState(self.robot_id, jointIndex=id, targetValue=jp)
-        dynamicsInfo = self.p.getDynamicsInfo(self.obj_id, -1)
         new_friction = {}
-        friction_ids = {'lateral':1, 'rolling':6, 'spinning':7}
         for key, value in multiply_friction.items():
-            assert key in friction_ids, "allowed keys are lateral, rolling, spinning"
-            new_friction[key+'Friction'] = value*dynamicsInfo[friction_ids[key]]
+            assert key in {"lateral", "rolling", "spinning"}, f"you gave {key}, allowed keys are lateral, rolling, spinning"
+            new_friction[key+'Friction'] = value*self.frictions[key]
         self.p.changeDynamics(bodyUniqueId=self.obj_id, linkIndex=-1, **new_friction) # set the object friction
         #for _ in range(240): self.p.stepSimulation() # let the object stabilize
         return np.maximum(np.minimum(self.get_obs(),1),-1)
