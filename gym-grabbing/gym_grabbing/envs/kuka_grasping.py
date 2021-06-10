@@ -15,6 +15,7 @@ class KukaGrasping(RobotGrasping):
         obstacle_pos=None,
         obstacle_size=0.1,
         object_position=[0, 0.1, 0],
+        mode='joint position',
         **kwargs
 	):
         
@@ -28,12 +29,13 @@ class KukaGrasping(RobotGrasping):
 
         super().__init__(
             robot=load_kuka,
+            mode=mode,
             object_position=object_position,
             table_height=0.8,
             joint_ids=[0, 1, 2, 3, 4, 5, 6, 8, 10, 11, 13],
             contact_ids=[8, 9, 10, 11, 12, 13],
             n_control_gripper=4,
-            end_effector_id = 6,
+            end_effector_id = 7,
             center_workspace = 0,
             radius = 1.2,
             #disable_collision_pair = [[11,13]],
@@ -81,8 +83,18 @@ class KukaGrasping(RobotGrasping):
             self.info['closed gripper'] = action[-1]<0
             # add the 3 commands for the 3 last gripper joints
             commands = np.hstack([action[:-1], *fingers])
-        elif self.mode == 'inverse kinematic':
-            pass
+        elif self.mode == 'inverse kinematics':
+            target_position = action[0:3]
+            target_orientation = action[3:7] # xyzw
+            gripper = action[7] # [-1(open), 1(close)]
+            self.info['closed gripper'] = gripper<0
+
+            commands = np.zeros(self.n_joints)
+            commands[:-4] = self.p.calculateInverseKinematics(self.robot_id, self.end_effector_id, target_position, targetOrientation=target_orientation)[:-4]
+            commands = 2*(commands-self.upperLimits)/(self.upperLimits-self.lowerLimits) + 1 # set between -1, 1
+            commands[-4:] = fingers # add fingers
+            commands = commands.tolist()
+            
         elif self.mode in {'joint torques', 'joint velocities', 'inverse dynamics'}:
             # control the gripper in positions
             for id, a, v, f, u, l in zip(self.joint_ids[-4:], fingers, self.maxVelocity[-4:], self.maxForce[-4:], self.upperLimits[-4:], self.lowerLimits[-4:]):
