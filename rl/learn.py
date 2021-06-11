@@ -80,7 +80,7 @@ def learnReach(log_path, vec_env=False, mode='joint torques'):
 		learning_rate=0.0005,
 		tensorboard_log=log_path,
 		#learning_starts=200000,
-		tau=0.01,
+		tau=0.02,
 		train_freq=interval,
 		gradient_steps=interval,
 		target_update_interval=1,

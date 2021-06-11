@@ -1698,6 +1698,7 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
                     im_l.append(plt.scatter(bds_arr[:, 0], bds_arr[:, 1], color=color, label='Historic'))
                 ims.append(im_l)
     
+    details['number of successful before filter'] = len(save_ind)
     if final_filter is not None: # re-evaluate if asked
         for i in range(2):
             save_ind = [ind for ind, ok in zip(save_ind, toolbox.map(final_filter, save_ind)) if ok]

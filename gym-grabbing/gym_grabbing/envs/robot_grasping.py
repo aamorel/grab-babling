@@ -2,6 +2,7 @@ import gym
 import pybullet as p
 from time import sleep
 import pybullet_data
+from pybullet_utils.pd_controller_stable import PDControllerStable
 #from pybullet_utils import bullet_client
 from pathlib import Path
 import weakref
@@ -43,7 +44,7 @@ class BulletClient(object):
 
 
 class RobotGrasping(gym.Env):
-    metadata = {'render.modes': ['human', 'rgb_array']}
+    metadata = {'render.modes': ['human', 'rgb_array', 'rgba_array']}
 
     def __init_subclass__(cls, *args, **kwargs): # callback trick
         super().__init_subclass__(*args, **kwargs)
@@ -82,7 +83,7 @@ class RobotGrasping(gym.Env):
         reach = False, # the robot must reach a fictitious target placed in the reachable space, the table si not spawned
         gravity = True,
     ):
-        assert mode in {'joint positions', 'joint velocities', 'joint torques', 'inverse kinematics', 'inverse dynamics', 'impedance position', 'impedance velocity', 'impedance acceleration'}, "mode must be either joint positions, joint velocities, joint torques, inverse kinematics, inverse dynamics, impedance position, impedance velocity, impedance acceleration"
+        assert mode in {'joint positions', 'joint velocities', 'joint torques', 'joint pd','inverse kinematics', 'inverse dynamics', 'impedance position', 'impedance velocity', 'impedance acceleration'}, "mode must be either joint positions, joint velocities, joint torques, joint pd, inverse kinematics, inverse dynamics, impedance position, impedance velocity, impedance acceleration"
         weakref.finalize(self, self.close) # cleanup
         self.obj = obj.strip()
         self.object_position = object_position
@@ -109,6 +110,15 @@ class RobotGrasping(gym.Env):
         self.reach = reach
         self.gravity = gravity
         self.rng = np.random.default_rng()
+        self.pd_controller = PDControllerStable(self.p)
+        width, height = 1024, 1024
+        self.camera = dict(
+            width=width, # https://towardsdatascience.com/simulate-images-for-ml-in-pybullet-the-quick-easy-way-859035b2c9dd
+            height=height, # http://ksimek.github.io/2013/08/13/intrinsic/
+            viewMatrix=self.p.computeViewMatrix(cameraEyePosition=[0,1,0.5], cameraTargetPosition=[0,0,0.3], cameraUpVector=[0,0,1]),#self.p.computeViewMatrixFromYawPitchRoll(cameraTargetPosition=np.zeros(3), distance=self.pos_cam[0], yaw=self.pos_cam[1], pitch=self.pos_cam[2], roll=0, upAxisIndex=2),
+            projectionMatrix=self.p.computeProjectionMatrixFOV(fov=70, aspect=width/height, nearVal=0.1, farVal=10),
+            renderer=self.p.ER_BULLET_HARDWARE_OPENGL if self.display else self.p.ER_TINY_RENDERER
+        )
 
         self.p.setAdditionalSearchPath(pybullet_data.getDataPath())
 
@@ -160,7 +170,7 @@ class RobotGrasping(gym.Env):
         
         self.p.setAdditionalSearchPath(pybullet_data.getDataPath())
         self.load_object(self.get_object(self.obj), delta_pos=self.delta_pos)
-
+        
         
         if self.display: # set the camera
             self.p.configureDebugVisualizer(self.p.COV_ENABLE_RENDERING, 1)
@@ -298,7 +308,7 @@ class RobotGrasping(gym.Env):
         if self.reach: # compute distance as reward
             finger_pos = np.array([s[0] for s in self.p.getLinkStates(bodyUniqueId=self.robot_id, linkIndices=self.joint_ids[-self.n_control_gripper:])])
             reward = -np.sqrt(np.linalg.norm(self.target - finger_pos, axis=1).mean()) # the reward is the negative sqrt mean distance between the object and the fingers
-            reward -= 1e-5*np.square(np.linalg.norm(self.info['applied joint motor torques'])) # regularization: penalize excessive torque
+            reward -= 1e-4*np.linalg.norm(self.info['applied joint motor torques'][:-self.n_control_gripper]) # regularization: penalize excessive torque
             self.p.resetBasePositionAndOrientation(self.obj_id, self.target, (0,0,0,1))
         else: # binary reward: grasped or not
             reward = len(self.info['contact object table'] + self.info['contact object plane'])==0 and self.info['touch'] and not penetration
@@ -495,9 +505,12 @@ class RobotGrasping(gym.Env):
             
 
     def render(self, mode='human'):
-        if mode == 'rgb_array': # slow !
-            img = np.array(self.p.getCameraImage(width=320, height=200, renderer=self.p.ER_BULLET_HARDWARE_OPENGL if self.display else self.p.ER_TINY_RENDERER)[2], dtype=np.uint8)
-            return img.reshape(200,320,4)[:,:,:3] # return RGB frame suitable for video, discard alpha channel
+        if mode in {'rgb_array', 'rgba_array'}: # slow !
+            camera = {**self.camera}
+            if mode == 'rgb_array': # if rgb, use low resolution
+                camera['height'], camera['width'] = 256, 256
+            img = np.array(self.p.getCameraImage(**camera)[2], dtype=np.uint8).reshape(camera['height'], camera['width'], 4)
+            return img[:,:,:3] if mode=='rgb_array' else img
         elif mode == 'human':
             pass
         else:

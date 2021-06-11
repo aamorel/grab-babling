@@ -700,8 +700,9 @@ def pos_div_pos_grip_bd(individual):
     return (behavior.tolist(), (fitness,), info)
 
 def simulate(ind, delta_pos=[0,0], delta_yaw=0, multiply_friction={}, return_inf=False, reference=None):
-    global ENV
+    
     if RESET_MODE:
+        global ENV
         ENV.reset(delta_pos=delta_pos, delta_yaw=delta_yaw, multiply_friction=multiply_friction)
     else:
         ENV = gym.make(ENV_NAME, display=DISPLAY, obj=OBJECT, delta_pos=D_POS[rep], steps_to_roll=NB_STEPS_TO_ROLLOUT)
