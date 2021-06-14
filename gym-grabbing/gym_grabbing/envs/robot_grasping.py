@@ -462,7 +462,7 @@ class RobotGrasping(gym.Env):
             new_friction[key+'Friction'] = value*self.frictions[key]
         self.p.changeDynamics(bodyUniqueId=self.obj_id, linkIndex=-1, **new_friction) # set the object friction
         #for _ in range(240): self.p.stepSimulation() # let the object stabilize
-        return np.maximum(np.minimum(self.get_obs(),1),-1)
+        return self.get_obs()
         
     def get_obs(self) -> ArrayLike:
         obj_pose = self.p.getBasePositionAndOrientation(self.obj_id)
