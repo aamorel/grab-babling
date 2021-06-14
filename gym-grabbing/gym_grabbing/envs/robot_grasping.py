@@ -213,6 +213,9 @@ class RobotGrasping(gym.Env):
                 *[1 for i in self.joint_ids],       # joint positions
                 *[np.inf for i in self.joint_ids],  # joint velocity
                 *[1 for i in self.joint_ids],       # joint torque sensors Mz
+                1,1,1,                              # end effector position (robot frame)
+                1,1,1,1,1,1,                        # end effector orientation (robot frame)
+                np.inf,np.inf,np.inf,               # end effector linear velocity
             ], dtype=np.float32)
         self.observation_space = gym.spaces.Box(-high, high, dtype='float32')
         self.info = {
@@ -222,7 +225,11 @@ class RobotGrasping(gym.Env):
             'joint reaction forces': np.zeros(self.n_joints),
             'applied joint motor torques': np.zeros(self.n_joints),
             'joint positions': np.zeros(self.n_joints),
-            'joint velocities': np.zeros(self.n_joints)
+            'joint velocities': np.zeros(self.n_joints),
+            'fingers position': np.zeros(3),
+            'fingers xyzw': np.zeros(4),
+            'fingers linear velocity': np.zeros(3),
+            'fingers angular velocity': np.zeros(3),
         }
         self.last_action = np.zeros(self.n_actions)
         oldstep = self.step
@@ -269,7 +276,18 @@ class RobotGrasping(gym.Env):
 
 
         # get information on gripper
-        self.info['end effector position'], self.info['end effector xyzw'] = self.p.getLinkState(self.robot_id, self.end_effector_id)[:2]
+        self.info['end effector position'], self.info['end effector xyzw'], _, _, _, _, self.info['end effector linear velocity'], self.info['end effector angular velocity'] = self.p.getLinkState(self.robot_id, self.end_effector_id, computeLinkVelocity=True)
+        # get information of the fingers (average position velocity, ...)
+        finger_states = self.p.getLinkStates(bodyUniqueId=self.robot_id, linkIndices=self.joint_ids[-self.n_control_gripper:], computeLinkVelocity=True)
+        self.info['fingers position'][:] = 0
+        self.info['fingers linear velocity'][:] = 0
+        self.info['fingers xyzw'], self.info['fingers angular velocity'] = self.info['end effector xyzw'], self.info['end effector angular velocity']
+        for i, s in enumerate(finger_states):
+            self.info['fingers position'] += s[0]
+            self.info['fingers linear velocity'] += s[6]
+        if i>0:
+            self.info['fingers position'] /= i
+            self.info['fingers linear velocity'] /= i
         
         self.info['contact object robot'] = self.p.getContactPoints(bodyA=self.obj_id, bodyB=self.robot_id)
         self.info['contact object plane'] = self.p.getContactPoints(bodyA=self.obj_id, bodyB=self.plane_id)
@@ -306,9 +324,9 @@ class RobotGrasping(gym.Env):
             #print(self.info['applied joint motor torques'][:-self.n_control_gripper])
         
         if self.reach: # compute distance as reward
-            finger_pos = np.array([s[0] for s in self.p.getLinkStates(bodyUniqueId=self.robot_id, linkIndices=self.joint_ids[-self.n_control_gripper:])])
-            reward = -np.sqrt(np.linalg.norm(self.target - finger_pos, axis=1).mean()) # the reward is the negative sqrt mean distance between the object and the fingers
-            reward -= 1e-4*np.linalg.norm(self.info['applied joint motor torques'][:-self.n_control_gripper]) # regularization: penalize excessive torque
+            reward = -np.sqrt(np.linalg.norm(self.target - self.info['fingers position'])) # the reward is the negative sqrt mean distance between the object and the fingers
+            reward -= 1e-4*np.linalg.norm(self.info['applied joint motor torques'][:-self.n_control_gripper]) # penalize excessive torque
+            reward -= 1e-3*np.linalg.norm(self.info['fingers linear velocity']) # penalize excessive speed
             self.p.resetBasePositionAndOrientation(self.obj_id, self.target, (0,0,0,1))
         else: # binary reward: grasped or not
             reward = len(self.info['contact object table'] + self.info['contact object plane'])==0 and self.info['touch'] and not penetration
@@ -486,7 +504,13 @@ class RobotGrasping(gym.Env):
             obj_vel = (0,0,0), (0,0,0)
         obj_pos = np.array(obj_pos)/self.radius
         obj_or = self.p.getMatrixFromQuaternion(obj_or)[:6] # taking 6 parameters from the rotation matrix let the rotation be described in a continuous representation, which is better for neural networks
-        observation = np.hstack([obj_pos, obj_or, *obj_vel, pos, vel, sensor_torques])#, self.last_action])
+        
+        fin_pos, fin_or = self.p.multiplyTransforms(*invert, self.info['fingers position'], self.info['fingers xyzw'])
+        fin_pos = np.array(fin_pos) / self.radius
+        fin_or = self.p.getMatrixFromQuaternion(fin_or)[:6]
+        fin_lin_vel, _ = self.p.multiplyTransforms(*self.p.invertTransform((0,0,0), absolute_center[1]), self.info['fingers linear velocity'], (0,0,0,1))
+        
+        observation = np.hstack([obj_pos, obj_or, *obj_vel, pos, vel, sensor_torques, fin_pos, fin_or, fin_lin_vel])#, self.last_action])
         return observation #np.maximum(np.minimum(obs,1),-1)
 
             

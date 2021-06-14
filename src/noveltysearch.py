@@ -1701,7 +1701,7 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
     details['number of successful before filter'] = len(save_ind)
     if final_filter is not None: # re-evaluate if asked
         for i in range(2):
-            save_ind = [ind for ind, ok in zip(save_ind, toolbox.map(final_filter, save_ind)) if ok]
+            save_ind = [ind for ind, info in zip(save_ind, toolbox.map(final_filter, save_ind)) if info['is_success']]
     data['population genetic statistics'] = gen_stat_hist
     data['offsprings genetic statistics'] = gen_stat_hist_off
     data['archive coverage'] = coverage_hist

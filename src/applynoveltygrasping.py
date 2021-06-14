@@ -723,14 +723,14 @@ def simulate(ind, delta_pos=[0,0], delta_yaw=0, multiply_friction={}, return_inf
     if reference is not None:
         inf['distance to reference'] = np.linalg.norm(reference - inf['object position'])
     
-    return r, inf if return_inf else r
+    return inf
     
 def fuse_repeat(ind, results):
     info = ind.info.values
     successes = 0
     mean_dist = 0
     for r, inf in results:
-        successes += r
+        successes += inf['is_success']
         mean_dist += inf['distance to reference']
     info['grasp robustness'] = successes + 1 / (1.00000001 + mean_dist/successes) if successes>0 else 0
     info.pop('repeat_kwargs')

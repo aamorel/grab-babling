@@ -77,7 +77,7 @@ def learnReach(log_path, vec_env=False, mode='joint torques'):
 	model = TQC(
 		policy='MlpPolicy',
 		env=make_vec_env(env_id=env_kwargs.pop('id'), n_envs=os.cpu_count(), env_kwargs=env_kwargs) if vec_env else env(),
-		learning_rate=0.0005,
+		learning_rate=0.0007,
 		tensorboard_log=log_path,
 		#learning_starts=200000,
 		tau=0.02,
