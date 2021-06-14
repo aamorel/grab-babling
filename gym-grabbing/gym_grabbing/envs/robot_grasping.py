@@ -275,19 +275,6 @@ class RobotGrasping(gym.Env):
         
 
 
-        # get information on gripper
-        self.info['end effector position'], self.info['end effector xyzw'], _, _, _, _, self.info['end effector linear velocity'], self.info['end effector angular velocity'] = self.p.getLinkState(self.robot_id, self.end_effector_id, computeLinkVelocity=True)
-        # get information of the fingers (average position velocity, ...)
-        finger_states = self.p.getLinkStates(bodyUniqueId=self.robot_id, linkIndices=self.joint_ids[-self.n_control_gripper:], computeLinkVelocity=True)
-        self.info['fingers position'][:] = 0
-        self.info['fingers linear velocity'][:] = 0
-        self.info['fingers xyzw'], self.info['fingers angular velocity'] = self.info['end effector xyzw'], self.info['end effector angular velocity']
-        for i, s in enumerate(finger_states):
-            self.info['fingers position'] += s[0]
-            self.info['fingers linear velocity'] += s[6]
-        if i>0:
-            self.info['fingers position'] /= i
-            self.info['fingers linear velocity'] /= i
         
         self.info['contact object robot'] = self.p.getContactPoints(bodyA=self.obj_id, bodyB=self.robot_id)
         self.info['contact object plane'] = self.p.getContactPoints(bodyA=self.obj_id, bodyB=self.plane_id)
@@ -504,6 +491,21 @@ class RobotGrasping(gym.Env):
             obj_vel = (0,0,0), (0,0,0)
         obj_pos = np.array(obj_pos)/self.radius
         obj_or = self.p.getMatrixFromQuaternion(obj_or)[:6] # taking 6 parameters from the rotation matrix let the rotation be described in a continuous representation, which is better for neural networks
+        
+        # get information on gripper
+        self.info['end effector position'], self.info['end effector xyzw'], _, _, _, _, self.info['end effector linear velocity'], self.info['end effector angular velocity'] = self.p.getLinkState(self.robot_id, self.end_effector_id, computeLinkVelocity=True)
+        
+        # get information of the fingers (average position, velocity but the orientation is the same as the end effector)
+        finger_states = self.p.getLinkStates(bodyUniqueId=self.robot_id, linkIndices=self.joint_ids[-self.n_control_gripper:], computeLinkVelocity=True)
+        self.info['fingers position'][:] = 0
+        self.info['fingers linear velocity'][:] = 0
+        self.info['fingers xyzw'], self.info['fingers angular velocity'] = self.info['end effector xyzw'], self.info['end effector angular velocity']
+        for i, s in enumerate(finger_states):
+            self.info['fingers position'] += s[0]
+            self.info['fingers linear velocity'] += s[6]
+        if i>0:
+            self.info['fingers position'] /= i
+            self.info['fingers linear velocity'] /= i
         
         fin_pos, fin_or = self.p.multiplyTransforms(*invert, self.info['fingers position'], self.info['fingers xyzw'])
         fin_pos = np.array(fin_pos) / self.radius
