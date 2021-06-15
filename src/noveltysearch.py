@@ -1702,27 +1702,27 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
     if final_filter is not None: # re-evaluate if asked
         for i in range(2):
             save_ind = [ind for ind, info in zip(save_ind, toolbox.map(final_filter, save_ind)) if info['is_success']]
-    data['population genetic statistics'] = gen_stat_hist
-    data['offsprings genetic statistics'] = gen_stat_hist_off
-    data['archive coverage'] = coverage_hist
-    data['archive uniformity'] = uniformity_hist
-    data['coverage'] = full_cov_hist
-    data['uniformity'] = full_uni_hist
-    data['ranking similarities'] = ranking_similarities
-    data['novelty differences'] = novelty_differences
-    data['mean fitness'] = mean_hist
-    data['min fitness'] = min_hist
-    data['max fitness'] = max_hist
-    data['archive size'] = arch_size_hist
-    data['mean age'] = mean_age_hist
-    data['max_age_hist'] = max_age_hist
-    data['population coverage'] = pop_cov_hist
-    data['population uniformity'] = pop_uni_hist
-    data['novelty distribution'] = novelty_distrib
-    data['qualities'] = multi_quality_hist
-    data['first saved ind gen'] = first_saved_ind_gen
+    data['population genetic statistics'] = np.array(gen_stat_hist)
+    data['offsprings genetic statistics'] = np.array(gen_stat_hist_off)
+    data['archive coverage'] = np.array(coverage_hist)
+    data['archive uniformity'] = np.array(uniformity_hist)
+    data['coverage'] = np.array(full_cov_hist)
+    data['uniformity'] = np.array(full_uni_hist)
+    data['ranking similarities'] = np.array(ranking_similarities)
+    data['novelty differences'] = np.array(novelty_differences)
+    data['mean fitness'] = np.array(mean_hist)
+    data['min fitness'] = np.array(min_hist)
+    data['max fitness'] = np.array(max_hist)
+    data['archive size'] = np.array(arch_size_hist)
+    data['mean age'] = np.array(mean_age_hist)
+    data['max_age_hist'] = np.array(max_age_hist)
+    data['population coverage'] = np.array(pop_cov_hist)
+    data['population uniformity'] = np.array(pop_uni_hist)
+    data['novelty distribution'] = np.array(novelty_distrib)
+    data['qualities'] = multi_quality_hist # this is a dict of qualities
+    data['first saved ind gen'] = np.array(first_saved_ind_gen)
     if algo_type == 'ns_rand_multi_bd':
-        data['eligibility rates'] = bd_rates
+        data['eligibility rates'] = np.array(bd_rates)
     if plot:
         fig, fig_2, fig_3, fig_4 = plotting.plot_launch(details, data)
     
@@ -1730,6 +1730,11 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
         figures['figure_2'] = fig_2
         figures['figure_3'] = fig_3
         figures['figure_4'] = fig_4
+
+    # put quality name in data so it can be saved with np.savez_compressed
+    for key, value in data['qualities'].items():
+        data[key] = np.array(value)
+    data['qualities'] = np.array(list(data['qualities'].keys())) # save the keys instead of the dict
     
     if plot_gif:
         interval = int(GIF_LENGHT * 1000 / len(ims))

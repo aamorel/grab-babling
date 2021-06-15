@@ -1,4 +1,4 @@
-import gym
+from gym import Env, GoalEnv, spaces
 import pybullet as p
 from time import sleep
 import pybullet_data
@@ -9,6 +9,7 @@ import weakref
 import functools
 import inspect
 import numpy as np
+from collections import OrderedDict
 
 from typing import Dict, List, Tuple, Sequence, Callable, Any, Union, Optional
 try:
@@ -43,7 +44,7 @@ class BulletClient(object):
     return attribute
 
 
-class RobotGrasping(gym.Env):
+class RobotGrasping(GoalEnv):
     metadata = {'render.modes': ['human', 'rgb_array', 'rgba_array']}
 
     def __init_subclass__(cls, *args, **kwargs): # callback trick
@@ -82,6 +83,7 @@ class RobotGrasping(gym.Env):
         #early_stopping: bool = False, # stop prematurely the episode (done=True) if a joint (excluding gripper joints) reaches a position limit in torque mode, this will disable changeDynamics
         reach = False, # the robot must reach a fictitious target placed in the reachable space, the table si not spawned
         gravity = True,
+        goal = False,
     ):
         assert mode in {'joint positions', 'joint velocities', 'joint torques', 'joint pd','inverse kinematics', 'inverse dynamics', 'impedance position', 'impedance velocity', 'impedance acceleration'}, "mode must be either joint positions, joint velocities, joint torques, joint pd, inverse kinematics, inverse dynamics, impedance position, impedance velocity, impedance acceleration"
         weakref.finalize(self, self.close) # cleanup
@@ -109,6 +111,7 @@ class RobotGrasping(gym.Env):
         self.allowed_collision_pair = [set(c) for c in allowed_collision_pair]
         self.reach = reach
         self.gravity = gravity
+        self.goal = goal
         self.rng = np.random.default_rng()
         self.pd_controller = PDControllerStable(self.p)
         width, height = 1024, 1024
@@ -202,22 +205,37 @@ class RobotGrasping(gym.Env):
         #for id in self.joint_ids: self.p.changeDynamics(self.robot_id, id, linearDamping=0, angularDamping=0)
         
         self.save_state = self.p.saveState()
-        self.action_space = gym.spaces.Box(-1., 1., shape=(self.n_actions,), dtype='float32')
+        self.action_space = spaces.Box(-1., 1., shape=(self.n_actions,), dtype='float32')
         #self.observation_space = gym.spaces.Box(-1., 1., shape=(15+len(self.joint_ids)*3,), dtype='float32') # TODO: add image if asked
-        high = np.array(
-            [
-                1,1,1,                              # object position
-                1,1,1,1,1,1,                        # object orientation
-                np.inf,np.inf,np.inf,               # object linear velocity
-                np.inf,np.inf,np.inf,               # object angular velocity
-                *[1 for i in self.joint_ids],       # joint positions
-                *[np.inf for i in self.joint_ids],  # joint velocity
-                *[1 for i in self.joint_ids],       # joint torque sensors Mz
-                1,1,1,                              # end effector position (robot frame)
-                1,1,1,1,1,1,                        # end effector orientation (robot frame)
-                np.inf,np.inf,np.inf,               # end effector linear velocity
-            ], dtype=np.float32)
-        self.observation_space = gym.spaces.Box(-high, high, dtype='float32')
+        # TODO: use OrderedDict to make sure we got the right order when concatenating during observation
+        high = [
+            1,1,1,1,1,1,                        # object orientation
+            np.inf,np.inf,np.inf,               # object linear velocity
+            np.inf,np.inf,np.inf,               # object angular velocity
+            *[1 for i in self.joint_ids],       # joint positions
+            *[np.inf for i in self.joint_ids],  # joint velocity
+            *[1 for i in self.joint_ids],       # joint torque sensors Mz
+            1,1,1,1,1,1,                        # end effector orientation (robot frame)
+            np.inf,np.inf,np.inf,               # end effector linear velocity
+        ]
+            
+        if self.reach and self.goal: # HER
+            high = np.array(high, dtype=np.float32)
+            self.observation_space = spaces.Dict(
+                {
+                    "observation": spaces.Box(-high, high, dtype='float32'),
+                    "achieved_goal": spaces.Box(-high[:3], high[:3], dtype='float32'),
+                    "desired_goal": spaces.Box(-high[:3], high[:3], dtype='float32'),
+                }
+            )
+        else:
+            high += [ # concat observations
+                1,1,1,                          # object position (robot frame)
+                1,1,1,                          # end effector position (robot frame)
+            ]
+            high = np.array(high, dtype=np.float32)
+            self.observation_space = spaces.Box(-high, high, dtype='float32')
+        
         self.info = {
             'closed gripper': False,
             'contact object table': [],
@@ -462,6 +480,7 @@ class RobotGrasping(gym.Env):
             new_friction[key+'Friction'] = value*self.frictions[key]
         self.p.changeDynamics(bodyUniqueId=self.obj_id, linkIndex=-1, **new_friction) # set the object friction
         #for _ in range(240): self.p.stepSimulation() # let the object stabilize
+        
         return self.get_obs()
         
     def get_obs(self) -> ArrayLike:
@@ -512,9 +531,18 @@ class RobotGrasping(gym.Env):
         fin_or = self.p.getMatrixFromQuaternion(fin_or)[:6]
         fin_lin_vel, _ = self.p.multiplyTransforms(*self.p.invertTransform((0,0,0), absolute_center[1]), self.info['fingers linear velocity'], (0,0,0,1))
         
-        observation = np.hstack([obj_pos, obj_or, *obj_vel, pos, vel, sensor_torques, fin_pos, fin_or, fin_lin_vel])#, self.last_action])
-        return observation #np.maximum(np.minimum(obs,1),-1)
-
+        observation = [obj_or, *obj_vel, pos, vel, sensor_torques, fin_or, fin_lin_vel]#, self.last_action])
+        if self.reach and self.goal:
+            # the order during concatenation matters: there is a for loop in stable baselines in CombinedExtractor
+            observation = OrderedDict([
+                ("observation", np.hstack(observation)),
+                ("achieved_goal", fin_pos),
+                ("desired_goal", obj_pos),
+            ])
+        else:
+            observation += [fin_pos, obj_pos]
+            observation = np.hstack(observation)
+        return observation
             
     def reset_object(self, obj=None, delta_pos=[0,0]): # TODO: delete, useless
         if obj == self.obj and not self.has_reset_object:
@@ -552,3 +580,7 @@ class RobotGrasping(gym.Env):
         positions = [2*(s[0]-u)/(u-l) + 1 for s,u,l in zip(self.p.getJointStates(self.robot_id, self.joint_ids[:-self.n_control_gripper]), self.upperLimits, self.lowerLimits)]
         return positions+[self.gripper], self.p.getLinkState(self.robot_id, self.end_effector_id)
         
+    def compute_reward(
+            self, achieved_goal: Union[int, ArrayLike], desired_goal: Union[int, ArrayLike], _info: Optional[Dict[str, Any]]
+        ) -> np.float32:
+        return -np.linalg.norm(desired_goal-achieved_goal, axis=-1)        

@@ -1108,6 +1108,8 @@ if __name__ == "__main__":
             details['first success generation'] = data['first saved ind gen']
         else:
             details['successful'] = False
+            details['number of successful'] = 0
+            details['number of clusters'] = 0
         
         # direct plotting and saving figures
         if PLOT:
@@ -1192,10 +1194,7 @@ if __name__ == "__main__":
         
         # saving the run
         utils.save_yaml(details, run_name + 'run_details.yaml')
-        #with open(run_name + 'run_details.yaml', 'w') as f:
-            #yaml.dump(details, f)
-        #with open(run_name + 'run_data.yaml', 'w') as fp:
-            #yaml.dump(data, fp)
+        np.savez_compressed(run_name+'run_data', **data)
 
         # display some individuals
         if DISPLAY_HOF:

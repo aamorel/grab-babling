@@ -4,8 +4,7 @@ from stable_baselines3.common.env_checker import check_env
 from stable_baselines3.common.buffers import ReplayBuffer
 from stable_baselines3.common.save_util import save_to_pkl, load_from_pkl
 from stable_baselines3.common.env_util import make_vec_env
-from stable_baselines3.sac import SAC
-from stable_baselines3.ppo import PPO
+from stable_baselines3 import SAC, PPO, HerReplayBuffer
 from stable_baselines3.common.callbacks import BaseCallback, EvalCallback, ConvertCallback
 from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv, VecCheckNan, VecNormalize
 from stable_baselines3.common.evaluation import evaluate_policy
@@ -34,11 +33,10 @@ class Callback(EvalCallback):
 		super(Callback, self).__init__(*args, **kwargs)
 		self.count = 0
 		
-	def _on_training_start(self): # setup the csv logger
-
-		self.dir = self.logger.get_dir() or self.log_path
-		self.logger.reset() # reconfigure to add csv
-		configure(folder=self.dir, format_strings=['csv', 'tensorboard'] if self.model.tensorboard_log is not None else ['csv'])
+	#def _on_training_start(self): # setup the csv logger
+		#self.dir = self.logger.get_dir() or self.log_path
+		#self.logger.reset() # reconfigure to add csv
+		#configure(folder=self.dir, format_strings=['csv', 'tensorboard'] if self.model.tensorboard_log is not None else ['csv'])
 		
 	def _log_success_callback(self, locals_, globals_) -> None:
 		super()._log_success_callback(locals_, globals_)
@@ -67,26 +65,43 @@ class Callback(EvalCallback):
 		
 	
 
-def learnReach(log_path, vec_env=False, mode='joint torques'):
-	env_kwargs = dict(id='kuka_grasping-v0', display=False, obj='cube', steps_to_roll=1, mode=mode, reset_random_initial_state=True, reach=True)
-	env = lambda : gym.make(**env_kwargs)#'kuka_grasping-v0', display=display, obj='cube', steps_to_roll=1, mode='joint torques', reset_random_initial_state=True, reach=True)
+def learnReach(log_path, vec_env=False, mode='joint torques', her=False):
+	env_kwargs = dict(id='kuka_grasping-v0', display=False, obj='cube', steps_to_roll=1, mode=mode, reset_random_initial_state=True, reach=True, goal=her)
+	max_episode_steps = 2000
+	env = lambda : gym.wrappers.TimeLimit(gym.make(**env_kwargs), max_episode_steps=max_episode_steps)#'kuka_grasping-v0', display=display, obj='cube', steps_to_roll=1, mode='joint torques', reset_random_initial_state=True, reach=True)
 	
 	eval_callback = Callback(env(), best_model_save_path=log_path, log_path=log_path, eval_freq=25000, deterministic=True, render=False, n_eval_episodes=5)
 	interval = 64
+	
+	if her:
+		policy = "MultiInputPolicy"
+		replay_buffer_class = HerReplayBuffer
+		replay_buffer_kwargs = { # Parameters for HER
+			"n_sampled_goal": 4,
+			"goal_selection_strategy": "future",
+			"online_sampling": True,
+			#"max_episode_length": max_episode_length, # can be inferred with gym.wrappers.TimeLimit
+		}
+	else:
+		policy = 'MlpPolicy'
+		replay_buffer_class, replay_buffer_kwargs = None, None
 		
 	model = TQC(
-		policy='MlpPolicy',
-		env=make_vec_env(env_id=env_kwargs.pop('id'), n_envs=os.cpu_count(), env_kwargs=env_kwargs) if vec_env else VecCheckNan(DummyVecEnv([env])),
+		policy=policy,
+		env=make_vec_env(env_id=env_kwargs.pop('id'), n_envs=os.cpu_count(), env_kwargs=env_kwargs) if vec_env else env(),
 		learning_rate=0.0007,
 		tensorboard_log=log_path,
-		#learning_starts=200000,
+		learning_starts=max_episode_steps, # we must initialize the replay buffer with at least one episode to make HerReplayBuffer work
 		tau=0.02,
 		train_freq=interval,
 		gradient_steps=interval,
 		target_update_interval=1,
 		policy_kwargs={'net_arch':dict(qf=[400, 300], pi=[256, 256]), 'activation_fn':th.nn.LeakyReLU},
 		device='cpu',
+		replay_buffer_class=replay_buffer_class,
+		replay_buffer_kwargs=replay_buffer_kwargs,
 	)
+	model.set_logger(configure(folder=str(log_path), format_strings=["stdout", "csv", "tensorboard"])) # save csv as well
 	model.learn(10000000, callback=eval_callback, tb_log_name='TQC_reach')
 	
 	
@@ -184,10 +199,10 @@ def testInverseModel():
 	print(replay_data.actions.squeeze().tolist())
 	
 def enjoy(model_path, Model):
-	with open('/Users/Yakumo/Downloads/kukaNoContactTable/cube__682847[92].mesu2_2021-05-19_21:04:40_run0_kukaPos/run_details.yaml', 'r') as f:
-		d = yaml.safe_load(f)
-	env = gym.make('kuka_grasping-v0', display=True, obj='cube', steps_to_roll=1, mode='joint torques', object_position=d['object_position'], object_xyzw=d['object_xyzw'], joint_positions=d['joint_positions'])#, early_stopping=True)
-	#env = gym.make('kuka_grasping-v0', display=True, obj='cube', steps_to_roll=1, mode='joint torques', reset_random_initial_state=True)
+	#with open('/Users/Yakumo/Downloads/kukaNoContactTable/cube__682847[92].mesu2_2021-05-19_21:04:40_run0_kukaPos/run_details.yaml', 'r') as f:
+		#d = yaml.safe_load(f)
+	#env = gym.make('kuka_grasping-v0', display=True, obj='cube', steps_to_roll=1, mode='joint torques', object_position=d['object_position'], object_xyzw=d['object_xyzw'], joint_positions=d['joint_positions'])#, early_stopping=True)
+	env = gym.make('kuka_grasping-v0', display=True, obj='cube', steps_to_roll=1, mode='joint torques', reset_random_initial_state=True)
 	model = Model.load(model_path, env=env)
 	mean_reward, std_reward = evaluate_policy(model, model.get_env(), n_eval_episodes=100)
 	print(mean_reward, std_reward)
@@ -203,12 +218,12 @@ if __name__ == '__main__':
 	data_path = folder/"data"
 	log_path.mkdir(exist_ok=True)
 	
-	learnReach(log_path=log_path, vec_env=False, mode='inverse dynamics')
+	learnReach(log_path=log_path, vec_env=False, mode='joint torques', her=True)
 	#learnSimple(log_path=log_path, ReplayBufferPath='/Users/Yakumo/Downloads/replayBufferCubeSingleConfigRewardOff.pkl', sqil=True, action_strategy='inverse model')
 	#learnSimple(log_path=log_path, ReplayBufferPath='/home/yakumo/Documents/AurelienMorel/rl/replayBufferCubeSingleConfigRewardOff.pkl', sqil=True, action_strategy='inverse model')
 	#learnRCE(log_path=log_path, '/Users/Yakumo/Downloads/examples_cube.npz', pretrain='/Users/Yakumo/Downloads/replayBufferCubeSingleConfigRewardOff.pkl', action_strategy='inverse model')
 	#learnRCE(log_path=log_path, '/home/yakumo/Documents/AurelienMorel/rl/examples_cube.npz', pretrain='/home/yakumo/Documents/AurelienMorel/rl/replayBufferCubeSingleConfigRewardOff.pkl', action_strategy='inverse model')
-	#enjoy('/Users/Yakumo/Downloads/TQC_bc.pkl', TQC)
+	#enjoy('/Users/yakumo/Downloads/last_model.zip', TQC)
 	#behaviouralCloningWithModel(collection_timesteps=10000, use_inverse=True, repeat=5, expert_replay_buffer='/Users/Yakumo/Downloads/replayBufferCubeSingleConfigRewardOff.pkl')
 	#testBC2()
 	#plot('/Users/Yakumo/Downloads/TQC')
