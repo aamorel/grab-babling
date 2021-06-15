@@ -101,7 +101,7 @@ def learnReach(log_path, vec_env=False, mode='joint torques', her=False):
 		replay_buffer_class=replay_buffer_class,
 		replay_buffer_kwargs=replay_buffer_kwargs,
 	)
-	model.set_logger(configure(folder=str(log_path), format_strings=["stdout", "csv", "tensorboard"])) # save csv as well
+	model.set_logger(configure(folder=str(log_path), format_strings=["csv", "tensorboard"])) # save csv as well
 	model.learn(10000000, callback=eval_callback, tb_log_name='TQC_reach')
 	
 	

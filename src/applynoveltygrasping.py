@@ -39,7 +39,7 @@ def greater(name, min, value):
     return v
 
 parser = argparse.ArgumentParser()
-parser.add_argument("-r", "--robot", help="The robot environment", type=str, default="baxter", choices=["baxter", "kuka", "pepper", "crustcrawler"])
+parser.add_argument("-r", "--robot", help="The robot environment", type=lambda x: x.strip().lower(), default="baxter", choices=["baxter", "kuka", "pepper", "crustcrawler"])
 parser.add_argument("-o", "--object", help="The object to grasp", type=str, default="sphere")
 parser.add_argument("-p", "--population", help="The poulation size", type=partial(greater, "population size", 1), default=96)
 parser.add_argument("-g", "--generation", help="The number of generation", type=partial(greater, "number of generation", 1), default=1000)
