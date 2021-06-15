@@ -329,9 +329,11 @@ class RobotGrasping(GoalEnv):
             #print(self.info['applied joint motor torques'][:-self.n_control_gripper])
         
         if self.reach: # compute distance as reward
-            reward = -np.sqrt(np.linalg.norm(self.target - self.info['fingers position'])) # the reward is the negative sqrt mean distance between the object and the fingers
-            reward -= 1e-4*np.linalg.norm(self.info['applied joint motor torques'][:-self.n_control_gripper]) # penalize excessive torque
-            reward -= 1e-3*np.linalg.norm(self.info['fingers linear velocity']) # penalize excessive speed
+            if self.goal:
+                achieved_goal, desired_goal = observation['achieved_goal'], observation['desired_goal']
+            else:
+                achieved_goal, desired_goal = observation[-6:-3], observation[-3:]
+            reward = self.compute_reward(achieved_goal=achieved_goal, desired_goal=desired_goal, _info={**self.info})
             self.p.resetBasePositionAndOrientation(self.obj_id, self.target, (0,0,0,1))
         else: # binary reward: grasped or not
             reward = len(self.info['contact object table'] + self.info['contact object plane'])==0 and self.info['touch'] and not penetration
@@ -583,4 +585,4 @@ class RobotGrasping(GoalEnv):
     def compute_reward(
             self, achieved_goal: Union[int, ArrayLike], desired_goal: Union[int, ArrayLike], _info: Optional[Dict[str, Any]]
         ) -> np.float32:
-        return -np.linalg.norm(desired_goal-achieved_goal, axis=-1)        
+        return -np.sqrt(np.linalg.norm(desired_goal-achieved_goal, axis=-1))
