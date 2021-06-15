@@ -33,10 +33,9 @@ class Callback(EvalCallback):
 		super(Callback, self).__init__(*args, **kwargs)
 		self.count = 0
 		
-	#def _on_training_start(self): # setup the csv logger
-		#self.dir = self.logger.get_dir() or self.log_path
-		#self.logger.reset() # reconfigure to add csv
-		#configure(folder=self.dir, format_strings=['csv', 'tensorboard'] if self.model.tensorboard_log is not None else ['csv'])
+	def _on_training_start(self): # setup the csv logger
+		self.dir = self.logger.get_dir() or self.log_path
+		self.model.set_logger(configure(folder=self.dir, format_strings=['csv', 'tensorboard'] if self.model.tensorboard_log is not None else ['csv']))
 		
 	def _log_success_callback(self, locals_, globals_) -> None:
 		super()._log_success_callback(locals_, globals_)
@@ -101,7 +100,6 @@ def learnReach(log_path, vec_env=False, mode='joint torques', her=False):
 		replay_buffer_class=replay_buffer_class,
 		replay_buffer_kwargs=replay_buffer_kwargs,
 	)
-	model.set_logger(configure(folder=str(log_path), format_strings=["csv", "tensorboard"])) # save csv as well
 	model.learn(10000000, callback=eval_callback, tb_log_name='TQC_reach')
 	
 	
