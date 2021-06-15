@@ -129,12 +129,6 @@ class RobotGrasping(GoalEnv):
 
         self.plane_id = self.p.loadURDF("plane.urdf", [0, 0, -1], useFixedBase=True) # load plane with an offset
 
-        # table is about 62.5cm tall and the z position of the table is located at the very bottom, there is link with the ground (so it is static)
-        # the top part is a box of size 1.5, 1, 0.05
-        self.table_pos = np.array([0, 0.4, -1+(table_height-0.625)])
-        self.table_x_size, self.table_y_size = 1.5, 1
-        self.table_id = None if table_height is None or self.reach else self.p.loadURDF("table/table.urdf", basePosition=self.table_pos, baseOrientation=[0,0,0,1], useFixedBase=False)
-
         if self.gravity: self.p.setGravity(0., 0., -9.81) # set gravity
         
         self.robot_id = robot()
@@ -172,6 +166,12 @@ class RobotGrasping(GoalEnv):
         self.restPoses = [s[0] for s in self.p.getJointStates(self.robot_id, self.joint_ids)]
         
         self.p.setAdditionalSearchPath(pybullet_data.getDataPath())
+        # table is about 62.5cm tall and the z position of the table is located at the very bottom, there is link with the ground (so it is static)
+        # the top part is a box of size 1.5, 1, 0.05
+        self.table_pos = np.array([0, 0.4, -1+(table_height-0.625)])
+        self.table_x_size, self.table_y_size = 1.5, 1
+        self.table_id = None if table_height is None or self.reach else self.p.loadURDF("table/table.urdf", basePosition=self.table_pos, baseOrientation=[0,0,0,1], useFixedBase=False)
+        
         self.load_object(self.get_object(self.obj), delta_pos=self.delta_pos)
         
         
@@ -277,8 +277,6 @@ class RobotGrasping(GoalEnv):
             elif self.mode in {'joint torques'}: # much harder and might not be transferable because requires very accurate URDF, center of mass, frictions...
                 for _ in range(self.steps_to_roll):
                     self.p.setJointMotorControlArray(bodyIndex=self.robot_id, jointIndices=self.joint_ids[:la], controlMode=self.p.TORQUE_CONTROL, forces=action*self.maxForce[:la])
-                    #for id, a, f in zip(self.joint_ids, action, self.maxForce):
-                        #self.p.setJointMotorControl2(bodyIndex=self.robot_id, jointIndex=id, controlMode=self.p.TORQUE_CONTROL, force=a*f)
                     self.p.stepSimulation()
             elif self.mode in {'joint velocities'}:
                 self.p.setJointMotorControlArray(bodyIndex=self.robot_id, jointIndices=self.joint_ids[:la], controlMode=self.p.VELOCITY_CONTROL, forces=self.maxForce[:la], targetVelocities=action*self.maxVelocity[:la])
@@ -290,8 +288,8 @@ class RobotGrasping(GoalEnv):
                     #torques = np.clip(torques, -self.maxForce, self.maxForce).tolist()
                     self.p.setJointMotorControlArray(bodyIndex=self.robot_id, jointIndices=self.joint_ids[:-self.n_control_gripper], controlMode=self.p.TORQUE_CONTROL, forces=torques[:-self.n_control_gripper])
                     self.p.stepSimulation()
-        
-
+        else:
+            for _ in range(self.steps_to_roll): self.p.stepSimulation()
 
         
         self.info['contact object robot'] = self.p.getContactPoints(bodyA=self.obj_id, bodyB=self.robot_id)
@@ -318,7 +316,7 @@ class RobotGrasping(GoalEnv):
         
         for c in self.info['contact robot robot']:
             if set(c[3:5]) not in self.allowed_collision_pair:
-                self.info['autocollision'] = True
+                self.info['autocollision'] = True#; print(c[3:5])
                 break
 
         observation = self.get_obs()

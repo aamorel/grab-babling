@@ -13,9 +13,7 @@ class PepperGrasping(RobotGrasping):
 
     def __init__(
         self,
- 
-        object_position=[0, -0.15, 0],
-
+        object_position=[0, -0.05, -0.15],
         **kwargs
     ):
                  
@@ -23,9 +21,13 @@ class PepperGrasping(RobotGrasping):
         self.joints = ['HipRoll', 'LShoulderPitch', 'LShoulderRoll', 'LElbowYaw', 'LElbowRoll', 'LWristYaw', 'LHand']
         
         def pepper():
-            self.pepper.loadRobot(translation=[0.2, -0.38, -0.8], quaternion=[0,0,0,1], physicsClientId=self.physicsClientId)
-            return self.pepper.getRobotModel()
-
+            self.pepper.loadRobot(translation=[0.2, -0.35, -1], quaternion=[0,0,1,1], physicsClientId=self.physicsClientId)
+            robot_id = self.pepper.getRobotModel()
+            #self.pepper.move(1,0,0) # this crashes on Mac OS
+            for joint_name, joint_value in zip(self.pepper.P_STAND.getPostureJointNames(), self.pepper.P_STAND.getPostureJointValues()):
+                self.p.resetJointState(robot_id, self.pepper.joint_dict[joint_name].getIndex(), joint_value)
+            self.pepper.goToPosture("Stand", 1.0)
+            return robot_id
 
         super().__init__(
             robot=pepper,
@@ -37,7 +39,7 @@ class PepperGrasping(RobotGrasping):
             center_workspace=0,
             radius=1,
             contact_ids=list(range(36, 50)),
-            allowed_collision_pair=[[37,40], [38,41], [41,49], [65,68], [67,70], [68,71], [71,73]],
+            allowed_collision_pair=[[37,40], [38,41], [38, 46], [38, 47], [41,49], [64, 68], [65,68], [67,70], [68,71], [71,73]],
             **kwargs
         )
 
