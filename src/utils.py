@@ -343,7 +343,7 @@ class AE(nn.Module):
         return code
 
 def setFlowStyle(seq): # represent seq in flow style in the yaml file
-    if isinstance(seq, np.ndarray) and np.isscalar(seq):
+    if isinstance(seq, np.ndarray) and np.ndim(seq)==0:
         return seq.item()
     s = ruamel.yaml.comments.CommentedSeq(seq)
     s.fa.set_flow_style()
