@@ -35,7 +35,9 @@ class Callback(EvalCallback):
 		
 	def _on_training_start(self): # setup the csv logger
 		self.dir = self.logger.get_dir() or self.log_path
-		self.model.set_logger(configure(folder=self.dir, format_strings=['csv', 'tensorboard'] if self.model.tensorboard_log is not None else ['csv']))
+		logger = configure(folder=self.dir, format_strings=['csv', 'tensorboard'] if self.model.tensorboard_log is not None else ['csv'])
+		self.model.set_logger(logger) # set logger to the model
+		self.logger = logger # set logger to the callback
 		
 	def _log_success_callback(self, locals_, globals_) -> None:
 		super()._log_success_callback(locals_, globals_)

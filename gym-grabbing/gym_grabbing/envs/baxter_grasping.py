@@ -83,6 +83,7 @@ class BaxterGrasping(RobotGrasping):
         
         super().__init__(
             robot=baxter,
+            camera={'target':(-0.2,0,0.3), 'distance':0.8, 'yaw':170, 'pitch':-20, 'fov':80},
             obj=obj,
             object_position=object_position,
             table_height=0.76,

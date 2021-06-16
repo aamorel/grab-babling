@@ -23,19 +23,20 @@ class KukaGrasping(RobotGrasping):
         self.obstacle_size = obstacle_size
         
         def load_kuka():
-            id = self.p.loadSDF("kuka_iiwa/kuka_with_gripper.sdf")[0] # kuka_with_gripper2 gripper have a continuous joint (7)
+            id = self.p.loadSDF(str(Path(__file__).parent/"robots/kuka_iiwa/kuka_gripper_end_effector.sdf"))[0] # kuka_with_gripper2 gripper have a continuous joint (7)
             self.p.resetBasePositionAndOrientation(id, [-0.1, -0.5, -0.5], [0., 0., 0., 1.])
             return id
 
         super().__init__(
             robot=load_kuka,
+            camera={'target':(0,0,0.3), 'distance':1, 'pitch':-40, 'fov':80},
             mode=mode,
             object_position=object_position,
             table_height=0.8,
             joint_ids=[0, 1, 2, 3, 4, 5, 6, 8, 10, 11, 13],
             contact_ids=[8, 9, 10, 11, 12, 13],
             n_control_gripper=4,
-            end_effector_id = 7,
+            end_effector_id = 14,
             center_workspace = 0,
             radius = 1.2,
             #disable_collision_pair = [[11,13]],

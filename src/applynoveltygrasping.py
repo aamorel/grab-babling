@@ -38,8 +38,11 @@ def greater(name, min, value):
     if v <= min: raise argparse.ArgumentTypeError(f"The {name.strip()} must be greater than {min}")
     return v
 
+def cleanStr(x):
+    return x.strip().lower()
+
 parser = argparse.ArgumentParser()
-parser.add_argument("-r", "--robot", help="The robot environment", type=lambda x: x.strip().lower(), default="baxter", choices=["baxter", "kuka", "pepper", "crustcrawler"])
+parser.add_argument("-r", "--robot", help="The robot environment", type=cleanStr, default="baxter", choices=["baxter", "kuka", "pepper", "crustcrawler"])
 parser.add_argument("-o", "--object", help="The object to grasp", type=str, default="sphere")
 parser.add_argument("-p", "--population", help="The poulation size", type=partial(greater, "population size", 1), default=96)
 parser.add_argument("-g", "--generation", help="The number of generation", type=partial(greater, "number of generation", 1), default=1000)
@@ -50,6 +53,7 @@ parser.add_argument("-i", "--initial-random", help="Set reset_random_initial_obj
 parser.add_argument("-t", "--contact-table", help="Enable grasp success without touching the table", action="store_true")
 parser.add_argument("-m", "--mode", help="Controller mode", type=str, default="joint positions", choices=["joint positions", "joint velocities", "joint torques", "inverse kinematics", "inverse dynamics"])
 parser.add_argument("-b", "--bootstrap", help="Bootstrap folder", type=str, default=None)
+parser.add_argument("-a", "--algorithm", help="Algorithm", type=cleanStr, default="qdmos", choices=["qdmos", "map-elites", "random", "ns", "ea"])
 args = parser.parse_args()
 
 
@@ -59,7 +63,7 @@ NB_GEN = args.generation
 OBJECT = args.object  # 'cuboid', 'mug.urdf', 'cylinder', 'deer.urdf', 'cylinder_r', 'glass.urdf'
 ROBOT = args.robot  # 'baxter', 'pepper', 'kuka'
 CONTROLLER = 'interpolate keypoints end pause grip'#'dynamic movement primitives'#  # see controllers_dict for list
-ALGO = 'ns_rand_multi_bd'  # algorithm
+ALGO = {'qdmos':'ns_rand_multi_bd', 'ns':'ns_nov', 'map-elites':'map_elites', 'random':'random_search', 'ea':'classic_ea'}[args.algorithm] # algorithm
 BD = 'pos_div_pos_grip'  # behavior descriptor type '2D', '3D', 'pos_div_grip', 'pos_div_pos_grip'
 BOOTSTRAP_FOLDER = args.bootstrap
 QUALITY = args.quality
@@ -70,7 +74,7 @@ N_EXP = args.nruns
 
 
 # for keypoints controllers
-NB_KEYPOINTS = {'joint positions':3, 'joint torques':4, 'inverse dynamics':3}[args.mode]
+NB_KEYPOINTS = 3
 
 if ROBOT == 'baxter':
     ENV_NAME = 'gym_grabbing:baxter_grasping-v0'
@@ -623,7 +627,7 @@ def pos_div_pos_grip_bd(individual):
         contact_robot_table = contact_robot_table or len(inf['contact robot table'])>0
 
     # use last info to compute behavior and fitness
-    behavior = np.array([None]*len(BD_INDEXES), dtype=object)
+    behavior = np.array([None]*len(BD_BOUNDS), dtype=object)
     behavior[:3] = [inf['object position'][0] - initial_object_position[0], inf['object position'][1] - initial_object_position[1], inf['object position'][2]]  # last position of object
 
     utils.bound(behavior[:3], BD_BOUNDS[:3])
@@ -1067,7 +1071,7 @@ if __name__ == "__main__":
                 archive_limit_size=ARCHIVE_LIMIT,    nb_cells=NB_CELLS,
                 novelty_metric=NOVELTY_METRIC,       save_ind_cond='binary goal',
                 bootstrap_individuals=boostrap_inds, multi_quality=MULTI_QUALITY_MEASURES,
-                monitor_print=True,                  final_filter=simulate,
+                monitor_print=True,                  final_filter=simulate if RESET_MODE else None,
                 repeat=simulate if QUALITY else None,fuse_repeat=fuse_repeat if QUALITY else None,
             )
             i += 1 # raise if failed 10 times
