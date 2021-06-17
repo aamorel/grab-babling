@@ -2,6 +2,9 @@ import numpy as np
 from sklearn.cluster import KMeans
 from scipy.spatial import cKDTree as KDTree
 from scipy.spatial import distance
+import pybullet as p
+import inspect
+import functools
 
 color_list = ["#000000", "#FFFF00", "#1CE6FF", "#FF34FF", "#FF4A46", "#008941", "#006FA6", "#A30059",
               "#FFDBE5", "#7A4900", "#0000A6", "#63FFAC", "#B79762", "#004D43", "#8FB0FF", "#997D87",
@@ -87,3 +90,81 @@ def compute_uniformity(grid):
     Q = np.ones(len(P)) / len(P)
     uniformity = 1 - distance.jensenshannon(P, Q)
     return uniformity
+
+class BulletClient(object):
+  """A wrapper for pybullet to manage different clients. copy-pasted from https://github.com/bulletphysics/bullet3/blob/master/examples/pybullet/gym/pybullet_utils/bullet_client.py"""
+
+  def __init__(self, connection_mode=None, hostName=None, options=None):
+    self._shapes = {}
+    if connection_mode is None:
+      self._client = p.connect(p.SHARED_MEMORY, options=options) if options else p.connect(p.SHARED_MEMORY)
+      if self._client >= 0:
+        return
+      else:
+        connection_mode = p.DIRECT
+    if hostName is None:
+        self._client = p.connect(connection_mode, options=options) if options else p.connect(connection_mode)
+    else:
+        self._client = p.connect(connection_mode, hostName=hostName, options=options) if options else p.connect(connection_mode, hostName=hostName)
+
+  def __getattr__(self, name):
+    """Inject the client id into Bullet functions."""
+    attribute = getattr(p, name)
+    if inspect.isbuiltin(attribute):
+      attribute = functools.partial(attribute, physicsClientId=self._client)
+    if name=="disconnect":
+      self._client = -1
+    return attribute
+    
+class PDControllerStable(object):
+  """
+  Implementation based on: Tan, J., Liu, K., & Turk, G. (2011). "Stable proportional-derivative controllers"
+  DOI: 10.1109/MCG.2011.30
+  """
+  def __init__(self, pb):
+    self._pb = pb
+
+  def computePD(self, bodyUniqueId, jointIndices, desiredPositions, desiredVelocities, kps, kds,
+                maxForces, timeStep):
+    numJoints = self._pb.getNumJoints(bodyUniqueId)
+    jointStates = self._pb.getJointStates(bodyUniqueId, jointIndices)
+    q1 = []
+    qdot1 = []
+    zeroAccelerations = []
+    for i in range(len(jointIndices)):
+      q1.append(jointStates[i][0])
+      qdot1.append(jointStates[i][1])
+      zeroAccelerations.append(0)
+
+    q = np.array(q1)
+    qdot = np.array(qdot1)
+    qdes = np.array(desiredPositions)
+    qdotdes = np.array(desiredVelocities)
+
+    qError = qdes - q
+    qdotError = qdotdes - qdot
+
+    Kp = np.diagflat(kps)
+    Kd = np.diagflat(kds)
+
+    # Compute -Kp(q + qdot - qdes)
+    p_term = Kp.dot(qError - qdot*timeStep)
+    # Compute -Kd(qdot - qdotdes)
+    d_term = Kd.dot(qdotError)
+
+    # Compute Inertia matrix M(q)
+    M = self._pb.calculateMassMatrix(bodyUniqueId, q1)
+    M = np.array(M)
+    # Given: M(q) * qddot + C(q, qdot) = T_ext + T_int
+    # Compute Coriolis and External (Gravitational) terms G = C - T_ext
+    G = self._pb.calculateInverseDynamics(bodyUniqueId, q1, qdot1, zeroAccelerations)
+    G = np.array(G)
+    # Obtain estimated generalized accelerations, considering Coriolis and Gravitational forces, and stable PD actions
+    qddot = np.linalg.solve(a=(M + Kd * timeStep),
+                            b=(-G + p_term + d_term))
+    # Compute control generalized forces (T_int)
+    tau = p_term + d_term - (Kd.dot(qddot) * timeStep)
+    # Clip generalized forces to actuator limits
+    maxF = np.array(maxForces)
+    generalized_forces = np.clip(tau, -maxF, maxF)
+    return generalized_forces

@@ -41,11 +41,11 @@ class KukaGrasping(RobotGrasping):
             radius = 1.2,
             #disable_collision_pair = [[11,13]],
             change_dynamics = {**{ # change joints ranges for gripper and add jointLimitForce and maxJointVelocity, the default are 0 in the sdf and this produces very weird behaviours
-                id:{'lateralFriction':1, 'jointLowerLimit':l, 'jointUpperLimit':h, 'jointLimitForce':10, 'jointDamping':0.5} for id,l,h in [ # , 'maxJointVelocity':1
-                    (8, -0.5, -0.05), # b'base_left_finger_joint
-                    (11, 0.05, 0.5), # b'base_right_finger_joint
-                    (10, -0.3, 0.1), # b'left_base_tip_joint
-                    (13, -0.1, 0.3)] # b'right_base_tip_joint
+#                id:{'lateralFriction':1, 'jointLowerLimit':l, 'jointUpperLimit':h, 'jointLimitForce':10, 'jointDamping':0.5} for id,l,h in [ # , 'maxJointVelocity':1
+#                    (8, -0.5, -0.05), # b'base_left_finger_joint
+#                    (11, 0.05, 0.5), # b'base_right_finger_joint
+#                    (10, -0.3, 0.1), # b'left_base_tip_joint
+#                    (13, -0.1, 0.3)] # b'right_base_tip_joint
             }, **{i:{'maxJointVelocity':0.5, 'jointLimitForce':100 if i==1 else 50} for i in range(7)}}, # decrease max force & velocity
             **kwargs,
         )
@@ -76,7 +76,9 @@ class KukaGrasping(RobotGrasping):
 
 
 
-    def step(self, action):
+    def step(self, action=None):
+        if action is None:
+            return super().step()
         fingers = -action[-1], -action[-1], action[-1], action[-1]
         if self.mode == 'joint positions':
             # we want one action per joint (gripper is composed by 4 joints but considered as one)
@@ -96,14 +98,14 @@ class KukaGrasping(RobotGrasping):
             commands[-4:] = fingers # add fingers
             commands = commands.tolist()
             
-        elif self.mode in {'joint torques', 'joint velocities', 'inverse dynamics'}:
+        elif self.mode in {'joint torques', 'joint velocities', 'inverse dynamics', 'pd position'}:
             # control the gripper in positions
             for id, a, v, f, u, l in zip(self.joint_ids[-4:], fingers, self.maxVelocity[-4:], self.maxForce[-4:], self.upperLimits[-4:], self.lowerLimits[-4:]):
                 self.p.setJointMotorControl2(bodyIndex=self.robot_id, jointIndex=id, controlMode=self.p.POSITION_CONTROL, targetPosition=l+(a+1)/2*(u-l), maxVelocity=v, force=f)
             if self.mode in {'joint torques', 'joint velocities'}:
                 commands = action[:-1]
-            elif self.mode == 'inverse dynamics':
-                commands = np.hstack((action[:-1], (0,0,0,0)))
+            elif self.mode in {'inverse dynamics', 'pd position'}:
+                commands = np.hstack((action[:-1], fingers))
 
         # apply the commands
         return super().step(commands)

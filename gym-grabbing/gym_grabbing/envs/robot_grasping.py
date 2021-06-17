@@ -2,14 +2,13 @@ from gym import Env, GoalEnv, spaces
 import pybullet as p
 from time import sleep
 import pybullet_data
-from pybullet_utils.pd_controller_stable import PDControllerStable
-#from pybullet_utils import bullet_client
+from gym_grabbing.envs.utils import PDControllerStable, BulletClient
 from pathlib import Path
 import weakref
 import functools
-import inspect
 import numpy as np
 from collections import OrderedDict
+import time
 
 from typing import Dict, List, Tuple, Sequence, Callable, Any, Union, Optional
 try:
@@ -17,31 +16,6 @@ try:
     ArrayLike = npt.ArrayLike
 except:
     ArrayLike = Any
-
-class BulletClient(object):
-  """A wrapper for pybullet to manage different clients. copy-pasted from https://github.com/bulletphysics/bullet3/blob/master/examples/pybullet/gym/pybullet_utils/bullet_client.py"""
-
-  def __init__(self, connection_mode=None, hostName=None, options=None):
-    self._shapes = {}
-    if connection_mode is None:
-      self._client = p.connect(p.SHARED_MEMORY, options=options) if options else p.connect(p.SHARED_MEMORY)
-      if self._client >= 0:
-        return
-      else:
-        connection_mode = p.DIRECT
-    if hostName is None:
-        self._client = p.connect(connection_mode, options=options) if options else p.connect(connection_mode)
-    else:
-        self._client = p.connect(connection_mode, hostName=hostName, options=options) if options else p.connect(connection_mode, hostName=hostName)
-
-  def __getattr__(self, name):
-    """Inject the client id into Bullet functions."""
-    attribute = getattr(p, name)
-    if inspect.isbuiltin(attribute):
-      attribute = functools.partial(attribute, physicsClientId=self._client)
-    if name=="disconnect":
-      self._client = -1
-    return attribute
 
 
 class RobotGrasping(GoalEnv):
@@ -118,6 +92,7 @@ class RobotGrasping(GoalEnv):
         self.goal = goal
         self.rng = np.random.default_rng()
         self.pd_controller = PDControllerStable(self.p)
+        self.time_step = self.p.getPhysicsEngineParameters()["fixedTimeStep"]
         
         self.camera = dict(
             width=camera.get('width', 1024),
@@ -193,8 +168,8 @@ class RobotGrasping(GoalEnv):
         self.last_action = np.zeros(self.n_actions)
         oldstep = self.step
         self.gripper = 1 # open
-        def newstep(action): # decorate step
-            assert(len(action) == self.n_actions)
+        def newstep(action=None): # decorate step
+            assert action is None or len(action) == self.n_actions
             self.gripper = action[-1]
             self.info['closed gripper'] = action[-1]<0
             out = oldstep(action)
@@ -239,7 +214,7 @@ class RobotGrasping(GoalEnv):
                         args.pop('maxJointVelocity') # do not clamp velocity if velocity control is used (actions are in -1,1)
                 if 'jointLimitForce' in args:
                     self.maxForce[index] = args['jointLimitForce']
-                if id in self.joint_ids[-self.n_control_gripper:] or self.mode not in {'joint torques', 'inverse dynamics'}:
+                if id in self.joint_ids[-self.n_control_gripper:] or self.mode not in {'joint torques', 'inverse dynamics', 'pd position'}:
                     self.p.changeDynamics(self.robot_id, linkIndex=id, **args)
         
         self.maxForce = np.where(self.maxForce<=0, 100, self.maxForce)# replace bad values
@@ -280,7 +255,7 @@ class RobotGrasping(GoalEnv):
         if self.reset_random_initial_state is False: # set a random position that won't change
             self.reset_random_state();
         
-        if self.mode in {'joint torques', 'inverse dynamics'}: # disable motors to use torque control, with a small joint friction
+        if self.mode in {'joint torques', 'inverse dynamics', 'pd position'}: # disable motors to use torque control, with a small joint friction
             self.p.setJointMotorControlArray(bodyIndex=self.robot_id, jointIndices=self.joint_ids, controlMode=self.p.VELOCITY_CONTROL, forces=np.ones(len(self.joint_ids))*1e-3)
         
         dynamicsInfo = self.p.getDynamicsInfo(self.obj_id, -1) # save intial friction coeficients of the object
@@ -304,16 +279,21 @@ class RobotGrasping(GoalEnv):
             elif self.mode in {'joint velocities'}:
                 self.p.setJointMotorControlArray(bodyIndex=self.robot_id, jointIndices=self.joint_ids[:la], controlMode=self.p.VELOCITY_CONTROL, forces=self.maxForce[:la], targetVelocities=action*self.maxVelocity[:la])
                 for _ in range(self.steps_to_roll): self.p.stepSimulation()
-            elif self.mode == 'inverse dynamics':
+            elif self.mode == 'inverse dynamics': # action must contain all joints
                 for _ in range(self.steps_to_roll):
                     states = self.p.getJointStates(self.robot_id, jointIndices=self.joint_ids)
                     torques = self.p.calculateInverseDynamics(self.robot_id, objPositions=[s[0] for s in states], objVelocities=[s[1] for s in states], objAccelerations=(action*self.maxAcceleration[:la]).tolist())
                     #torques = np.clip(torques, -self.maxForce, self.maxForce).tolist()
                     self.p.setJointMotorControlArray(bodyIndex=self.robot_id, jointIndices=self.joint_ids[:-self.n_control_gripper], controlMode=self.p.TORQUE_CONTROL, forces=torques[:-self.n_control_gripper])
                     self.p.stepSimulation()
+            elif self.mode == 'pd position': # action must contain all joints
+                for _ in range(self.steps_to_roll):
+                    u, l = self.upperLimits[:la], self.lowerLimits[:la]
+                    tau = self.pd_controller.computePD(bodyUniqueId=self.robot_id, jointIndices=self.joint_ids[:la], desiredPositions=l+(action+1)/2*(u-l), desiredVelocities=np.zeros(la), kps=np.ones(la)*1000, kds=np.ones(la)*100, maxForces=self.maxForce, timeStep=self.time_step)
+                    self.p.setJointMotorControlArray(bodyIndex=self.robot_id, jointIndices=self.joint_ids[:-self.n_control_gripper], controlMode=self.p.TORQUE_CONTROL, forces=tau[:-self.n_control_gripper])
+                    self.p.stepSimulation()
         else:
             for _ in range(self.steps_to_roll): self.p.stepSimulation()
-
         
         self.info['contact object robot'] = self.p.getContactPoints(bodyA=self.obj_id, bodyB=self.robot_id)
         self.info['contact object plane'] = self.p.getContactPoints(bodyA=self.obj_id, bodyB=self.plane_id)
@@ -326,7 +306,7 @@ class RobotGrasping(GoalEnv):
         self.info['touch'], self.info['autocollision'], penetration = False, False, False
 
         for c in self.info['contact object robot']:
-            penetration = penetration or c[8]<-0.005 # if contactDistance is negative, there is a penetration, this is bad
+            penetration = penetration or c[8]<-0.005; # if contactDistance is negative, there is a penetration, this is bad
             self.info['touch'] = self.info['touch'] or c[4] in self.contact_ids # the object must touch the gripper
         
         for c in self.info['contact robot robot']:
@@ -596,9 +576,16 @@ class RobotGrasping(GoalEnv):
     def get_joint_state(self, position=True, normalized=True):
         """ Return (un)normalized joint positions (velocities) without the gripper"""
         if position:
-            return [2*(s[0]-u)/(u-l) + 1 for s,u,l in zip(self.p.getJointStates(self.robot_id, self.joint_ids[:-self.n_control_gripper]), self.upperLimits, self.lowerLimits)]
+            u, l = self.upperLimits[:-self.n_control_gripper], self.lowerLimits[:-self.n_control_gripper]
+            p = np.array([s[0] for s in self.p.getJointStates(self.robot_id, self.joint_ids[:-self.n_control_gripper])])
+            if normalized:
+                p = 2*(p-u)/(u-l) + 1
+            return p
         else:
-            return [s[1] for s in self.p.getJointStates(self.robot_id, self.joint_ids[:-self.n_control_gripper])] / self.maxVelocity[:-self.n_control_gripper]
+            v = np.array([s[1] for s in self.p.getJointStates(self.robot_id, self.joint_ids[:-self.n_control_gripper])])
+            if normalized:
+                v = v / self.maxVelocity[:-self.n_control_gripper]
+            return v
         
     def compute_reward(
             self, achieved_goal: ArrayLike, desired_goal: ArrayLike, _info: Optional[Dict[str, Any]]

@@ -20,7 +20,7 @@ from functools import partial
 from pathlib import Path
 import operator
 
-DISPLAY = False
+DISPLAY = True
 PARALLELIZE = True
 PLOT = True
 DISPLAY_HOF = False
@@ -39,7 +39,7 @@ def greater(name, min, value):
     return v
 
 def cleanStr(x):
-    return x.strip().lower()
+    return str(x).strip().lower()
 
 parser = argparse.ArgumentParser()
 parser.add_argument("-r", "--robot", help="The robot environment", type=cleanStr, default="baxter", choices=["baxter", "kuka", "pepper", "crustcrawler"])
@@ -54,6 +54,7 @@ parser.add_argument("-t", "--contact-table", help="Enable grasp success without 
 parser.add_argument("-m", "--mode", help="Controller mode", type=str, default="joint positions", choices=["joint positions", "joint velocities", "joint torques", "inverse kinematics", "inverse dynamics", "pd position"])
 parser.add_argument("-b", "--bootstrap", help="Bootstrap folder", type=str, default=None)
 parser.add_argument("-a", "--algorithm", help="Algorithm", type=cleanStr, default="qdmos", choices=["qdmos", "map-elites", "random", "ns", "ea"])
+parser.add_argument("-e", "--early-stopping", help="Early stopping: the algorithm stops when the number of successes exceed the value", type=int, default=-1)
 args = parser.parse_args()
 
 
@@ -89,7 +90,7 @@ elif ROBOT == 'pepper':
     GENE_PER_KEYPOINTS = 6  # pepper is controlled in joints space: 7 joints
     LINK_ID_CONTACT = list(range(36, 50))  # link ids that can have a grasping contact
     NB_STEPS_TO_ROLLOUT = 1
-    NB_ITER = int(1500 / NB_STEPS_TO_ROLLOUT)
+    NB_ITER = int(1000 / NB_STEPS_TO_ROLLOUT)
     AUTO_COLLIDE = False
 
 
@@ -114,7 +115,7 @@ if ROBOT == 'baxter':
 # TODO: implement closed loop control for pepper and kuka
 
 # choose minor parameters
-#ADD_ITER = int(10*240/NB_STEPS_TO_ROLLOUT) # additional iteration: 1s
+ADD_ITER = int(1*240/NB_STEPS_TO_ROLLOUT) # additional iteration: 2s
 MINI = True  # minimization problem (used for MAP-elites)
 DISTANCE_THRESH = 0.6  # is_success parameter
 DIFF_OR_THRESH = 0.4  # threshold for clustering grasping orientations
@@ -608,6 +609,17 @@ def pos_div_pos_grip_bd(individual):
     # the object should not touch the table neither the plane, must touch the gripper without penetration (with a margin of 0.005), be grasped right after closing the gripper (within 1s), touch the table when the gripper is closing
     grasp = r #and grip_info['time close touch']<1*240/NB_STEPS_TO_ROLLOUT and len(grip_info['contact object table'])>0 # and not contact_robot_table
 
+    if grasp: # there is maybe a grasp
+        action_current_pos = np.hstack((ENV.get_joint_state(position=True, normalized=True), -1)) # send the current position
+        if args.mode in {'joint positions', 'joint velocities', 'inverse kinematics'}: # set to position control
+            ENV.env.mode = 'joint positions'
+        else:
+            ENV.env.mode = 'pd position' # TODO: fix the gripper
+
+        for i in range(ADD_ITER): # simulate
+            o, r, eo, inf = ENV.step(action_current_pos) # the robot stops moving
+        ENV.env.mode = args.mode
+        grasp = r
     
     info['is_success'] = binary_goal = False
     if grasp:
@@ -1060,6 +1072,7 @@ if __name__ == "__main__":
                 bootstrap_individuals=boostrap_inds, multi_quality=MULTI_QUALITY_MEASURES,
                 monitor_print=True,                  final_filter=final_filter if RESET_MODE else None,
                 repeat=simulate if QUALITY else None,reduce_repeat=reduce_repeat if QUALITY else None,
+                early_stopping=args.early_stopping,
             )
             i += 1 # raise if failed 10 times
             if i>=10: raise Exception("The initial population failed 10 times")

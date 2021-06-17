@@ -739,7 +739,7 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
                  measures=False, choose_evaluate=None, bd_indexes=None, archive_limit_size=None,
                  archive_limit_strat='random', nb_cells=1000, analyze_archive=False, altered_novelty=False,
                  alteration_degree=None, novelty_metric='minkowski', save_ind_cond=None, plot_gif=False,
-                 bootstrap_individuals=None, multi_quality=None, monitor_print=False, final_filter=None, repeat=None, reduce_repeat=None):
+                 bootstrap_individuals=None, multi_quality=None, monitor_print=False, final_filter=None, repeat=None, reduce_repeat=None, early_stopping=-1):
                  
     if multi_quality is not None:
         quality_names = np.unique([quality_name.strip() for bd_qual in multi_quality for quality_name in bd_qual]) # get unqiue quality names
@@ -1702,11 +1702,14 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
                     color = CM(i / nb_gen)
                     im_l.append(plt.scatter(bds_arr[:, 0], bds_arr[:, 1], color=color, label='Historic'))
                 ims.append(im_l)
+        if early_stopping >= 0 and count_success >= early_stopping:
+            details['nb of generations'] = nb_gen
+            break
     
     details['number of successful before filter'] = len(save_ind)
     if final_filter is not None: # re-evaluate if asked
-        #for i in range(2):
-        save_ind = [ind for ind, info in zip(save_ind, toolbox.map(final_filter, save_ind)) if info['is_success']]
+        save_ind = [ind for ind, info in zip(save_ind, toolbox.map(final_filter, save_ind)) if info[save_ind_cond]]
+    
     data['population genetic statistics'] = np.array(gen_stat_hist)
     data['offsprings genetic statistics'] = np.array(gen_stat_hist_off)
     data['archive coverage'] = np.array(coverage_hist)
