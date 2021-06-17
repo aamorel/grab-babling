@@ -51,7 +51,7 @@ parser.add_argument("-c", "--cells", help="The number of cells to measure the co
 parser.add_argument("-q", "--quality", help="Enable quality", action="store_true")
 parser.add_argument("-i", "--initial-random", help="Set reset_random_initial_object_pose to False, default to None", action="store_true")
 parser.add_argument("-t", "--contact-table", help="Enable grasp success without touching the table", action="store_true")
-parser.add_argument("-m", "--mode", help="Controller mode", type=str, default="joint positions", choices=["joint positions", "joint velocities", "joint torques", "inverse kinematics", "inverse dynamics"])
+parser.add_argument("-m", "--mode", help="Controller mode", type=str, default="joint positions", choices=["joint positions", "joint velocities", "joint torques", "inverse kinematics", "inverse dynamics", "pd position"])
 parser.add_argument("-b", "--bootstrap", help="Bootstrap folder", type=str, default=None)
 parser.add_argument("-a", "--algorithm", help="Algorithm", type=cleanStr, default="qdmos", choices=["qdmos", "map-elites", "random", "ns", "ea"])
 args = parser.parse_args()
@@ -62,7 +62,7 @@ POP_SIZE = args.population # -> 48 new individuals wil be evaluated each generat
 NB_GEN = args.generation
 OBJECT = args.object  # 'cuboid', 'mug.urdf', 'cylinder', 'deer.urdf', 'cylinder_r', 'glass.urdf'
 ROBOT = args.robot  # 'baxter', 'pepper', 'kuka'
-CONTROLLER = 'interpolate keypoints end pause grip'#'dynamic movement primitives'#  # see controllers_dict for list
+CONTROLLER = 'interpolate keypoints grip'#'dynamic movement primitives'#  # see controllers_dict for list
 ALGO = {'qdmos':'ns_rand_multi_bd', 'ns':'ns_nov', 'map-elites':'map_elites', 'random':'random_search', 'ea':'classic_ea'}[args.algorithm] # algorithm
 BD = 'pos_div_pos_grip'  # behavior descriptor type '2D', '3D', 'pos_div_grip', 'pos_div_pos_grip'
 BOOTSTRAP_FOLDER = args.bootstrap
@@ -73,70 +73,40 @@ N_EXP = args.nruns
 
 
 
-# for keypoints controllers
+# controllers parameters
 NB_KEYPOINTS = 3
+PAUSE_FRAC = 0.66
 
 if ROBOT == 'baxter':
     ENV_NAME = 'gym_grabbing:baxter_grasping-v0'
-    GENE_PER_KEYPOINTS = 8  # baxter is joints space: 8 joints
+    GENE_PER_KEYPOINTS = 7  # baxter is joints space: 8 joints
     LINK_ID_CONTACT = [47, 48, 49, 50, 51, 52]  # link ids that can have a grasping contact
     NB_STEPS_TO_ROLLOUT = 10
-    NB_ITER = int(6000 / NB_STEPS_TO_ROLLOUT)
-    # set height thresh parameter
-    if OBJECT == 'cuboid':
-        HEIGHT_THRESH = -0.125
-    elif OBJECT == 'cylinder':
-        HEIGHT_THRESH = -0.16
-    elif OBJECT == 'cylinder_r':
-        HEIGHT_THRESH = -0.12
-    elif OBJECT == 'mug.urdf':
-        HEIGHT_THRESH = -0.15
-    elif OBJECT == 'deer.urdf':
-        HEIGHT_THRESH = -0.08
-    elif OBJECT == 'glass.urdf':
-        HEIGHT_THRESH = -0.11
-    else: # otherwise, suppose the object is not that tall
-        HEIGHT_THRESH = -0.15
+    NB_ITER = int(2000 / NB_STEPS_TO_ROLLOUT)
 
 elif ROBOT == 'pepper':
     ENV_NAME = 'gym_grabbing:pepper_grasping-v0'
-    GENE_PER_KEYPOINTS = 7  # pepper is controlled in joints space: 7 joints
+    GENE_PER_KEYPOINTS = 6  # pepper is controlled in joints space: 7 joints
     LINK_ID_CONTACT = list(range(36, 50))  # link ids that can have a grasping contact
     NB_STEPS_TO_ROLLOUT = 1
-    NB_ITER = int(1000 / NB_STEPS_TO_ROLLOUT)
-    # set height thresh parameter
-    if OBJECT == 'cuboid':
-        HEIGHT_THRESH = -0.15
-    elif OBJECT == 'mug.urdf':
-        HEIGHT_THRESH = -0.125
-    elif OBJECT == 'deer.urdf':
-        HEIGHT_THRESH = -0.095
-    elif OBJECT == 'glass.urdf':
-        HEIGHT_THRESH = -0.09
+    NB_ITER = int(1500 / NB_STEPS_TO_ROLLOUT)
+    AUTO_COLLIDE = False
+
 
 elif ROBOT == 'kuka':
     ENV_NAME = 'gym_grabbing:kuka_grasping-v0'
-    GENE_PER_KEYPOINTS = 8  # kuka is controlled in joints space: 7 joints
+    GENE_PER_KEYPOINTS = 7  # kuka is controlled in joints space: 7 joints
     LINK_ID_CONTACT = [8, 9, 10, 11, 12, 13]  # link ids that can have a grasping contact
     NB_STEPS_TO_ROLLOUT = 1
-    NB_ITER = int(2500 / NB_STEPS_TO_ROLLOUT)
-    # set height thresh parameter
-    if OBJECT == 'cuboid':
-        HEIGHT_THRESH = -0.08
-    elif OBJECT == 'mug.urdf':
-        HEIGHT_THRESH = -0.08
-    elif OBJECT == 'deer.urdf':
-        HEIGHT_THRESH = -0.03
-    elif OBJECT == 'glass.urdf':
-        HEIGHT_THRESH = -0.03
+    NB_ITER = int(2000 / NB_STEPS_TO_ROLLOUT)
+
         
 elif ROBOT == 'crustcrawler':
     ENV_NAME = 'gym_grabbing:crustcrawler-v0'
-    GENE_PER_KEYPOINTS = 7
+    GENE_PER_KEYPOINTS = 6
     LINK_ID_CONTACT = [12,13,14]  # link ids that can have a grasping contact
     NB_STEPS_TO_ROLLOUT = 1
     NB_ITER = int(2500 / NB_STEPS_TO_ROLLOUT)
-    HEIGHT_THRESH = -0.15
 
 # for closed_loop control
 if ROBOT == 'baxter':
@@ -144,9 +114,9 @@ if ROBOT == 'baxter':
 # TODO: implement closed loop control for pepper and kuka
 
 # choose minor parameters
-PAUSE_FRAC = 0.66
+#ADD_ITER = int(10*240/NB_STEPS_TO_ROLLOUT) # additional iteration: 1s
 MINI = True  # minimization problem (used for MAP-elites)
-DISTANCE_THRESH = 0.6  # binary goal parameter
+DISTANCE_THRESH = 0.6  # is_success parameter
 DIFF_OR_THRESH = 0.4  # threshold for clustering grasping orientations
 COV_LIMIT = 0.1  # threshold for changing behavior descriptor in change_bd ns
 N_LAG = int(200 / NB_STEPS_TO_ROLLOUT)  # number of steps before the grip time used in the pos_div_grip BD
@@ -281,7 +251,7 @@ def diversity_measure(inf):
 
 def analyze_triumphants(triumphant_archive, run_name):
     if len(triumphant_archive) < 2:
-        print('No individual completed the binary goal.')
+        print('No individual completed the is_success.')
         return None, None, None, None, None
     
     # analyze the triumphants following the diversity descriptor
@@ -354,28 +324,25 @@ def two_d_bd(individual):
     """
     if RESET_MODE:
         global ENV
-        ENV.reset()
     else:
         ENV = gym.make(ENV_NAME, display=DISPLAY, obj=OBJECT, steps_to_roll=NB_STEPS_TO_ROLLOUT, object_position=OBJECT_POSITION, object_xyzw=OBJECT_XYZW)
-        ENV.reset()
+    o = ENV.reset()
 
     individual = np.around(np.array(individual), 3)
     # initialize controller
     controller_info = controllers_info_dict[CONTROLLER]
-    controller = controllers_dict[CONTROLLER](individual, controller_info, initial=None if args.mode in {'joint torques', 'inverse dynamics'} else ENV.get_joint_state())
-    action = controller.initial_action
+    controller = controllers_dict[CONTROLLER](
+        individual,
+        **controller_info,
+        initial=
+            ENV.get_joint_state(position=True, normalized=True) if args.mode in {'joint positions', 'pd positions'} else
+            ENV.get_joint_state(position=False, normalized=True) if args.mode == 'joint velocities' else None
+    )
+    
 
     for i in range(NB_ITER):
-        ENV.render()
         # apply previously chosen action
-        o, r, eo, info = ENV.step(action)
-
-        if i == 0:
-            initial_object_position = inf['object position']
-        if controller.open_loop:
-            action = controller.get_action(i)
-        else:
-            action = controller.get_action(i, o)
+        o, r, eo, info = ENV.step(controller.get_action(i, o))
 
         if eo:
             break
@@ -409,17 +376,23 @@ def three_d_bd(individual):
     """
     if RESET_MODE:
         global ENV
-        ENV.reset()
     else:
         ENV = gym.make(ENV_NAME, display=DISPLAY, obj=OBJECT, steps_to_roll=NB_STEPS_TO_ROLLOUT, object_position=OBJECT_POSITION, object_xyzw=OBJECT_XYZW)
-        ENV.reset()
+    
+    o = ENV.reset()
 
     individual = np.around(np.array(individual), 3)
     
     # initialize controller
     controller_info = controllers_info_dict[CONTROLLER]
-    controller = controllers_dict[CONTROLLER](individual, controller_info, initial=None if args.mode in {'joint torques', 'inverse dynamics'} else ENV.get_joint_state())
-    action = controller.initial_action
+    controller = controllers_dict[CONTROLLER](
+        individual,
+        **controller_info,
+        initial=
+            ENV.get_joint_state(position=True, normalized=True) if args.mode in {'joint positions', 'pd positions'} else
+            ENV.get_joint_state(position=False, normalized=True) if args.mode == 'joint velocities' else None
+    )
+    
 
     # for precise measure when we have the gripper assumption
     grabbed = False
@@ -429,13 +402,9 @@ def three_d_bd(individual):
     for i in range(NB_ITER):
         ENV.render()
         # apply previously chosen action
-        o, r, eo, inf = ENV.step(action)
+        o, r, eo, inf = ENV.step(controller.get_action(i, o))
 
-        # choose action
-        if controller.open_loop:
-            action = controller.get_action(i)
-        else:
-            action = controller.get_action(i, o)
+
 
         if i == 0:
             initial_object_position = inf['object position']
@@ -464,7 +433,7 @@ def three_d_bd(individual):
 
     fitness = behavior[2] # compute fitness
 
-    info['binary goal'] = binary_goal = r # choose if individual satisfied the binary goal
+    info['is_success'] = binary_goal = r # choose if individual satisfied the is_success
 
     if binary_goal:
         if hasattr(controller, 'grip_time'):
@@ -516,10 +485,9 @@ def pos_div_pos_grip_bd(individual):
     """
     if RESET_MODE:
         global ENV
-        ENV.reset()
     else:
         ENV = gym.make(ENV_NAME, display=DISPLAY, obj=OBJECT, steps_to_roll=NB_STEPS_TO_ROLLOUT, object_position=OBJECT_POSITION, object_xyzw=OBJECT_XYZW)
-        ENV.reset()
+    o = ENV.reset()
 
     global COUNT_SUCCESS
 
@@ -527,11 +495,17 @@ def pos_div_pos_grip_bd(individual):
 
     # initialize controller
     controller_info = controllers_info_dict[CONTROLLER]
-    controller = controllers_dict[CONTROLLER](individual, controller_info, initial=None if args.mode in {'joint torques', 'inverse dynamics'} else ENV.get_joint_state())
+    controller = controllers_dict[CONTROLLER](
+        individual,
+        **controller_info,
+        initial=
+            ENV.get_joint_state(position=True) if args.mode in {'joint positions', 'pd positions'} else
+            ENV.get_joint_state(position=False) if args.mode == 'joint velocities' else None
+    )
     assert(hasattr(controller, 'grip_time'))
     # lag_time = controller.grip_time - N_LAG
     lag_time = NB_ITER / 2
-    action = controller.initial_action
+    
 
 
     # for precise measure when we have the gripper assumption
@@ -562,11 +536,7 @@ def pos_div_pos_grip_bd(individual):
     for i in range(NB_ITER):
         #ENV.render()
         # apply previously chosen action
-        o, r, eo, inf = ENV.step(action)
-        prev_action = action
-
-        # choose action
-        action = controller.get_action(**({'i':i} if controller.open_loop else {'i':i,'obs':o}))
+        o, r, eo, inf = ENV.step(controller.get_action(i, o))
 
         if i == 0:
             initial_object_position = inf['object position']
@@ -613,9 +583,9 @@ def pos_div_pos_grip_bd(individual):
 
         # if robot has a self-collision monitoring
         if AUTO_COLLIDE and inf['autocollision']:
-            behavior = [None if ALGO=='ns_rand_multi_bd' else 0] * len(BD_INDEXES)
+            behavior = [None if ALGO=='ns_rand_multi_bd' else 0] * len(BD_BOUNDS)
             fitness = -float('inf')
-            info = {'binary goal': False, 'auto_collided': True}
+            info = {'is_success': False, 'auto_collided': True}
             if not RESET_MODE:
                 ENV.close()
             return (behavior, (fitness,), info)
@@ -634,22 +604,24 @@ def pos_div_pos_grip_bd(individual):
 
     fitness = info['energy'] if ALGO == 'map_elites' else behavior[2] # compute fitness
 
-    # choose if individual satisfied the binary goal
+    # choose if individual satisfied the is_success
     # the object should not touch the table neither the plane, must touch the gripper without penetration (with a margin of 0.005), be grasped right after closing the gripper (within 1s), touch the table when the gripper is closing
-    grasp = r and grip_info['time close touch']<1*240/NB_STEPS_TO_ROLLOUT and len(grip_info['contact object table'])>0 # and not contact_robot_table
-    info['binary goal'] = binary_goal = False
+    grasp = r #and grip_info['time close touch']<1*240/NB_STEPS_TO_ROLLOUT and len(grip_info['contact object table'])>0 # and not contact_robot_table
+
+    
+    info['is_success'] = binary_goal = False
     if grasp:
         COUNT_SUCCESS += 1
         if measure_grip_time is None:
             # print('Individual grasped without touching any contact links')
-            info['binary goal'] = False
+            info['is_success'] = False
             pos_touch_time = None
         else:
             info['diversity_descriptor'] = measure_grip_time
             if (NO_CONTACT_TABLE and contact_robot_table) or (args.mode=='joint torques' and len(inf['contact robot table'])>0):
                 measure_grip_time = None
             else:
-                info['binary goal'] = binary_goal = True
+                info['is_success'] = binary_goal = True
     else:
         measure_grip_time, pos_touch_time = None, None
 
@@ -691,34 +663,38 @@ def pos_div_pos_grip_bd(individual):
             info['mean positive slope'] = positive_dist_slope / NB_ITER + 1
     
     
-    if QUALITY and binary_goal:
+    if QUALITY and binary_goal: # np.random.randint(2)
         info['repeat_kwargs'] = [
             dict(
                 delta_pos=D_POS[rep],
                 delta_yaw=ANGLE_NOISE*(rep%2*2-1),
                 multiply_friction=FRICTION_NOISE if rep%2==0 else {key:1/value for key, value in FRICTION_NOISE.items()},
-                return_inf=True,
                 reference=np.array(inf['object position'])
             ) for rep in range(N_REP_RAND)
         ]
     return (behavior.tolist(), (fitness,), info)
 
-def simulate(ind, delta_pos=[0,0], delta_yaw=0, multiply_friction={}, return_inf=False, reference=None):
+def simulate(individual, delta_pos=[0,0], delta_yaw=0, multiply_friction={}, reference=None):
     
     if RESET_MODE:
         global ENV
-        ENV.reset(delta_pos=delta_pos, delta_yaw=delta_yaw, multiply_friction=multiply_friction)
+        o = ENV.reset(delta_pos=delta_pos, delta_yaw=delta_yaw, multiply_friction=multiply_friction)
     else:
         ENV = gym.make(ENV_NAME, display=DISPLAY, obj=OBJECT, delta_pos=D_POS[rep], steps_to_roll=NB_STEPS_TO_ROLLOUT)
 
     # initialize controller
     controller_info = controllers_info_dict[CONTROLLER]
-    controller = controllers_dict[CONTROLLER](ind, controller_info, initial=None if args.mode in {'joint torques', 'inverse dynamics'} else ENV.get_joint_state())
-    action = controller.initial_action
+    controller = controllers_dict[CONTROLLER](
+        individual,
+        **controller_info,
+        initial=
+            ENV.get_joint_state(position=True, normalized=True) if args.mode in {'joint positions', 'pd positions'} else
+            ENV.get_joint_state(position=False, normalized=True) if args.mode == 'joint velocities' else None
+    )
+    
     for i in range(NB_ITER):
         #ENV.render()
-        o, r, eo, inf = ENV.step(action)
-        action = controller.get_action(i) if controller.open_loop else controller.get_action(i, o)
+        o, r, eo, inf = ENV.step(controller.get_action(i, o))
         if eo: break
 
     if not RESET_MODE:
@@ -729,11 +705,11 @@ def simulate(ind, delta_pos=[0,0], delta_yaw=0, multiply_friction={}, return_inf
     
     return inf
     
-def fuse_repeat(ind, results):
+def reduce_repeat(ind, results):
     info = ind.info.values
     successes = 0
     mean_dist = 0
-    for r, inf in results:
+    for inf in results:
         successes += inf['is_success']
         mean_dist += inf['distance to reference']
     info['grasp robustness'] = successes + 1 / (1.00000001 + mean_dist/successes) if successes>0 else 0
@@ -741,21 +717,33 @@ def fuse_repeat(ind, results):
     
     return ind.behavior_descriptor.values, tuple(ind.fitness.values), info
 
+def final_filter(ind, n=2): # filter n times because env.reset() is kind of stochastic
+    for i in range(n):
+        if not simulate(ind)['is_success']:
+            return {'is_success': False}
+    return {'is_success': True}
+
 def eval_sucessfull_ind(individual, obstacle_pos=None, obstacle_size=None):
 
     if obstacle_pos is None:
         ENV = gym.make(ENV_NAME, display=DISPLAY, obj=OBJECT, steps_to_roll=NB_STEPS_TO_ROLLOUT, object_position=OBJECT_POSITION, object_xyzw=OBJECT_XYZW)
-        ENV.reset()
     else:
         ENV = gym.make(ENV_NAME, display=DISPLAY, obj=OBJECT, steps_to_roll=NB_STEPS_TO_ROLLOUT,
                        obstacle=True, obstacle_pos=obstacle_pos, obstacle_size=obstacle_size)
+    o = ENV.reset
 
     individual = np.around(np.array(individual), 3)
 
     # initialize controller
     controller_info = controllers_info_dict[CONTROLLER]
-    controller = controllers_dict[CONTROLLER](individual, controller_info, initial=None if args.mode in {'joint torques', 'inverse dynamics'} else ENV.get_joint_state())
-    action = controller.initial_action
+    controller = controllers_dict[CONTROLLER](
+        individual,
+        **controller_info,
+        initial=
+            ENV.get_joint_state(position=True, normalized=True) if args.mode in {'joint positions', 'pd positions'} else
+            ENV.get_joint_state(position=False, normalized=True) if args.mode == 'joint velocities' else None
+    )
+    
 
     # for precise measure when we have the gripper assumption
     already_grasped = False
@@ -768,13 +756,8 @@ def eval_sucessfull_ind(individual, obstacle_pos=None, obstacle_size=None):
     for i in range(NB_ITER):
         ENV.render()
         # apply previously chosen action
-        o, r, eo, inf = ENV.step(action)
+        o, r, eo, inf = ENV.step(controller.get_action(i, o))
 
-        # choose action
-        if controller.open_loop:
-            action = controller.get_action(i)
-        else:
-            action = controller.get_action(i, o)
 
         if i % 15 == 0 and SAVE_TRAJ:
             count_keypoint += 1
@@ -796,7 +779,7 @@ def eval_sucessfull_ind(individual, obstacle_pos=None, obstacle_size=None):
             if len(inf['contact robot robot']) != 0:
                 raise Exception('Auto collision detected')
 
-    binary_goal = r # choose if individual satisfied the binary goal
+    binary_goal = r # choose if individual satisfied the is_success
 
     if not RESET_MODE:
         ENV.close()
@@ -811,18 +794,24 @@ def aurora_bd(individual):
 
     if RESET_MODE:
         global ENV
-        ENV.reset()
     else:
         ENV = gym.make(ENV_NAME, display=DISPLAY, obj=OBJECT, steps_to_roll=NB_STEPS_TO_ROLLOUT, object_position=OBJECT_POSITION, object_xyzw=OBJECT_XYZW)
-        ENV.reset()
+    
+    o = ENV.reset()
 
     individual = np.around(np.array(individual), 3)
 
     # initialize controller
     controller_info = controllers_info_dict[CONTROLLER]
-    controller = controllers_dict[CONTROLLER](individual, controller_info, initial=None if args.mode in {'joint torques', 'inverse dynamics'} else ENV.get_joint_state())
+    controller = controllers_dict[CONTROLLER](
+        individual,
+        **controller_info,
+        initial=
+            ENV.get_joint_state(position=True, normalized=True) if args.mode in {'joint positions', 'pd positions'} else
+            ENV.get_joint_state(position=False, normalized=True) if args.mode == 'joint velocities' else None
+    )
 
-    action = controller.initial_action
+    
 
     # for precise measure when we have the gripper assumption
     already_touched = False
@@ -842,13 +831,7 @@ def aurora_bd(individual):
     for i in range(NB_ITER):
         ENV.render()
         # apply previously chosen action
-        o, r, eo, inf = ENV.step(action)
-
-        # choose action
-        if controller.open_loop:
-            action = controller.get_action(i)
-        else:
-            action = controller.get_action(i, o)
+        o, r, eo, inf = ENV.step(controller.get_action(i, o))
 
         if eo:
             break
@@ -874,12 +857,12 @@ def aurora_bd(individual):
 
     fitness = inf['object position'][2] # compute fitness
 
-    info['binary goal'] = binary_goal = r # choose if individual satisfied the binary goal
+    info['is_success'] = binary_goal = r # choose if individual satisfied the is_success
 
     if binary_goal:
         if measure_grip_time is None:
             # print('Individual grasped without touching any contact links')
-            info['binary goal'] = False
+            info['is_success'] = False
         else:
             info['diversity_descriptor'] = measure_grip_time
 
@@ -916,12 +899,13 @@ controllers_dict = {'discrete keypoints': controllers.DiscreteKeyPoints,
                     'interpolate keypoints': controllers.InterpolateKeyPoints,
                     'interpolate keypoints end pause': controllers.InterpolateKeyPointsEndPause,
                     'interpolate keypoints end pause grip': controllers.InterpolateKeyPointsEndPauseGripAssumption,
+                    'interpolate keypoints grip': controllers.InterpolateKeyPointsGrip,
                     'closed loop end pause grip': controllers.ClosedLoopEndPauseGripAssumption,
-                    'dynamic movement primitives': controllers.DMPGripLift
+                    'dynamic movement primitives': controllers.DMPGripLift,
 }
 controllers_info_dict = {'interpolate keypoints end pause grip': {'pause_frac': PAUSE_FRAC, 'n_iter': NB_ITER,
-                                                                  'NB_KEYPOINTS': NB_KEYPOINTS,
-                                                                  'GENE_PER_KEYPOINTS': GENE_PER_KEYPOINTS},
+                                                                  'nb_keypoints': NB_KEYPOINTS,
+                                                                  'genes_per_keypoint': GENE_PER_KEYPOINTS},
                          'interpolate keypoints end pause': {'pause_frac': PAUSE_FRAC, 'n_iter': NB_ITER,
                                                              'NB_KEYPOINTS': NB_KEYPOINTS,
                                                              'GENE_PER_KEYPOINTS': GENE_PER_KEYPOINTS},
@@ -931,6 +915,9 @@ controllers_info_dict = {'interpolate keypoints end pause grip': {'pause_frac': 
                          'interpolate keypoints': {'n_iter': NB_ITER,
                                                    'NB_KEYPOINTS': NB_KEYPOINTS,
                                                    'GENE_PER_KEYPOINTS': GENE_PER_KEYPOINTS},
+                         'interpolate keypoints grip': {'n_iter': NB_ITER,
+                                                   'nb_keypoints': NB_KEYPOINTS,
+                                                   'genes_per_keypoint': GENE_PER_KEYPOINTS},
                          'closed loop end pause grip': {'n_iter': NB_ITER, 'pause_frac': PAUSE_FRAC},
                          'dynamic movement primitives': {'n_iter': NB_ITER, 'n_rollout': NB_STEPS_TO_ROLLOUT, 'τ':1}
 }
@@ -947,8 +934,8 @@ if __name__ == "__main__":
     for _ in range(N_EXP):
 
         initial_genotype_size = NB_KEYPOINTS * GENE_PER_KEYPOINTS
-        if CONTROLLER == 'interpolate keypoints end pause grip':
-            initial_genotype_size = NB_KEYPOINTS * (GENE_PER_KEYPOINTS - 1) + 1
+        if CONTROLLER in {'interpolate keypoints end pause grip', 'interpolate keypoints grip'}:
+            initial_genotype_size = NB_KEYPOINTS * GENE_PER_KEYPOINTS + 1
         elif CONTROLLER == 'closed loop end pause grip':
             initial_genotype_size = GENES
         elif CONTROLLER == "dynamic movement primitives":
@@ -1069,10 +1056,10 @@ if __name__ == "__main__":
                 parallelize=PARALLELIZE,             measures=True,
                 choose_evaluate=choose,              bd_indexes=BD_INDEXES,
                 archive_limit_size=ARCHIVE_LIMIT,    nb_cells=NB_CELLS,
-                novelty_metric=NOVELTY_METRIC,       save_ind_cond='binary goal',
+                novelty_metric=NOVELTY_METRIC,       save_ind_cond='is_success',
                 bootstrap_individuals=boostrap_inds, multi_quality=MULTI_QUALITY_MEASURES,
-                monitor_print=True,                  final_filter=simulate if RESET_MODE else None,
-                repeat=simulate if QUALITY else None,fuse_repeat=fuse_repeat if QUALITY else None,
+                monitor_print=True,                  final_filter=final_filter if RESET_MODE else None,
+                repeat=simulate if QUALITY else None,reduce_repeat=reduce_repeat if QUALITY else None,
             )
             i += 1 # raise if failed 10 times
             if i>=10: raise Exception("The initial population failed 10 times")
@@ -1226,7 +1213,7 @@ if __name__ == "__main__":
                     for j in range(3):
                         if len(clustered_triumphants[i]) > j:
                             evaluation_function(clustered_triumphants[i][j])
-    print("end")
 
     if RESET_MODE:
         ENV.close()
+    print("end")

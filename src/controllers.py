@@ -94,47 +94,62 @@ class InterpolateKeyPointsEndPause():
 
 class InterpolateKeyPointsEndPauseGripAssumption():
 
-    def __init__(self, individual, info, initial=None):
+    def __init__(self, individual, n_iter, genes_per_keypoint, nb_keypoints, pause_frac=1, initial=None):
         """Interpolate actions between keypoints
            Stops the movement at the end in order to make sure that the object was correctly grasped at the end.
            Only one parameter for the gripper, specifying the time at which it should close
 
         """
-        actions = []
-        gene_per_key = info['GENE_PER_KEYPOINTS'] - 1
-        for i in range(info['NB_KEYPOINTS']):
-            actions.append(individual[gene_per_key * i:gene_per_key * (i + 1)])
+        self.n_iter = n_iter
+        actions = np.split(np.array(individual[:-1]), nb_keypoints)
 
-        additional_gene = individual[-1]
-
-        n_keypoints = len(actions)
-        self.pause_time = info['pause_frac'] * info['n_iter']
-        interval_size = int(self.pause_time / n_keypoints)
-        interp_x = [int(interval_size / 2 + i * interval_size) for i in range(n_keypoints)]
+        self.pause_time = pause_frac * n_iter
+        interval_size = int(self.pause_time / nb_keypoints)
+        interp_x = [int(interval_size / 2 + i * interval_size) for i in range(nb_keypoints)]
         if initial is not None: # add initial joint states to get a smooth motion
             actions.insert(0, initial[0][:-1]) # the gripper is not included
             interp_x.insert(0, 0)
         self.action_polynome = interpolate.interp1d(interp_x, actions, kind='quadratic', axis=0,
                                                     bounds_error=False, fill_value='extrapolate')
         self.open_loop = True
-        self.last_action = 0
-        self.grip_time = int((additional_gene / 2 + 0.5) * self.pause_time)
-        self.initial_action = actions[0]
-        self.initial_action = np.append(self.initial_action, 1)
+        self.grip_time = int((individual[-1]+1)/2 * self.pause_time)
 
-    def get_action(self, i):
+    def get_action(self, i, _o=None):
         if i <= self.pause_time:
             action = self.action_polynome(i)
-            if i < self.grip_time:
-                action = np.append(action, 1)  # gripper is open
-            else:
-                action = np.append(action, -1)  # gripper is closed
-            self.last_action = action
-        else:
-            # feed last action
-            action = self.last_action
-        return action
+            action = np.append(action, 1 if i < self.grip_time else -1)  # gripper: 1=open, -1=closed
+            return action
+        else: # feed last action
+            return self.get_action(int(self.pause_time))
 
+class InterpolateKeyPointsGrip():
+
+    def __init__(self, individual, n_iter, genes_per_keypoint, nb_keypoints, initial=None):
+        """Interpolate actions between keypoints
+           Only one parameter (last gene) for the gripper, specifying the time at which it should close
+        """
+        assert len(individual) == nb_keypoints * genes_per_keypoint + 1, f"len(individual)={len(individual)} must be equal to nb_keypoints({nb_keypoints}) * genes_per_keypoint({genes_per_keypoint}) + 1(gripper) = {nb_keypoints * genes_per_keypoint + 1}"
+        self.n_iter = n_iter
+        actions = np.split(np.array(individual[:-1]), nb_keypoints)
+
+        interval_size = int(n_iter / nb_keypoints)
+        interp_x = [int(interval_size / 2 + i * interval_size) for i in range(nb_keypoints)]
+        if initial is not None: # add initial joint states to get a smooth motion
+            assert len(initial) == genes_per_keypoint, f"The length of initial={len(initial)} must be genes_per_keypoint={genes_per_keypoint}"
+            actions.insert(0, initial) # the gripper is not included
+            interp_x.insert(0, 0)
+        self.action_polynome = interpolate.interp1d(interp_x, actions, kind='quadratic', axis=0,
+                                                    bounds_error=False, fill_value='extrapolate')
+        self.open_loop = True
+        self.grip_time = int((individual[-1]+1)/2 * n_iter)
+
+    def get_action(self, i, _o=None):
+        if i <= self.n_iter:
+            action = self.action_polynome(i)
+            action = np.append(action, 1 if i < self.grip_time else -1)  # gripper: 1=open, -1=closed
+            return action
+        else: # feed last action
+            return self.get_action(self.n_iter)
 
 class DMPGripLift():
     def __init__(self, ind, info, initial):

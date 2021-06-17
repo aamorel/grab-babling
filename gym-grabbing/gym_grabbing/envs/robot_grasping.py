@@ -85,21 +85,22 @@ class RobotGrasping(GoalEnv):
         gravity = True,
         goal = False,
     ):
-        assert mode in {'joint positions', 'joint velocities', 'joint torques', 'joint pd','inverse kinematics', 'inverse dynamics', 'impedance position', 'impedance velocity', 'impedance acceleration'}, "mode must be either joint positions, joint velocities, joint torques, joint pd, inverse kinematics, inverse dynamics, impedance position, impedance velocity, impedance acceleration"
+        assert mode in {'joint positions', 'joint velocities', 'joint torques', 'pd position','inverse kinematics', 'inverse dynamics', 'impedance position', 'impedance velocity', 'impedance acceleration'}, "mode must be either joint positions, joint velocities, joint torques, pd position, inverse kinematics, inverse dynamics, impedance position, impedance velocity, impedance acceleration"
         weakref.finalize(self, self.close) # cleanup
+        self.robot = robot
         self.obj = obj.strip()
+        self.table_height = table_height
         self.object_position = object_position
         self.object_xyzw = object_xyzw
         self.joint_positions = joint_positions
+        self.joint_ids = joint_ids
         self.reset_random_initial_state = reset_random_initial_state
         self.initial_state = initial_state
         self.display = display
-        #self.pos_cam = pos_cam
         self.gripper_display = gripper_display
         self.steps_to_roll = steps_to_roll
         self.random_var = random_var
         self.delta_pos = delta_pos
-        self.has_reset_object = False
         self.p = BulletClient(connection_mode=p.GUI if display else p.DIRECT)
         self.physicsClientId = self.p._client
         self.end_effector_id = end_effector_id
@@ -107,8 +108,11 @@ class RobotGrasping(GoalEnv):
         self.mode = mode
         self.n_actions = 8 if mode=='inverse kinematics' else len(joint_ids) - n_control_gripper + 1
         self.radius = radius
+        self.center_workspace = center_workspace
         self.contact_ids = contact_ids
+        self.disable_collision_pair = disable_collision_pair
         self.allowed_collision_pair = [set(c) for c in allowed_collision_pair]
+        self.change_dynamics = change_dynamics
         self.reach = reach
         self.gravity = gravity
         self.goal = goal
@@ -144,85 +148,7 @@ class RobotGrasping(GoalEnv):
             renderer=self.p.ER_BULLET_HARDWARE_OPENGL if self.display else self.p.ER_TINY_RENDERER
         ))
 
-        self.p.setAdditionalSearchPath(pybullet_data.getDataPath())
-
-        self.p.setPhysicsEngineParameter(deterministicOverlappingPairs=1)
-
-        self.plane_id = self.p.loadURDF("plane.urdf", [0, 0, -1], useFixedBase=True) # load plane with an offset
-
-        if self.gravity: self.p.setGravity(0., 0., -9.81) # set gravity
-        
-        self.robot_id = robot()
-        self.joint_ids = np.array([i for i in range(self.p.getNumJoints(self.robot_id)) if self.p.getJointInfo(self.robot_id, i)[3]>-1] if joint_ids is None else joint_ids, dtype=int)
-        self.n_joints = len(self.joint_ids)
-        
-        self.center_workspace_cartesian = np.array(self.p.getLinkState(self.robot_id, center_workspace)[0] if isinstance(center_workspace, int) else center_workspace)
-        self.center_workspace = self.p.multiplyTransforms(*self.p.invertTransform(*p.getBasePositionAndOrientation(self.robot_id)), self.center_workspace_cartesian, [0,0,0,1]) # the pose of center_workspace in the robot frame
-        for contact_point in disable_collision_pair:
-            self.p.setCollisionFilterPair(self.robot_id, self.robot_id, contact_point[0], contact_point[1], enableCollision=0)
-        
-        self.lowerLimits, self.upperLimits, self.maxForce, self.maxVelocity = np.zeros(self.n_joints), np.zeros(self.n_joints), np.zeros(self.n_joints), np.zeros(self.n_joints)
-        for i, id in enumerate(self.joint_ids):
-            self.lowerLimits[i], self.upperLimits[i], self.maxForce[i], self.maxVelocity[i] = self.p.getJointInfo(self.robot_id, id)[8:12]
-            self.p.enableJointForceTorqueSensor(self.robot_id, id)
-        
-        for id, args in change_dynamics.items(): # change dynamics
-            if id in self.joint_ids: # update limits if needed
-                index = np.nonzero(self.joint_ids==id)[0][0]
-                if 'jointLowerLimit' in args and 'jointUpperLimit' in args:
-                    self.lowerLimits[index] = args['jointLowerLimit']
-                    self.upperLimits[index] = args['jointUpperLimit']
-                if 'maxJointVelocity' in args:
-                    self.maxVelocity[index] = args['maxJointVelocity']
-                    if self.mode == 'joint velocity':
-                        args.pop('maxJointVelocity') # do not clamp velocity if velocity control is used (actions are in -1,1)
-                if 'jointLimitForce' in args:
-                    self.maxForce[index] = args['jointLimitForce']
-                if id in self.joint_ids[-self.n_control_gripper:] or self.mode not in {'joint torques', 'inverse dynamics'}:
-                    self.p.changeDynamics(self.robot_id, linkIndex=id, **args)
-        
-        self.maxForce = np.where(self.maxForce<=0, 100, self.maxForce)# replace bad values
-        self.maxVelocity = np.where(self.maxVelocity<=0, 1, self.maxVelocity)
-        self.maxAcceleration = np.ones(len(self.joint_ids))*10# set maximum acceleration for inverse dynamics
-        
-        self.jointRanges = self.upperLimits-self.lowerLimits
-        self.restPoses = [s[0] for s in self.p.getJointStates(self.robot_id, self.joint_ids)]
-        
-        self.p.setAdditionalSearchPath(pybullet_data.getDataPath())
-        # table is about 62.5cm tall and the z position of the table is located at the very bottom, there is link with the ground (so it is static)
-        # the top part is a box of size 1.5, 1, 0.05
-        self.table_pos = np.array([0, 0.4, -1+(table_height-0.625)])
-        self.table_x_size, self.table_y_size = 1.5, 1
-        self.table_id = None if table_height is None or self.reach else self.p.loadURDF("table/table.urdf", basePosition=self.table_pos, baseOrientation=[0,0,0,1], useFixedBase=False)
-        
-        self.load_object(self.get_object(self.obj), delta_pos=self.delta_pos)
-        
-        
-        if self.display: # set the camera
-            self.p.configureDebugVisualizer(self.p.COV_ENABLE_RENDERING, 1)
-            self.p.configureDebugVisualizer(self.p.COV_ENABLE_GUI, 0)
-            self.p.resetDebugVisualizerCamera(cameraDistance=self.camera['distance'], cameraYaw=self.camera['yaw'], cameraPitch=self.camera['pitch'], cameraTargetPosition=self.camera['target'])
-
-            if self.gripper_display:
-                self.line_width = 4
-                self.lines = [self.p.addUserDebugLine([0, 0, 0], end, color, lineWidth=self.line_width, parentObjectUniqueId=self.robot_id, parentLinkIndex=self.end_effector_id) for end, color in zip(np.eye(3)*0.2, np.eye(3))]
-        
-        
-        
-        if joint_positions is not None: # set the arm, the gripper is not important
-            for id, a in zip(self.joint_ids, joint_positions):
-                self.p.resetJointState(self.robot_id, id, targetValue=a)
-					
-        for _ in range(100): self.p.stepSimulation() # let the world run for a bit
-		
-        self.target = np.zeros(3) # expressed in the cartesian world
-        if self.reset_random_initial_state is False: # set a random position that won't change
-            self.reset_random_state();
-        
-        if self.mode in {'joint torques', 'inverse dynamics'}: # disable motors to use torque control, with a small joint friction
-            self.p.setJointMotorControlArray(bodyIndex=self.robot_id, jointIndices=self.joint_ids, controlMode=self.p.VELOCITY_CONTROL, forces=np.ones(len(self.joint_ids))*1e-3)
-        
-        #for id in self.joint_ids: self.p.changeDynamics(self.robot_id, id, linearDamping=0, angularDamping=0)
+        self.load_all()
         
         self.action_space = spaces.Box(-1., 1., shape=(self.n_actions,), dtype='float32')
         #self.observation_space = gym.spaces.Box(-1., 1., shape=(15+len(self.joint_ids)*3,), dtype='float32') # TODO: add image if asked
@@ -277,10 +203,91 @@ class RobotGrasping(GoalEnv):
         self.step = newstep
         
         
+    def load_all(self):
+        self.p.resetSimulation()
+        self.p.setAdditionalSearchPath(pybullet_data.getDataPath())
+
+        self.p.setPhysicsEngineParameter(deterministicOverlappingPairs=1)
+
+        self.plane_id = self.p.loadURDF("plane.urdf", [0, 0, -1], useFixedBase=True) # load plane with an offset
+
+        if self.gravity: self.p.setGravity(0., 0., -9.81) # set gravity
+        
+        self.robot_id = self.robot()
+        self.joint_ids = np.array([i for i in range(self.p.getNumJoints(self.robot_id)) if self.p.getJointInfo(self.robot_id, i)[3]>-1] if self.joint_ids is None else self.joint_ids, dtype=int)
+        self.n_joints = len(self.joint_ids)
+        
+        self.center_workspace_cartesian = np.array(self.p.getLinkState(self.robot_id, self.center_workspace)[0] if isinstance(self.center_workspace, int) else self.center_workspace)
+        self.center_workspace_robot_frame = self.p.multiplyTransforms(*self.p.invertTransform(*p.getBasePositionAndOrientation(self.robot_id)), self.center_workspace_cartesian, [0,0,0,1]) # the pose of center_workspace in the robot frame
+        for contact_point in self.disable_collision_pair:
+            self.p.setCollisionFilterPair(self.robot_id, self.robot_id, contact_point[0], contact_point[1], enableCollision=0)
+        
+        self.lowerLimits, self.upperLimits, self.maxForce, self.maxVelocity = np.zeros(self.n_joints), np.zeros(self.n_joints), np.zeros(self.n_joints), np.zeros(self.n_joints)
+        for i, id in enumerate(self.joint_ids):
+            self.lowerLimits[i], self.upperLimits[i], self.maxForce[i], self.maxVelocity[i] = self.p.getJointInfo(self.robot_id, id)[8:12]
+            self.p.enableJointForceTorqueSensor(self.robot_id, id)
+        
+        for id, args in self.change_dynamics.items(): # change dynamics
+            if id in self.joint_ids: # update limits if needed
+                index = np.nonzero(self.joint_ids==id)[0][0]
+                if 'jointLowerLimit' in args and 'jointUpperLimit' in args:
+                    self.lowerLimits[index] = args['jointLowerLimit']
+                    self.upperLimits[index] = args['jointUpperLimit']
+                if 'maxJointVelocity' in args:
+                    self.maxVelocity[index] = args['maxJointVelocity']
+                    if self.mode == 'joint velocity':
+                        args.pop('maxJointVelocity') # do not clamp velocity if velocity control is used (actions are in -1,1)
+                if 'jointLimitForce' in args:
+                    self.maxForce[index] = args['jointLimitForce']
+                if id in self.joint_ids[-self.n_control_gripper:] or self.mode not in {'joint torques', 'inverse dynamics'}:
+                    self.p.changeDynamics(self.robot_id, linkIndex=id, **args)
+        
+        self.maxForce = np.where(self.maxForce<=0, 100, self.maxForce)# replace bad values
+        self.maxVelocity = np.where(self.maxVelocity<=0, 1, self.maxVelocity)
+        self.maxAcceleration = np.ones(len(self.joint_ids))*10# set maximum acceleration for inverse dynamics
+        
+        self.jointRanges = self.upperLimits-self.lowerLimits
+        self.restPoses = [s[0] for s in self.p.getJointStates(self.robot_id, self.joint_ids)]
+        
+        self.p.setAdditionalSearchPath(pybullet_data.getDataPath())
+        # table is about 62.5cm tall and the z position of the table is located at the very bottom, there is link with the ground (so it is static)
+        # the top part is a box of size 1.5, 1, 0.05
+        self.table_pos = np.array([0, 0.4, -1+(self.table_height-0.625)])
+        self.table_x_size, self.table_y_size = 1.5, 1
+        self.table_id = None if self.table_height is None or self.reach else self.p.loadURDF("table/table.urdf", basePosition=self.table_pos, baseOrientation=[0,0,0,1], useFixedBase=False)
+        
+        self.load_object(self.get_object(self.obj), delta_pos=self.delta_pos)
+        
+        
+        if self.display: # set the camera
+            self.p.configureDebugVisualizer(self.p.COV_ENABLE_RENDERING, 1)
+            self.p.configureDebugVisualizer(self.p.COV_ENABLE_GUI, 0)
+            self.p.resetDebugVisualizerCamera(cameraDistance=self.camera['distance'], cameraYaw=self.camera['yaw'], cameraPitch=self.camera['pitch'], cameraTargetPosition=self.camera['target'])
+
+            if self.gripper_display:
+                self.line_width = 4
+                self.lines = [self.p.addUserDebugLine([0, 0, 0], end, color, lineWidth=self.line_width, parentObjectUniqueId=self.robot_id, parentLinkIndex=self.end_effector_id) for end, color in zip(np.eye(3)*0.2, np.eye(3))]
+        
+        
+        
+        if self.joint_positions is not None: # set the arm, the gripper is not important
+            for id, a in zip(self.joint_ids, self.joint_positions):
+                self.p.resetJointState(self.robot_id, id, targetValue=a)
+                    
+        for _ in range(100): self.p.stepSimulation() # let the world run for a bit
+        
+        self.target = np.zeros(3) # expressed in the cartesian world
+        if self.reset_random_initial_state is False: # set a random position that won't change
+            self.reset_random_state();
+        
+        if self.mode in {'joint torques', 'inverse dynamics'}: # disable motors to use torque control, with a small joint friction
+            self.p.setJointMotorControlArray(bodyIndex=self.robot_id, jointIndices=self.joint_ids, controlMode=self.p.VELOCITY_CONTROL, forces=np.ones(len(self.joint_ids))*1e-3)
+        
         dynamicsInfo = self.p.getDynamicsInfo(self.obj_id, -1) # save intial friction coeficients of the object
         self.frictions = {'lateral':dynamicsInfo[1], 'rolling':dynamicsInfo[6], 'spinning':dynamicsInfo[7]}
         
         self.save_state = self.p.saveState()
+        self.has_reset_object = False
 
 
     def step(self, action: Optional[ArrayLike]=None) -> Tuple[ArrayLike, bool, bool, Dict[str, Any]]: # actions are in [-1,1]
@@ -462,13 +469,17 @@ class RobotGrasping(GoalEnv):
         aabbMin, aabbMax = self.p.getAABB(self.obj_id)
         self.obj_length = np.linalg.norm(np.array(aabbMax)- np.array(aabbMin)).item() # approximate maximum length of the object
 
-    def reset(self, delta_pos: ArrayLike = [0,0], delta_yaw: float = 0, multiply_friction:float={}, object_position=None, object_xyzw=None, joint_positions=None):
+    def reset(self, delta_pos: ArrayLike = [0,0], delta_yaw: float = 0, multiply_friction:float={}, object_position=None, object_xyzw=None, joint_positions=None, load_all=False):
         """
         delta_pos and self.delta_pos are relative to the initial position (during init)
         object_position, object_xyzw, joint_positions are absolute, they overwrite everything
         """
-        assert not self.has_reset_object, "you can not remove/change the object and restore a state: use either reset() or reset_object(), not both"
-        self.p.restoreState(self.save_state)
+        if load_all:
+            self.load_all()
+        else:
+            assert not self.has_reset_object, "you can not remove/change the object and restore a state: use either reset() or reset_object(), not both"
+            self.p.restoreState(self.save_state)
+        
         if (not np.any(delta_pos)) and delta_yaw==0 and len(multiply_friction)==0  and (not self.reset_random_initial_state) and (not self.random_var) and object_position is None and object_xyzw is None and joint_positions is None:
             return self.get_obs() # do not need to change the position
         elif self.reset_random_initial_state:
@@ -511,7 +522,7 @@ class RobotGrasping(GoalEnv):
             self.info['joint reaction forces'][i] = jointReactionForces[-1] # get Mz
         
         sensor_torques = self.info['joint reaction forces']/self.maxForce # scale to [-1,1]
-        absolute_center = p.multiplyTransforms(*self.p.getBasePositionAndOrientation(self.robot_id), *self.center_workspace) # the pose of center_workspace in the world
+        absolute_center = p.multiplyTransforms(*self.p.getBasePositionAndOrientation(self.robot_id), *self.center_workspace_robot_frame) # the pose of center_workspace in the world
         invert = self.p.invertTransform(*absolute_center)
         obj_pos, obj_or = self.p.multiplyTransforms(*invert, *obj_pose) # the object pose in the center_workspace frame
     
@@ -582,10 +593,12 @@ class RobotGrasping(GoalEnv):
             self.p.disconnect()
             self.physicsClientId = -1
         
-    def get_joint_state(self):
-        """ Return normalized joint positions+gripper state open(-1)/close(1) and the end effector state """
-        positions = [2*(s[0]-u)/(u-l) + 1 for s,u,l in zip(self.p.getJointStates(self.robot_id, self.joint_ids[:-self.n_control_gripper]), self.upperLimits, self.lowerLimits)]
-        return positions+[self.gripper], self.p.getLinkState(self.robot_id, self.end_effector_id)
+    def get_joint_state(self, position=True, normalized=True):
+        """ Return (un)normalized joint positions (velocities) without the gripper"""
+        if position:
+            return [2*(s[0]-u)/(u-l) + 1 for s,u,l in zip(self.p.getJointStates(self.robot_id, self.joint_ids[:-self.n_control_gripper]), self.upperLimits, self.lowerLimits)]
+        else:
+            return [s[1] for s in self.p.getJointStates(self.robot_id, self.joint_ids[:-self.n_control_gripper])] / self.maxVelocity[:-self.n_control_gripper]
         
     def compute_reward(
             self, achieved_goal: ArrayLike, desired_goal: ArrayLike, _info: Optional[Dict[str, Any]]

@@ -714,13 +714,32 @@ def gen_to_retrain_aurora(gen):
 def unpack_repeat(x, f):
     return f(x[0], **x[1])
 
+def update_repeat(invalid_ind, inv_b_descriptors, inv_fitnesses, inv_infos, repeat, reduce_repeat, toolbox):
+    split_indices, ind_indices, to_repeat = [], [], [] # indices of individuals which should be re-evaluated
+    for i, ind, fit, bd, inf in zip(range(len(invalid_ind)), invalid_ind, inv_fitnesses, inv_b_descriptors, inv_infos):
+        ind.behavior_descriptor.values = bd
+        ind.info.values = inf
+        ind.fitness.values = fit
+        if 'repeat_kwargs' in inf: # if asked to be repeated
+            for repeat_kwargs in inf['repeat_kwargs']:
+                to_repeat.append((ind, repeat_kwargs)) # add to the queue ind and kwargs
+            ind_indices.append(i)
+            split_indices.append(len(inf['repeat_kwargs']))
+    
+    split_indices = split_indices[:-1] # pop the last element
+    repeat_results = list(toolbox.map(partial(unpack_repeat, f=repeat), to_repeat)) # re-evaluate
+    repeat_gathered = [repeat_results[i:j] for i,j in zip([0]+split_indices, split_indices+[None])] # split, map returns an ordered result
+    for ind_index, repeat_result in zip(ind_indices, repeat_gathered): # fuse the results and update
+        inv_b_descriptors[ind_index], inv_fitnesses[ind_index], inv_infos[ind_index] = reduce_repeat(invalid_ind[ind_index], repeat_result)
+    return inv_b_descriptors, inv_fitnesses, inv_infos
+
 
 def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, mini=True, plot=False, nb_gen=100,
                  algo_type='ns_nov', bound_genotype=1, pop_size=30, parallelize=False,
                  measures=False, choose_evaluate=None, bd_indexes=None, archive_limit_size=None,
                  archive_limit_strat='random', nb_cells=1000, analyze_archive=False, altered_novelty=False,
                  alteration_degree=None, novelty_metric='minkowski', save_ind_cond=None, plot_gif=False,
-                 bootstrap_individuals=None, multi_quality=None, monitor_print=False, final_filter=None, repeat=None, fuse_repeat=None):
+                 bootstrap_individuals=None, multi_quality=None, monitor_print=False, final_filter=None, repeat=None, reduce_repeat=None):
                  
     if multi_quality is not None:
         quality_names = np.unique([quality_name.strip() for bd_qual in multi_quality for quality_name in bd_qual]) # get unqiue quality names
@@ -730,8 +749,8 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
     else:
         quality_names = None
         
-    if repeat is not None or fuse_repeat is not None:
-        assert repeat is not None and fuse_repeat is not None, "if repeat or fuse_repeat is given, both must be defined"
+    if repeat is not None or reduce_repeat is not None:
+        assert repeat is not None and reduce_repeat is not None, "if repeat or reduce_repeat is given, both must be defined"
 
     # keep track of stats
     mean_hist = []
@@ -921,6 +940,8 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
     # evaluate initial population
     evaluation_pop = list(toolbox.map(evaluate_individual, pop))
     b_descriptors, fitnesses, infos = map(list, zip(*evaluation_pop))
+    if repeat is not None:
+        b_descriptors, fitnesses, infos = update_repeat(pop, b_descriptors, fitnesses, infos, repeat, reduce_repeat, toolbox)
 
     if algo_type == 'ns_rand_aurora':
         # first training of the auto-encoder
@@ -966,7 +987,7 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
         ind.info.values = inf
         ind.fitness.values = fit
         if monitor_print:
-            if inf['binary goal']:
+            if inf['is_success']:
                 count_success += 1
     if monitor_print:
         t_eval.update(n=len(pop))
@@ -1098,23 +1119,7 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
         evaluation_pop = list(toolbox.map(evaluate_individual, invalid_ind))
         inv_b_descriptors, inv_fitnesses, inv_infos = map(list, zip(*evaluation_pop))
         if repeat: # re-evalute offsprings if repeat is enabled
-            split_indices, ind_indices, to_repeat = [], [], [] # indices of individuals which should be re-evaluated
-            for i, ind, fit, bd, inf in zip(range(len(invalid_ind)), invalid_ind, inv_fitnesses, inv_b_descriptors, inv_infos):
-                ind.behavior_descriptor.values = bd
-                ind.info.values = inf
-                ind.fitness.values = fit
-                if 'repeat_kwargs' in inf: # if asked to be repeated
-                    for repeat_kwargs in inf['repeat_kwargs']:
-                        to_repeat.append((ind, repeat_kwargs)) # add to the queue ind and kwargs
-                    ind_indices.append(i)
-                    split_indices.append(len(inf['repeat_kwargs']))
-            
-            split_indices = split_indices[:-1] # pop the last element
-            repeat_results = list(toolbox.map(partial(unpack_repeat, f=repeat), to_repeat)) # re-evaluate
-            repeat_gathered = [repeat_results[i:j] for i,j in zip([0]+split_indices, split_indices+[None])] # split, map returns an ordered result
-            for ind_index, repeat_result in zip(ind_indices, repeat_gathered): # fuse the results and update
-                inv_b_descriptors[ind_index], inv_fitnesses[ind_index], inv_infos[ind_index] = fuse_repeat(invalid_ind[ind_index], repeat_result)
-            
+            inv_b_descriptors, inv_fitnesses, inv_infos = update_repeat(invalid_ind, inv_b_descriptors, inv_fitnesses, inv_infos, repeat, reduce_repeat, toolbox)
 
         # attribute fitness and behavior descriptors to new individuals
         if monitor_print:
@@ -1133,7 +1138,7 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
             ind.fitness.values = fit
 
             if monitor_print:
-                if inf['binary goal']:
+                if inf['is_success']:
                     count_success += 1
         if monitor_print:
             t_eval.update(n=len(invalid_ind))
@@ -1211,10 +1216,10 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
             pop[:] = toolbox.replace(current_pool, pop_size, fit_attr='novelty')
 
         if algo_type == 'ns_rand_binary_removal':
-            # remove individuals that satisfy the binary goal
+            # remove individuals that satisfy the is_success
             # they can still be in the archive
             for i, ind in enumerate(pop):
-                if ind.info.values['binary goal']:
+                if ind.info.values['is_success']:
                     pop.pop(i)
 
         # ###################################### MANAGE ARCHIVE ############################################
@@ -1700,8 +1705,8 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
     
     details['number of successful before filter'] = len(save_ind)
     if final_filter is not None: # re-evaluate if asked
-        for i in range(2):
-            save_ind = [ind for ind, info in zip(save_ind, toolbox.map(final_filter, save_ind)) if info['is_success']]
+        #for i in range(2):
+        save_ind = [ind for ind, info in zip(save_ind, toolbox.map(final_filter, save_ind)) if info['is_success']]
     data['population genetic statistics'] = np.array(gen_stat_hist)
     data['offsprings genetic statistics'] = np.array(gen_stat_hist_off)
     data['archive coverage'] = np.array(coverage_hist)
