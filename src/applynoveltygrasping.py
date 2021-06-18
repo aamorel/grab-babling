@@ -20,7 +20,7 @@ from functools import partial
 from pathlib import Path
 import operator
 
-DISPLAY = False
+DISPLAY = True
 PARALLELIZE = True
 PLOT = True
 DISPLAY_HOF = False

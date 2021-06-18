@@ -80,7 +80,6 @@ class RobotGrasping(GoalEnv):
         self.end_effector_id = end_effector_id
         self.n_control_gripper = n_control_gripper
         self.mode = mode
-        self.n_actions = 8 if mode=='inverse kinematics' else len(joint_ids) - n_control_gripper + 1
         self.radius = radius
         self.center_workspace = center_workspace
         self.contact_ids = contact_ids
@@ -191,6 +190,7 @@ class RobotGrasping(GoalEnv):
         self.robot_id = self.robot()
         self.joint_ids = np.array([i for i in range(self.p.getNumJoints(self.robot_id)) if self.p.getJointInfo(self.robot_id, i)[3]>-1] if self.joint_ids is None else self.joint_ids, dtype=int)
         self.n_joints = len(self.joint_ids)
+        self.n_actions = 8 if self.mode=='inverse kinematics' else len(self.joint_ids) - self.n_control_gripper + 1
         
         self.center_workspace_cartesian = np.array(self.p.getLinkState(self.robot_id, self.center_workspace)[0] if isinstance(self.center_workspace, int) else self.center_workspace)
         self.center_workspace_robot_frame = self.p.multiplyTransforms(*self.p.invertTransform(*p.getBasePositionAndOrientation(self.robot_id)), self.center_workspace_cartesian, [0,0,0,1]) # the pose of center_workspace in the robot frame
@@ -457,11 +457,13 @@ class RobotGrasping(GoalEnv):
         delta_pos and self.delta_pos are relative to the initial position (during init)
         object_position, object_xyzw, joint_positions are absolute, they overwrite everything
         """
-        if load_all:
+        if load_all is True:
             self.load_all()
-        else:
+        elif load_all is False:
             assert not self.has_reset_object, "you can not remove/change the object and restore a state: use either reset() or reset_object(), not both"
             self.p.restoreState(self.save_state)
+        elif load_all is None: # leave as it is
+            pass
         
         if (not np.any(delta_pos)) and delta_yaw==0 and len(multiply_friction)==0  and (not self.reset_random_initial_state) and (not self.random_var) and object_position is None and object_xyzw is None and joint_positions is None:
             return self.get_obs() # do not need to change the position

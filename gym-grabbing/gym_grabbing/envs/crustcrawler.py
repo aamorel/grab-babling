@@ -88,6 +88,12 @@ class CrustCrawler(RobotGrasping):
             for id, a, v, f, u, l in zip(self.joint_ids[-2:], (action[-1], -action[-1]), self.maxVelocity[-2:], self.maxForce[-2:], self.upperLimits[-2:], self.lowerLimits[-2:]):
                 self.p.setJointMotorControl2(bodyIndex=self.robot_id, jointIndex=id, controlMode=self.p.POSITION_CONTROL, targetPosition=l+(a+1)/2*(u-l), maxVelocity=v, force=f)
             commands = action[:-1]
+            
+        elif self.mode == 'pd position':
+            # control the two fingers in positions
+            for id, a, v, f, u, l in zip(self.joint_ids[-2:], (action[-1], -action[-1]), self.maxVelocity[-2:], self.maxForce[-2:], self.upperLimits[-2:], self.lowerLimits[-2:]):
+                self.p.setJointMotorControl2(bodyIndex=self.robot_id, jointIndex=id, controlMode=self.p.POSITION_CONTROL, targetPosition=l+(a+1)/2*(u-l), maxVelocity=v, force=f)
+            commands = np.hstack((action[:-1], action[-1], -action[-1]))
 
         return super().step(commands)
 
@@ -97,10 +103,6 @@ class CrustCrawler(RobotGrasping):
         for i, in zip(self.joint_ids):
             self.p.resetJointState(self.robot_id, i, targetValue=0)
 
-
-    def get_joint_state(self):
-        positions = [2*(s[0]-u)/(u-l) + 1 for s,u,l in zip(self.p.getJointStates(self.robot_id, self.joint_ids[:-1]), self.upperLimits[:-1], self.lowerLimits[:-1])]
-        return positions, self.p.getLinkState(self.robot_id, self.end_effector_id)
 
 if __name__ == "__main__": # testing
     env = CrustCrawler(display=True)

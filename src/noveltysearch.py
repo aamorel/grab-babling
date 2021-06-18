@@ -1023,6 +1023,9 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
 
     # begin evolution
     for gen in tqdm.tqdm(range(nb_gen), ascii=True):
+        if early_stopping >= 0 and len(save_ind) >= early_stopping:
+            details['nb of generations'] = gen
+            break
         
         # ###################################### SELECT ############################################
         if algo_type == 'map_elites':
@@ -1702,9 +1705,6 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
                     color = CM(i / nb_gen)
                     im_l.append(plt.scatter(bds_arr[:, 0], bds_arr[:, 1], color=color, label='Historic'))
                 ims.append(im_l)
-        if early_stopping >= 0 and count_success >= early_stopping:
-            details['nb of generations'] = nb_gen
-            break
     
     details['number of successful before filter'] = len(save_ind)
     if final_filter is not None: # re-evaluate if asked
