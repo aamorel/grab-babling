@@ -291,9 +291,12 @@ class RobotGrasping(GoalEnv):
                     u, l = self.upperLimits[:la], self.lowerLimits[:la]
                     tau = self.pd_controller.computePD(bodyUniqueId=self.robot_id, jointIndices=self.joint_ids[:la], desiredPositions=l+(action+1)/2*(u-l), desiredVelocities=np.zeros(la), kps=np.ones(la)*1000, kds=np.ones(la)*100, maxForces=self.maxForce, timeStep=self.time_step)
                     self.p.setJointMotorControlArray(bodyIndex=self.robot_id, jointIndices=self.joint_ids[:-self.n_control_gripper], controlMode=self.p.TORQUE_CONTROL, forces=tau[:-self.n_control_gripper])
+                    #for id,a in zip(self.joint_ids[:-self.n_control_gripper], tau[:-self.n_control_gripper]):
+                        #self.p.setJointMotorControl2(bodyIndex=self.robot_id, jointIndex=id, controlMode=self.p.TORQUE_CONTROL, force=a)
                     self.p.stepSimulation()
         else:
             for _ in range(self.steps_to_roll): self.p.stepSimulation()
+        #time.sleep(0.01)
         
         self.info['contact object robot'] = self.p.getContactPoints(bodyA=self.obj_id, bodyB=self.robot_id)
         self.info['contact object plane'] = self.p.getContactPoints(bodyA=self.obj_id, bodyB=self.plane_id)

@@ -20,7 +20,7 @@ from functools import partial
 from pathlib import Path
 import operator
 
-DISPLAY = False
+DISPLAY = True
 PARALLELIZE = True
 PLOT = True
 DISPLAY_HOF = False
@@ -90,7 +90,7 @@ elif ROBOT == 'pepper':
     GENE_PER_KEYPOINTS = 6  # pepper is controlled in joints space: 7 joints
     LINK_ID_CONTACT = list(range(36, 50))  # link ids that can have a grasping contact
     NB_STEPS_TO_ROLLOUT = 1
-    NB_ITER = int(1000 / NB_STEPS_TO_ROLLOUT)
+    NB_ITER = int(1500 / NB_STEPS_TO_ROLLOUT)
     AUTO_COLLIDE = False
 
 
@@ -500,7 +500,7 @@ def pos_div_pos_grip_bd(individual):
         individual,
         **controller_info,
         initial=
-            ENV.get_joint_state(position=True) if args.mode in {'joint positions', 'pd positions'} else
+            ENV.get_joint_state(position=True) if args.mode in {'joint positions', 'pd position'} else
             ENV.get_joint_state(position=False) if args.mode == 'joint velocities' else None
     )
     assert(hasattr(controller, 'grip_time'))
@@ -700,7 +700,7 @@ def simulate(individual, delta_pos=[0,0], delta_yaw=0, multiply_friction={}, ref
         individual,
         **controller_info,
         initial=
-            ENV.get_joint_state(position=True, normalized=True) if args.mode in {'joint positions', 'pd positions'} else
+            ENV.get_joint_state(position=True, normalized=True) if args.mode in {'joint positions', 'pd position'} else
             ENV.get_joint_state(position=False, normalized=True) if args.mode == 'joint velocities' else None
     )
     
@@ -752,7 +752,7 @@ def eval_sucessfull_ind(individual, obstacle_pos=None, obstacle_size=None):
         individual,
         **controller_info,
         initial=
-            ENV.get_joint_state(position=True, normalized=True) if args.mode in {'joint positions', 'pd positions'} else
+            ENV.get_joint_state(position=True, normalized=True) if args.mode in {'joint positions', 'pd position'} else
             ENV.get_joint_state(position=False, normalized=True) if args.mode == 'joint velocities' else None
     )
     

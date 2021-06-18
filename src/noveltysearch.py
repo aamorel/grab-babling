@@ -301,7 +301,7 @@ def assess_novelties(pop, archive, algo_type, bd_bounds, bd_indexes, bd_filters,
                 else:
                     novelties.append((0.0,))
         else:
-            novelties = compute_average_distance_array(b_descriptors, k_tree)
+            novelties = compute_average_distance_array([ind.behavior_descriptor.values for ind in pop], k_tree)
 
         if altered:
             # experimental condition: alter the novelties

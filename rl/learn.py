@@ -202,9 +202,9 @@ def enjoy(model_path, Model):
 	#with open('/Users/Yakumo/Downloads/kukaNoContactTable/cube__682847[92].mesu2_2021-05-19_21:04:40_run0_kukaPos/run_details.yaml', 'r') as f:
 		#d = yaml.safe_load(f)
 	#env = gym.make('kuka_grasping-v0', display=True, obj='cube', steps_to_roll=1, mode='joint torques', object_position=d['object_position'], object_xyzw=d['object_xyzw'], joint_positions=d['joint_positions'])#, early_stopping=True)
-	env = gym.make('kuka_grasping-v0', display=True, obj='cube', steps_to_roll=1, mode='joint torques', reset_random_initial_state=True)
+	env = gym.make('kuka_grasping-v0', display=True, obj='cube', steps_to_roll=1, mode='joint torques', reset_random_initial_state=True, reach=True, goal=True)
 	model = Model.load(model_path, env=env)
-	mean_reward, std_reward = evaluate_policy(model, model.get_env(), n_eval_episodes=100)
+	mean_reward, std_reward = evaluate_policy(model, model.get_env(), n_eval_episodes=100, deterministic=True)
 	print(mean_reward, std_reward)
 	
 def plot(log_dir): # need Monitor
