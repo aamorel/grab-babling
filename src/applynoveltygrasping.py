@@ -48,10 +48,11 @@ parser.add_argument("-p", "--population", help="The poulation size", type=partia
 parser.add_argument("-g", "--generation", help="The number of generation", type=partial(greater, "number of generation", 1), default=1000)
 parser.add_argument("-n", "--nruns", help="The number of time to repeat the search", type=partial(greater, "number of runs", 0), default=1)
 parser.add_argument("-c", "--cells", help="The number of cells to measure the coverage", type=partial(greater, "number of cells", 1), default=1000)
-parser.add_argument("-q", "--quality", help="Enable quality", action="store_true")
+parser.add_argument("-q", "--quality", help="Enable robustness as a quality: the individuals will be evaluated several times, thus the runs might be longer", action="store_true")
+parser.add_argument("-k", "--keep-fail", help="Keep fails: it will log the run even if it fails", action="store_true")
 parser.add_argument("-i", "--initial-random", help="Set reset_random_initial_object_pose to False, default to None", action="store_true")
 parser.add_argument("-t", "--contact-table", help="Enable grasp success without touching the table", action="store_true")
-parser.add_argument("-m", "--mode", help="Controller mode", type=str, default="joint positions", choices=["joint positions", "joint velocities", "joint torques", "inverse kinematics", "inverse dynamics", "pd position"])
+parser.add_argument("-m", "--mode", help="Controller mode", type=str, default="joint positions", choices=["joint positions", "joint velocities", "joint torques", "inverse kinematics", "inverse dynamics", "pd stable"])
 parser.add_argument("-b", "--bootstrap", help="Bootstrap folder", type=str, default=None)
 parser.add_argument("-a", "--algorithm", help="Algorithm", type=cleanStr, default="qdmos", choices=["qdmos", "map-elites", "random", "ns", "ea"])
 parser.add_argument("-e", "--early-stopping", help="Early stopping: the algorithm stops when the number of successes exceed the value", type=int, default=-1)
@@ -336,7 +337,7 @@ def two_d_bd(individual):
         individual,
         **controller_info,
         initial=
-            ENV.get_joint_state(position=True, normalized=True) if args.mode in {'joint positions', 'pd positions'} else
+            ENV.get_joint_state(position=True, normalized=True) if args.mode in {'joint positions', 'pd stable'} else
             ENV.get_joint_state(position=False, normalized=True) if args.mode == 'joint velocities' else None
     )
     
@@ -390,7 +391,7 @@ def three_d_bd(individual):
         individual,
         **controller_info,
         initial=
-            ENV.get_joint_state(position=True, normalized=True) if args.mode in {'joint positions', 'pd positions'} else
+            ENV.get_joint_state(position=True, normalized=True) if args.mode in {'joint positions', 'pd stable'} else
             ENV.get_joint_state(position=False, normalized=True) if args.mode == 'joint velocities' else None
     )
     
@@ -500,7 +501,7 @@ def pos_div_pos_grip_bd(individual):
         individual,
         **controller_info,
         initial=
-            ENV.get_joint_state(position=True) if args.mode in {'joint positions', 'pd position'} else
+            ENV.get_joint_state(position=True) if args.mode in {'joint positions', 'pd stable'} else
             ENV.get_joint_state(position=False) if args.mode == 'joint velocities' else None
     )
     assert(hasattr(controller, 'grip_time'))
@@ -610,15 +611,15 @@ def pos_div_pos_grip_bd(individual):
     grasp = r #and grip_info['time close touch']<1*240/NB_STEPS_TO_ROLLOUT and len(grip_info['contact object table'])>0 # and not contact_robot_table
 
     if grasp: # there is maybe a grasp
-        action_current_pos = np.hstack((ENV.get_joint_state(position=True, normalized=True), -1)) # send the current position
+        action_current_pos = np.hstack((ENV.get_joint_state(position=True, normalized=True), -1)) # get the current position + close the gripper
         if args.mode in {'joint positions', 'joint velocities', 'inverse kinematics'}: # set to position control
             ENV.env.mode = 'joint positions'
-        else:
-            ENV.env.mode = 'pd position' # TODO: fix the gripper
+        else: # torque mode: motors are disabled so we use pd stable for position control in torque
+            ENV.env.mode = 'pd stable'
 
         for i in range(ADD_ITER): # simulate
             o, r, eo, inf = ENV.step(action_current_pos) # the robot stops moving
-        ENV.env.mode = args.mode
+        ENV.env.mode = args.mode # unset the mode
         grasp = r
     
     info['is_success'] = binary_goal = False
@@ -693,6 +694,7 @@ def simulate(individual, delta_pos=[0,0], delta_yaw=0, multiply_friction={}, ref
         o = ENV.reset(delta_pos=delta_pos, delta_yaw=delta_yaw, multiply_friction=multiply_friction)
     else:
         ENV = gym.make(ENV_NAME, display=DISPLAY, obj=OBJECT, delta_pos=D_POS[rep], steps_to_roll=NB_STEPS_TO_ROLLOUT)
+        o = ENV.reset()
 
     # initialize controller
     controller_info = controllers_info_dict[CONTROLLER]
@@ -700,7 +702,7 @@ def simulate(individual, delta_pos=[0,0], delta_yaw=0, multiply_friction={}, ref
         individual,
         **controller_info,
         initial=
-            ENV.get_joint_state(position=True, normalized=True) if args.mode in {'joint positions', 'pd position'} else
+            ENV.get_joint_state(position=True, normalized=True) if args.mode in {'joint positions', 'pd stable'} else
             ENV.get_joint_state(position=False, normalized=True) if args.mode == 'joint velocities' else None
     )
     
@@ -708,6 +710,17 @@ def simulate(individual, delta_pos=[0,0], delta_yaw=0, multiply_friction={}, ref
         #ENV.render()
         o, r, eo, inf = ENV.step(controller.get_action(i, o))
         if eo: break
+
+    if r: # there is maybe a grasp
+        action_current_pos = np.hstack((ENV.get_joint_state(position=True, normalized=True), -1)) # get the current position + close the gripper
+        if args.mode in {'joint positions', 'joint velocities', 'inverse kinematics'}: # set to position control
+            ENV.env.mode = 'joint positions'
+        else: # torque mode: motors are disabled so we use pd stable for position control in torque
+            ENV.env.mode = 'pd stable'
+
+        for i in range(ADD_ITER): # simulate
+            o, r, eo, inf = ENV.step(action_current_pos) # the robot stops moving
+        ENV.env.mode = args.mode # unset the mode
 
     if not RESET_MODE:
         ENV.close()
@@ -729,7 +742,7 @@ def reduce_repeat(ind, results):
     
     return ind.behavior_descriptor.values, tuple(ind.fitness.values), info
 
-def final_filter(ind, n=2): # filter n times because env.reset() is kind of stochastic
+def final_filter(ind, n=3): # filter n times because env.reset() is kind of stochastic
     for i in range(n):
         if not simulate(ind)['is_success']:
             return {'is_success': False}
@@ -752,7 +765,7 @@ def eval_sucessfull_ind(individual, obstacle_pos=None, obstacle_size=None):
         individual,
         **controller_info,
         initial=
-            ENV.get_joint_state(position=True, normalized=True) if args.mode in {'joint positions', 'pd position'} else
+            ENV.get_joint_state(position=True, normalized=True) if args.mode in {'joint positions', 'pd stable'} else
             ENV.get_joint_state(position=False, normalized=True) if args.mode == 'joint velocities' else None
     )
     
@@ -819,7 +832,7 @@ def aurora_bd(individual):
         individual,
         **controller_info,
         initial=
-            ENV.get_joint_state(position=True, normalized=True) if args.mode in {'joint positions', 'pd positions'} else
+            ENV.get_joint_state(position=True, normalized=True) if args.mode in {'joint positions', 'pd stable'} else
             ENV.get_joint_state(position=False, normalized=True) if args.mode == 'joint velocities' else None
     )
 
@@ -1079,7 +1092,7 @@ if __name__ == "__main__":
         
         pop, archive, hof, details, figures, data, triumphant_archive = res
         print('Number of triumphants: ', len(triumphant_archive))
-        #if len(triumphant_archive)==0: continue # do not report the logs
+        if len(triumphant_archive)==0 and not args.keep_fail: continue # do not report the logs
         
         i = 0 # create run directory
         while os.path.exists('runs/run%i/' % i):

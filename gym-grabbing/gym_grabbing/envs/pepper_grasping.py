@@ -31,6 +31,7 @@ class PepperGrasping(RobotGrasping):
 
         super().__init__(
             robot=pepper,
+            camera={'target':(0,0,0), 'distance':0.3, 'pitch':-10, 'fov':90},
             object_position=object_position,
             table_height=0.8,
             end_effector_id=34,#self.pepper.joint_dict['LHand'].getIndex(),

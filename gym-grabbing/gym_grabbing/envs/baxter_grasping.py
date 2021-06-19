@@ -147,6 +147,8 @@ class BaxterGrasping(RobotGrasping):
             self.p.setJointMotorControl2(bodyIndex=self.robot_id, jointIndex=49, controlMode=self.p.POSITION_CONTROL, targetPosition=target_gripper_pos, force=self.maxForce[-2], maxVelocity=self.maxVelocity[-2])
             self.p.setJointMotorControl2(bodyIndex=self.robot_id, jointIndex=51, controlMode=self.p.POSITION_CONTROL, targetPosition=-target_gripper_pos, force=self.maxForce[-1], maxVelocity=self.maxVelocity[-1])
             commands = action[:-1] # send commands without the gripper
+        else:
+            raise NotImplementedError(f'{self.mode} is not implemented for Baxter.')
         
         return super().step(commands)
 

@@ -124,9 +124,7 @@ class PDControllerStable(object):
   def __init__(self, pb):
     self._pb = pb
 
-  def computePD(self, bodyUniqueId, jointIndices, desiredPositions, desiredVelocities, kps, kds,
-                maxForces, timeStep):
-    numJoints = self._pb.getNumJoints(bodyUniqueId)
+  def computePD(self, bodyUniqueId, jointIndices, desiredPositions, desiredVelocities, kps, kds, maxForces, timeStep):
     jointStates = self._pb.getJointStates(bodyUniqueId, jointIndices)
     q1 = []
     qdot1 = []

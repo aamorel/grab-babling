@@ -89,7 +89,7 @@ class CrustCrawler(RobotGrasping):
                 self.p.setJointMotorControl2(bodyIndex=self.robot_id, jointIndex=id, controlMode=self.p.POSITION_CONTROL, targetPosition=l+(a+1)/2*(u-l), maxVelocity=v, force=f)
             commands = action[:-1]
             
-        elif self.mode == 'pd position':
+        elif self.mode == 'pd stable':
             # control the two fingers in positions
             for id, a, v, f, u, l in zip(self.joint_ids[-2:], (action[-1], -action[-1]), self.maxVelocity[-2:], self.maxForce[-2:], self.upperLimits[-2:], self.lowerLimits[-2:]):
                 self.p.setJointMotorControl2(bodyIndex=self.robot_id, jointIndex=id, controlMode=self.p.POSITION_CONTROL, targetPosition=l+(a+1)/2*(u-l), maxVelocity=v, force=f)

@@ -23,13 +23,14 @@ class KukaGrasping(RobotGrasping):
         self.obstacle_size = obstacle_size
         
         def load_kuka():
+            #id = self.p.loadSDF("kuka_iiwa/kuka_with_gripper.sdf")[0]
             id = self.p.loadSDF(str(Path(__file__).parent/"robots/kuka_iiwa/kuka_gripper_end_effector.sdf"))[0] # kuka_with_gripper2 gripper have a continuous joint (7)
             self.p.resetBasePositionAndOrientation(id, [-0.1, -0.5, -0.5], [0., 0., 0., 1.])
             return id
 
         super().__init__(
             robot=load_kuka,
-            camera={'target':(0,0,0.3), 'distance':1, 'pitch':-40, 'fov':80},
+            camera={'target':(0,0,0.3), 'distance':0.7, 'pitch':-30, 'fov':90},
             mode=mode,
             object_position=object_position,
             table_height=0.8,
@@ -39,14 +40,17 @@ class KukaGrasping(RobotGrasping):
             end_effector_id = 14,
             center_workspace = 0,
             radius = 1.2,
-            #disable_collision_pair = [[11,13]],
+            disable_collision_pair = [[8,11], [10,13]],
             change_dynamics = {**{ # change joints ranges for gripper and add jointLimitForce and maxJointVelocity, the default are 0 in the sdf and this produces very weird behaviours
-#                id:{'lateralFriction':1, 'jointLowerLimit':l, 'jointUpperLimit':h, 'jointLimitForce':10, 'jointDamping':0.5} for id,l,h in [ # , 'maxJointVelocity':1
+#                id:{'lateralFriction':1, 'jointLowerLimit':l, 'jointUpperLimit':h, 'jointLimitForce':10, 'jointDamping':0.5, 'maxJointVelocity':0.5} for id,l,h in [ # , 'maxJointVelocity':1
 #                    (8, -0.5, -0.05), # b'base_left_finger_joint
 #                    (11, 0.05, 0.5), # b'base_right_finger_joint
 #                    (10, -0.3, 0.1), # b'left_base_tip_joint
 #                    (13, -0.1, 0.3)] # b'right_base_tip_joint
-            }, **{i:{'maxJointVelocity':0.5, 'jointLimitForce':100 if i==1 else 50} for i in range(7)}}, # decrease max force & velocity
+            # decrease max force to 50 & velocity to 0.5
+            # J1 needs more torque to lift the arm so we set a higher torque
+            # J6 is very unstable (the torque explodes) when using PDControllerStable so we set a low torque
+            }, **{i:{'maxJointVelocity':0.5, 'jointLimitForce':100 if i==1 else 1 if i==6 else 50} for i in range(7)}},
             **kwargs,
         )
         if self.obstacle_pos is not None:
@@ -98,13 +102,14 @@ class KukaGrasping(RobotGrasping):
             commands[-4:] = fingers # add fingers
             commands = commands.tolist()
             
-        elif self.mode in {'joint torques', 'joint velocities', 'inverse dynamics', 'pd position'}:
+        elif self.mode in {'joint torques', 'joint velocities', 'inverse dynamics', 'pd stable'}:
             # control the gripper in positions
+            #fingers = np.array([-1, -1, 1, 1]) * -1
             for id, a, v, f, u, l in zip(self.joint_ids[-4:], fingers, self.maxVelocity[-4:], self.maxForce[-4:], self.upperLimits[-4:], self.lowerLimits[-4:]):
                 self.p.setJointMotorControl2(bodyIndex=self.robot_id, jointIndex=id, controlMode=self.p.POSITION_CONTROL, targetPosition=l+(a+1)/2*(u-l), maxVelocity=v, force=f)
             if self.mode in {'joint torques', 'joint velocities'}:
                 commands = action[:-1]
-            elif self.mode in {'inverse dynamics', 'pd position'}:
+            elif self.mode in {'inverse dynamics', 'pd stable'}:
                 commands = np.hstack((action[:-1], fingers))
 
         # apply the commands
