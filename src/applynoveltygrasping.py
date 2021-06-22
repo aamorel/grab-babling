@@ -596,8 +596,6 @@ def pos_div_pos_grip_bd(individual):
             behavior = [None if ALGO=='ns_rand_multi_bd' else 0] * len(BD_BOUNDS)
             fitness = -float('inf')
             info = {'is_success': False, 'auto_collided': True}
-            if not RESET_MODE:
-                ENV.close()
             return (behavior, (fitness,), info)
 
 
