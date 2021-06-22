@@ -1,4 +1,3 @@
-import pybullet as p
 import qibullet as q
 import gym
 import os
@@ -72,3 +71,6 @@ class PepperGrasping(RobotGrasping):
         self.pepper.setAngles(joint_names=self.joints, joint_values=commands, percentage_speed=1)
         
         return super().step() # do not set the motors as we already dit it
+
+    def get_fingers(self, x):
+        return np.array([x])

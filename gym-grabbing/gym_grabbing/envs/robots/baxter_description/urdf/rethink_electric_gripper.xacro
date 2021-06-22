@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="rethink_electric_gripper">
-  <xacro:macro name="rethink_electric_gripper" params="side r_finger r_finger_slot r_finger_tip r_finger_grasp l_finger l_finger_slot l_finger_tip l_finger_grasp limit_scale">
+  <xacro:macro name="rethink_electric_gripper" params="side r_finger r_finger_slot r_finger_tip r_finger_grasp l_finger l_finger_slot l_finger_tip l_finger_grasp limit_scale fixed_joints">
     <xacro:property name="gripper_side" value="${side[0]}" scope="local"/>
     <!-- Base of end effector -->
     <link name="${side}_gripper_base">
@@ -62,23 +62,23 @@
 
     <!-- Left finger -->
     <xacro:property name="l_finger_offset" value="${((l_finger_slot-1)*0.0095) -0.011}" scope="local"/>
-    <joint name="${gripper_side}_gripper_l_finger_joint" type="prismatic">
-      <origin rpy="0 0 0" xyz="0.0 ${l_finger_offset} 0.02"/>
+    <joint name="${gripper_side}_gripper_l_finger_joint" type="${'fixed' if gripper_side+'_gripper_l_finger_joint' in fixed_joints else 'prismatic'}">
+      <origin rpy="0 0 0" xyz="0.0 ${fixed_joints_val.get('head_pan', 0) + l_finger_offset} 0.02"/>
       <axis xyz="0 1 0"/>
       <parent link="${side}_gripper_base"/>
       <child link="${gripper_side}_gripper_l_finger"/>
-      <limit effort="${max(20.0*limit_scale,20.0)}" lower="0.0" upper="0.020833" velocity="${5.0*limit_scale}"/>
+      <limit effort="${max(100*limit_scale,100)}" lower="0.0" upper="0.020833" velocity="${5.0*limit_scale}"/>
       <dynamics damping="0.7" friction="0.0"/>
     </joint>
 
     <!-- Right finger -->
     <xacro:property name="r_finger_offset" value="${((r_finger_slot-1)*-0.0095) +0.011}" scope="local"/>
-    <joint name="${gripper_side}_gripper_r_finger_joint" type="prismatic">
-      <origin rpy="0 0 0" xyz="0.0 ${r_finger_offset} 0.02"/>
+    <joint name="${gripper_side}_gripper_r_finger_joint" type="${'fixed' if gripper_side+'_gripper_r_finger_joint' in fixed_joints else 'prismatic'}">
+      <origin rpy="0 0 0" xyz="0.0 ${fixed_joints_val.get('head_pan', 0) + r_finger_offset} 0.02"/>
       <axis xyz="0 1 0"/>
       <parent link="${side}_gripper_base"/>
       <child link="${gripper_side}_gripper_r_finger"/>
-      <limit effort="${max(20.0*limit_scale,20.0)}" lower="-0.020833" upper="0.0" velocity="${5.0*limit_scale}"/>
+      <limit effort="${max(100*limit_scale,100)}" lower="-0.020833" upper="0.0" velocity="${5.0*limit_scale}"/>
       <mimic joint="${gripper_side}_gripper_l_finger_joint" multiplier="-1.0"/>
       <dynamics damping="0.7" friction="0.0"/>
     </joint>

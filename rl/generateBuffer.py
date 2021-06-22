@@ -17,29 +17,44 @@ import gym_grabbing
 import sys, os
 root = Path(__file__).parent.parent
 sys.path.append(str(root/'src'))
-from controllers import InterpolateKeyPointsEndPauseGripAssumption
+from controllers import InterpolateKeyPointsEndPauseGripAssumption, InterpolateKeyPointsGrip
 
 FOLDER = root/"runs"
 with open(next(Path(FOLDER).glob('**/run_details.yaml')), 'r') as f:
 	INFO = yaml.safe_load(f) # get some common parameters
+#INFO['mode'] = 'joint torques'
 ENV = gym.make(f"{INFO['robot']}_grasping-v0", display=False, obj=INFO['object'] ,steps_to_roll=INFO['steps to roll'], mode=INFO['mode'])
 
-def simulate(ind, object_position=None, object_xyzw=None, joint_positions=None): # return a list of transitions (s, s', a, r, done) if there is a grasping else None
+def simulate(ind, object_position=None, object_xyzw=None, joint_positions=None, position2torque=False): # return a list of transitions (s, s', a, r, done) if there is a grasping else None
 	#print(object_position)
 	global ENV
-	#controller_info = {'pause_frac': 0.66, 'n_iter': 600, 'NB_KEYPOINTS': 3, 'GENE_PER_KEYPOINTS': 8}
+	l, u, = ENV.lowerLimits, ENV.upperLimits
 	controller_info = INFO['controller info']
-	previous_observation = ENV.reset(object_position=object_position, object_xyzw=object_xyzw, joint_positions=joint_positions)
-	controller = InterpolateKeyPointsEndPauseGripAssumption(ind, controller_info, initial=ENV.get_joint_state())
-	action = controller.initial_action
+	o = previous_observation = ENV.reset(object_position=object_position, object_xyzw=object_xyzw, joint_positions=joint_positions)
+	controller = InterpolateKeyPointsGrip(ind, controller_info, initial=ENV.get_joint_state())
 	transitions = [None]*controller_info['n_iter']
 	for k in range(controller_info['n_iter']): # simulation
+		action = controller.get_action(k,o)
+		if position2torque: # convert position to torque
+			assert INFO['mode'] == 'joint torques', "When using position2torque, INFO['mode'] must be 'joint torques'"
+			action = ENV.pd_controller.computePD(
+				bodyUniqueId=ENV.robot_id,
+				jointIndices=ENV.joint_ids,
+				desiredPositions=l+(np.hstack((action[:-1], ENV.get_fingers(action[:-1])))+1)/2*(u-l),
+				desiredVelocities=np.zeros(ENV.n_joints),
+				kps=ENV.kps,
+				kds=ENV.kds,
+				maxForces=ENV.maxForce,
+				timeStep=ENV.time_step
+			)
+
 		o, r, eo, inf = ENV.step(action)
 		#torque_action = inf['applied joint motor torques'] / ENV.maxForce
 		#transitions[k] = previous_observation, o, np.hstack([torque_action[:-ENV.n_control_gripper], action[-1]]), r, eo
+			
 		transitions[k] = previous_observation, o, action, r, eo
 		previous_observation = o
-		action = controller.get_action(k)
+		
 	return transitions if r is True else None
 
 def generateBuffer(outFolder, bufferSize=1000000, reward_on=False):
@@ -49,7 +64,7 @@ def generateBuffer(outFolder, bufferSize=1000000, reward_on=False):
 	for run_details in inPath.glob('**/run_details.yaml'):
 		with open(run_details, 'r') as f:
 			d = yaml.safe_load(f)
-		individuals += [(np.load(f),d['object_position'], d['object_xyzw'], d['joint_positions']) for f in run_details.parent.glob('*type*.npy')]
+		individuals += [(np.load(f),d['object_position'], d['object_xyzw'], d['joint_positions'], d['mode']=='pd stable') for f in run_details.parent.glob('*type*.npy')]
 	if len(individuals) == 0: sys.exit("no individual found")
 	
 

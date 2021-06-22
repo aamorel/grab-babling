@@ -2,6 +2,10 @@
 <robot name="baxter" xmlns:xacro="http://www.ros.org/wiki/xacro">
   <xacro:arg name="limit_scale" default="1"/>
   <xacro:arg name="gazebo" default="false"/>
+  <xacro:arg name="fixed_joints" default="{}"/>
+  <!--convert str to dict-->
+  <xacro:property name="fixed_joints_val" value="${$(arg fixed_joints)}"/>
+  
   <xacro:if value="$(arg gazebo)">
     <!-- Gazebo Tags -->
     <xacro:include filename="baxter_base/baxter_base.gazebo.xacro" />
@@ -221,8 +225,8 @@
     <parent link="torso"/>
     <child link="right_torso_itb"/>
   </joint>
-  <joint name="head_pan" type="revolute">
-    <origin rpy="0 0 0" xyz="0.06 0 0.686"/>
+  <joint name="head_pan" type="${'fixed' if 'head_pan' in fixed_joints_val else 'revolute'}">
+    <origin rpy="0 0 ${fixed_joints_val.get('head_pan', 0)}" xyz="0.06 0 0.686"/>
     <axis xyz="0 0 1"/>
     <parent link="torso"/>
     <child link="head"/>
@@ -518,24 +522,24 @@
     <parent link="torso"/>
     <child link="right_arm_mount"/>
   </joint>
-  <joint name="right_s0" type="revolute">
-    <origin rpy="0 0 0" xyz="0.055695 0 0.011038"/>
+  <joint name="right_s0" type="${'fixed' if 'right_s0' in fixed_joints_val else 'revolute'}">
+    <origin rpy="0 0 ${fixed_joints_val.get('right_s0', 0)}" xyz="0.055695 0 0.011038"/>
     <axis xyz="0 0 1"/>
     <parent link="right_arm_mount"/>
     <child link="right_upper_shoulder"/>
     <limit effort="${max(50.0*$(arg limit_scale),50.0)}" lower="-1.70167993878" upper="1.70167993878" velocity="${1.5*$(arg limit_scale)}"/>
     <dynamics damping="0.7" friction="0.0"/>
   </joint>
-  <joint name="right_s1" type="revolute">
-    <origin rpy="-1.57079632679 0 0" xyz="0.069 0 0.27035"/>
+  <joint name="right_s1" type="${'fixed' if 'right_s1' in fixed_joints_val else 'revolute'}">
+    <origin rpy="-1.57079632679 ${fixed_joints_val.get('right_s1', 0)} 0" xyz="0.069 0 0.27035"/>
     <axis xyz="0 0 1"/>
     <parent link="right_upper_shoulder"/>
     <child link="right_lower_shoulder"/>
     <limit effort="${max(50.0*$(arg limit_scale),100.0)}" lower="-2.147" upper="1.047" velocity="${1.5*$(arg limit_scale)}"/>
     <dynamics damping="0.7" friction="0.0"/>
   </joint>
-  <joint name="right_e0" type="revolute">
-    <origin rpy="1.57079632679 0 1.57079632679" xyz="0.102 0 0"/>
+  <joint name="right_e0" type="${'fixed' if 'right_e0' in fixed_joints_val else 'revolute'}">
+    <origin rpy="1.57079632679 ${-fixed_joints_val.get('right_e0', 0)} 1.57079632679} " xyz="0.102 0 0"/>
     <axis xyz="0 0 1"/>
     <parent link="right_lower_shoulder"/>
     <child link="right_upper_elbow"/>
@@ -548,16 +552,16 @@
     <parent link="right_lower_shoulder"/>
     <child link="right_upper_elbow_visual"/>
   </joint>
-  <joint name="right_e1" type="revolute">
-    <origin rpy="-1.57079632679 -1.57079632679 0" xyz="0.069 0 0.26242"/>
+  <joint name="right_e1" type="${'fixed' if 'right_e1' in fixed_joints_val else 'revolute'}">
+    <origin rpy="-1.57079632679 ${fixed_joints_val.get('right_e1', 0)-1.57079632679} 0" xyz="0.069 0 0.26242"/>
     <axis xyz="0 0 1"/>
     <parent link="right_upper_elbow"/>
     <child link="right_lower_elbow"/>
     <limit effort="${max(50.0*$(arg limit_scale),50.0)}" lower="-0.05" upper="2.618" velocity="${1.5*$(arg limit_scale)}"/>
     <dynamics damping="0.7" friction="0.0"/>
   </joint>
-  <joint name="right_w0" type="revolute">
-    <origin rpy="1.57079632679 0 1.57079632679" xyz="0.10359 0 0"/>
+  <joint name="right_w0" type="${'fixed' if 'right_w0' in fixed_joints_val else 'revolute'}">
+    <origin rpy="1.57079632679 ${-fixed_joints_val.get('right_w0', 0)} 1.57079632679" xyz="0.10359 0 0"/>
     <axis xyz="0 0 1"/>
     <parent link="right_lower_elbow"/>
     <child link="right_upper_forearm"/>
@@ -576,16 +580,16 @@
     <parent link="right_upper_forearm"/>
     <child link="right_arm_itb"/>
   </joint>
-  <joint name="right_w1" type="revolute">
-    <origin rpy="-1.57079632679 -1.57079632679 0" xyz="0.01 0 0.2707"/>
+  <joint name="right_w1" type="${'fixed' if 'right_w1' in fixed_joints_val else 'revolute'}">
+    <origin rpy="-1.57079632679 ${fixed_joints_val.get('right_w1', 0)-1.57079632679} 0" xyz="0.01 0 0.2707"/>
     <axis xyz="0 0 1"/>
     <parent link="right_upper_forearm"/>
     <child link="right_lower_forearm"/>
     <limit effort="${max(15.0*$(arg limit_scale),15.0)}" lower="-1.57079632679" upper="2.094" velocity="${4.0*$(arg limit_scale)}"/>
     <dynamics damping="0.7" friction="0.0"/>
   </joint>
-  <joint name="right_w2" type="revolute">
-    <origin rpy="1.57079632679 0 1.57079632679" xyz="0.115975 0 0"/>
+  <joint name="right_w2" type="${'fixed' if 'right_w2' in fixed_joints_val else 'revolute'}">
+    <origin rpy="1.57079632679 ${fixed_joints_val.get('right_w2', 0)} 1.57079632679" xyz="0.115975 0 0"/>
     <axis xyz="0 0 1"/>
     <parent link="right_lower_forearm"/>
     <child link="right_wrist"/>
@@ -886,24 +890,24 @@
     <parent link="torso"/>
     <child link="left_arm_mount"/>
   </joint>
-  <joint name="left_s0" type="revolute">
-    <origin rpy="0 0 0" xyz="0.055695 0 0.011038"/>
+  <joint name="left_s0" type="${'fixed' if 'left_s0' in fixed_joints_val else 'revolute'}">
+    <origin rpy="0 0 ${fixed_joints_val.get('left_s0', 0)}" xyz="0.055695 0 0.011038"/>
     <axis xyz="0 0 1"/>
     <parent link="left_arm_mount"/>
     <child link="left_upper_shoulder"/>
     <limit effort="${max(50.0*$(arg limit_scale),50.0)}" lower="-1.70167993878" upper="1.70167993878" velocity="${1.5*$(arg limit_scale)}"/>
     <dynamics damping="0.7" friction="0.0"/>
   </joint>
-  <joint name="left_s1" type="revolute">
-    <origin rpy="-1.57079632679 0 0" xyz="0.069 0 0.27035"/>
+  <joint name="left_s1" type="${'fixed' if 'left_s1' in fixed_joints_val else 'revolute'}">
+    <origin rpy="-1.57079632679 ${fixed_joints_val.get('left_s1', 0)} 0" xyz="0.069 0 0.27035"/>
     <axis xyz="0 0 1"/>
     <parent link="left_upper_shoulder"/>
     <child link="left_lower_shoulder"/>
     <limit effort="${max(50.0*$(arg limit_scale),100.0)}" lower="-2.147" upper="1.047" velocity="${1.5*$(arg limit_scale)}"/>
     <dynamics damping="0.7" friction="0.0"/>
   </joint>
-  <joint name="left_e0" type="revolute">
-    <origin rpy="1.57079632679 0 1.57079632679" xyz="0.102 0 0"/>
+  <joint name="left_e0" type="${'fixed' if 'left_e0' in fixed_joints_val else 'revolute'}">
+    <origin rpy="1.57079632679 ${-fixed_joints_val.get('left_e0',0)} 1.57079632679" xyz="0.102 0 0"/>
     <axis xyz="0 0 1"/>
     <parent link="left_lower_shoulder"/>
     <child link="left_upper_elbow"/>
@@ -916,16 +920,16 @@
     <parent link="left_lower_shoulder"/>
     <child link="left_upper_elbow_visual"/>
   </joint>
-  <joint name="left_e1" type="revolute">
-    <origin rpy="-1.57079632679 -1.57079632679 0" xyz="0.069 0 0.26242"/>
+  <joint name="left_e1" type="${'fixed' if 'left_e1' in fixed_joints_val else 'revolute'}">
+    <origin rpy="-1.57079632679 ${fixed_joints_val.get('left_e1', 0)-1.57079632679} 0" xyz="0.069 0 0.26242"/>
     <axis xyz="0 0 1"/>
     <parent link="left_upper_elbow"/>
     <child link="left_lower_elbow"/>
     <limit effort="${max(50.0*$(arg limit_scale),50.0)}" lower="-0.05" upper="2.618" velocity="${1.5*$(arg limit_scale)}"/>
     <dynamics damping="0.7" friction="0.0"/>
   </joint>
-  <joint name="left_w0" type="revolute">
-    <origin rpy="1.57079632679 0 1.57079632679" xyz="0.10359 0 0"/>
+  <joint name="left_w0" type="${'fixed' if 'left_w0' in fixed_joints_val else 'revolute'}">
+    <origin rpy="1.57079632679 ${-fixed_joints_val.get('left_w0', 0)} 1.57079632679" xyz="0.10359 0 0"/>
     <axis xyz="0 0 1"/>
     <parent link="left_lower_elbow"/>
     <child link="left_upper_forearm"/>
@@ -944,16 +948,16 @@
     <parent link="left_upper_forearm"/>
     <child link="left_arm_itb"/>
   </joint>
-  <joint name="left_w1" type="revolute">
-    <origin rpy="-1.57079632679 -1.57079632679 0" xyz="0.01 0 0.2707"/>
+  <joint name="left_w1" type="${'fixed' if 'left_w1' in fixed_joints_val else 'revolute'}">
+    <origin rpy="-1.57079632679 ${fixed_joints_val.get('left_w1', 0)-1.57079632679} 0" xyz="0.01 0 0.2707"/>
     <axis xyz="0 0 1"/>
     <parent link="left_upper_forearm"/>
     <child link="left_lower_forearm"/>
     <limit effort="${max(15.0*$(arg limit_scale),15.0)}" lower="-1.57079632679" upper="2.094" velocity="${4.0*$(arg limit_scale)}"/>
     <dynamics damping="0.7" friction="0.0"/>
   </joint>
-  <joint name="left_w2" type="revolute">
-    <origin rpy="1.57079632679 0 1.57079632679" xyz="0.115975 0 0"/>
+  <joint name="left_w2" type="${'fixed' if 'left_w2' in fixed_joints_val else 'revolute'}">
+    <origin rpy="1.57079632679 ${-fixed_joints_val.get('left_w2', 0)} 1.57079632679" xyz="0.115975 0 0"/>
     <axis xyz="0 0 1"/>
     <parent link="left_lower_forearm"/>
     <child link="left_wrist"/>

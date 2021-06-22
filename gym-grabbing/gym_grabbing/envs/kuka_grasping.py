@@ -1,4 +1,3 @@
-import pybullet as p
 import pybullet_data
 import numpy as np
 import gym
@@ -6,6 +5,8 @@ import os
 import random
 from pathlib import Path
 from gym_grabbing.envs.robot_grasping import RobotGrasping
+import gym_grabbing
+from gym_grabbing.envs.xacro import _process
 
 
 
@@ -21,10 +22,17 @@ class KukaGrasping(RobotGrasping):
         
         self.obstacle_pos = None if obstacle_pos is None else np.array(obstacle_pos)
         self.obstacle_size = obstacle_size
+        cwd = Path(gym_grabbing.__file__).resolve().parent/"envs"
+        
+        urdf = Path(cwd/f"robots/generated/kuka_iiwa_gripper.urdf")
+        urdf.parent.mkdir(exist_ok=True)
+        #if not urdf.is_file(): # create the file if doesn't exist
+        #_process(cwd/"robots/lbr_iiwa/urdf/lbr_iiwa_14_r820_gripper.xacro", dict(output=urdf, just_deps=False, xacro_ns=True, verbosity=1, mappings={}))
         
         def load_kuka():
+            #id = self.p.loadURDF(str(urdf))
             #id = self.p.loadSDF("kuka_iiwa/kuka_with_gripper.sdf")[0]
-            id = self.p.loadSDF(str(Path(__file__).parent/"robots/kuka_iiwa/kuka_gripper_end_effector.sdf"))[0] # kuka_with_gripper2 gripper have a continuous joint (7)
+            id = self.p.loadSDF(str(cwd/"robots/kuka_iiwa/kuka_gripper_end_effector.sdf"))[0] # kuka_with_gripper2 gripper have a continuous joint (7)
             self.p.resetBasePositionAndOrientation(id, [-0.1, -0.5, -0.5], [0., 0., 0., 1.])
             return id
 
@@ -34,8 +42,8 @@ class KukaGrasping(RobotGrasping):
             mode=mode,
             object_position=object_position,
             table_height=0.8,
-            joint_ids=[0, 1, 2, 3, 4, 5, 6, 8, 10, 11, 13],
-            contact_ids=[8, 9, 10, 11, 12, 13],
+            joint_ids=[0, 1, 2, 3, 4, 5, 6, 8, 10, 11, 13],#[0,1,2,3,4,5,6,9,11,12,14]
+            contact_ids=[8, 9, 10, 11, 12, 13],#[9,11,12,14],
             n_control_gripper=4,
             end_effector_id = 14,
             center_workspace = 0,
@@ -114,6 +122,9 @@ class KukaGrasping(RobotGrasping):
 
         # apply the commands
         return super().step(commands)
+    
+    def get_fingers(self, x):
+        return np.array([-x, -x, x, x])
 
     
     def reset_robot(self):

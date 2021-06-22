@@ -2,9 +2,12 @@ import numpy as np
 from sklearn.cluster import KMeans
 from scipy.spatial import cKDTree as KDTree
 from scipy.spatial import distance
-import pybullet as p
 import inspect
 import functools
+import os
+import contextlib
+import sys
+import io
 
 color_list = ["#000000", "#FFFF00", "#1CE6FF", "#FF34FF", "#FF4A46", "#008941", "#006FA6", "#A30059",
               "#FFDBE5", "#7A4900", "#0000A6", "#63FFAC", "#B79762", "#004D43", "#8FB0FF", "#997D87",
@@ -91,30 +94,6 @@ def compute_uniformity(grid):
     uniformity = 1 - distance.jensenshannon(P, Q)
     return uniformity
 
-class BulletClient(object):
-  """A wrapper for pybullet to manage different clients. copy-pasted from https://github.com/bulletphysics/bullet3/blob/master/examples/pybullet/gym/pybullet_utils/bullet_client.py"""
-
-  def __init__(self, connection_mode=None, hostName=None, options=None):
-    self._shapes = {}
-    if connection_mode is None:
-      self._client = p.connect(p.SHARED_MEMORY, options=options) if options else p.connect(p.SHARED_MEMORY)
-      if self._client >= 0:
-        return
-      else:
-        connection_mode = p.DIRECT
-    if hostName is None:
-        self._client = p.connect(connection_mode, options=options) if options else p.connect(connection_mode)
-    else:
-        self._client = p.connect(connection_mode, hostName=hostName, options=options) if options else p.connect(connection_mode, hostName=hostName)
-
-  def __getattr__(self, name):
-    """Inject the client id into Bullet functions."""
-    attribute = getattr(p, name)
-    if inspect.isbuiltin(attribute):
-      attribute = functools.partial(attribute, physicsClientId=self._client)
-    if name=="disconnect":
-      self._client = -1
-    return attribute
     
 class PDControllerStable(object):
   """

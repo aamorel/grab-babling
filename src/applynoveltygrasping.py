@@ -8,6 +8,7 @@ from deap import base, creator
 from sklearn.cluster import AgglomerativeClustering
 from sklearn.metrics import pairwise_distances
 import controllers
+import gym_grabbing
 import os
 import json
 import glob
@@ -20,19 +21,6 @@ from functools import partial
 from pathlib import Path
 import operator
 
-DISPLAY = False
-PARALLELIZE = True
-PLOT = True
-DISPLAY_HOF = False
-DISPLAY_RAND = False
-DISPLAY_TRIUMPHANTS = False
-EVAL_SUCCESSFULL = False
-EVAL_WITH_OBSTACLE = False
-EVAL_QUALITY = False
-SAVE_TRAJ = False
-SAVE_ALL = False
-RESET_MODE = True
-
 def greater(name, min, value):
     v = int(value)
     if v <= min: raise argparse.ArgumentTypeError(f"The {name.strip()} must be greater than {min}")
@@ -42,7 +30,7 @@ def cleanStr(x):
     return str(x).strip().lower()
 
 parser = argparse.ArgumentParser()
-parser.add_argument("-r", "--robot", help="The robot environment", type=cleanStr, default="baxter", choices=["baxter", "kuka", "pepper", "crustcrawler"])
+parser.add_argument("-r", "--robot", help="The robot environment", type=cleanStr, default="baxter", choices=["baxter", "kuka", "pepper", "crustcrawler", "kuka_iiwa_allegro"])
 parser.add_argument("-o", "--object", help="The object to grasp", type=str, default="sphere")
 parser.add_argument("-p", "--population", help="The poulation size", type=partial(greater, "population size", 1), default=96)
 parser.add_argument("-g", "--generation", help="The number of generation", type=partial(greater, "number of generation", 1), default=1000)
@@ -56,8 +44,23 @@ parser.add_argument("-m", "--mode", help="Controller mode", type=str, default="j
 parser.add_argument("-b", "--bootstrap", help="Bootstrap folder", type=str, default=None)
 parser.add_argument("-a", "--algorithm", help="Algorithm", type=cleanStr, default="qdmos", choices=["qdmos", "map-elites", "random", "ns", "ea"])
 parser.add_argument("-e", "--early-stopping", help="Early stopping: the algorithm stops when the number of successes exceed the value", type=int, default=-1)
+parser.add_argument("-d", "--behaviour-descriptor", help="The behaviour descriptor to use", type=cleanStr, default="pos_div_pos_grip", choices=["pos_div_grip", "pos_div_pos", "pos_div_pos_grip"])
+parser.add_argument("-s", "--disable-state", help="Disable restore state: load each time the environment (slower) but it is more deterministic", action="store_false")
 args = parser.parse_args()
 
+
+DISPLAY = False
+PARALLELIZE = True
+PLOT = True
+DISPLAY_HOF = False
+DISPLAY_RAND = False
+DISPLAY_TRIUMPHANTS = False
+EVAL_SUCCESSFULL = False
+EVAL_WITH_OBSTACLE = False
+EVAL_QUALITY = False
+SAVE_TRAJ = False
+SAVE_ALL = False
+RESET_MODE = args.disable_state
 
 # choose parameters
 POP_SIZE = args.population # -> 48 new individuals wil be evaluated each generation in order to match the nb of cores of MeSu beta with 2 nodes
@@ -66,7 +69,7 @@ OBJECT = args.object  # 'cuboid', 'mug.urdf', 'cylinder', 'deer.urdf', 'cylinder
 ROBOT = args.robot  # 'baxter', 'pepper', 'kuka'
 CONTROLLER = 'interpolate keypoints grip'#'dynamic movement primitives'#  # see controllers_dict for list
 ALGO = {'qdmos':'ns_rand_multi_bd', 'ns':'ns_nov', 'map-elites':'map_elites', 'random':'random_search', 'ea':'classic_ea'}[args.algorithm] # algorithm
-BD = 'pos_div_pos_grip'  # behavior descriptor type '2D', '3D', 'pos_div_grip', 'pos_div_pos_grip'
+BD = args.behaviour_descriptor  # behavior descriptor type '2D', '3D', 'pos_div_grip', 'pos_div_pos_grip'
 BOOTSTRAP_FOLDER = args.bootstrap
 QUALITY = args.quality
 AUTO_COLLIDE = True
@@ -80,14 +83,14 @@ NB_KEYPOINTS = 3
 PAUSE_FRAC = 0.66
 
 if ROBOT == 'baxter':
-    ENV_NAME = 'gym_grabbing:baxter_grasping-v0'
+    ENV_NAME = 'baxter_grasping-v0'
     GENE_PER_KEYPOINTS = 7  # baxter is joints space: 8 joints
     LINK_ID_CONTACT = [47, 48, 49, 50, 51, 52]  # link ids that can have a grasping contact
     NB_STEPS_TO_ROLLOUT = 10
     NB_ITER = int(2000 / NB_STEPS_TO_ROLLOUT)
 
 elif ROBOT == 'pepper':
-    ENV_NAME = 'gym_grabbing:pepper_grasping-v0'
+    ENV_NAME = 'pepper_grasping-v0'
     GENE_PER_KEYPOINTS = 6  # pepper is controlled in joints space: 7 joints
     LINK_ID_CONTACT = list(range(36, 50))  # link ids that can have a grasping contact
     NB_STEPS_TO_ROLLOUT = 1
@@ -95,16 +98,16 @@ elif ROBOT == 'pepper':
     AUTO_COLLIDE = False
 
 
-elif ROBOT == 'kuka':
-    ENV_NAME = 'gym_grabbing:kuka_grasping-v0'
+elif ROBOT in {'kuka', 'kuka_iiwa_allegro'}:
+    ENV_NAME = 'kuka_grasping-v0' if ROBOT == 'kuka' else 'kuka_iiwa_allegro-v0'
     GENE_PER_KEYPOINTS = 7  # kuka is controlled in joints space: 7 joints
     LINK_ID_CONTACT = [8, 9, 10, 11, 12, 13]  # link ids that can have a grasping contact
     NB_STEPS_TO_ROLLOUT = 1
-    NB_ITER = int(2000 / NB_STEPS_TO_ROLLOUT)
+    NB_ITER = int(1500 if args.mode == "pd stable" else 2000 / NB_STEPS_TO_ROLLOUT)
 
         
 elif ROBOT == 'crustcrawler':
-    ENV_NAME = 'gym_grabbing:crustcrawler-v0'
+    ENV_NAME = 'crustcrawler-v0'
     GENE_PER_KEYPOINTS = 6
     LINK_ID_CONTACT = [12,13,14]  # link ids that can have a grasping contact
     NB_STEPS_TO_ROLLOUT = 1
@@ -116,7 +119,7 @@ if ROBOT == 'baxter':
 # TODO: implement closed loop control for pepper and kuka
 
 # choose minor parameters
-ADD_ITER = int(1*240/NB_STEPS_TO_ROLLOUT) # additional iteration: 2s
+ADD_ITER = int(1*240/NB_STEPS_TO_ROLLOUT) # additional iteration: 1s
 MINI = True  # minimization problem (used for MAP-elites)
 DISTANCE_THRESH = 0.6  # is_success parameter
 DIFF_OR_THRESH = 0.4  # threshold for clustering grasping orientations
@@ -141,8 +144,7 @@ if ALGO == 'ns_rand_aurora':
 # TODO: debug, for now RESET_MODE should be False
 ENV = gym.make(ENV_NAME, display=DISPLAY, obj=OBJECT, steps_to_roll=NB_STEPS_TO_ROLLOUT, reset_random_initial_state=False if args.initial_random else None, mode=args.mode)
 INITIAL_STATE = ENV.get_state() # get the pose to share
-if not RESET_MODE: # we don't use the global ENV
-    ENV.close()
+
 
 
 # choose diversity measure if gripping time is given by the controller
@@ -308,6 +310,12 @@ def analyze_triumphants(triumphant_archive, run_name):
 
                 np.save(run_name + 'type' + str(i) + '_' + str(j), ind,
                         allow_pickle=True)
+    np.savez_compressed(
+        file=run_name + 'individuals',
+        genotypes=np.array(triumphant_archive),
+        wxyzs=np.array([m.info.values['end effector xyzw relative object'] for m in triumphant_archive]), # quaternions
+        positions=np.array([m.info.values['end effector position relative object'] for m in triumphant_archive]),
+    ) # save all triumphants and infos
 
     return coverage, uniformity, clustered_triumphants, number_of_clusters, nb_of_triumphants
     
@@ -358,8 +366,7 @@ def two_d_bd(individual):
     fitness = utils.list_l2_norm(behavior, [0, 0])
 
     info = {}
-    if not RESET_MODE:
-        ENV.close()
+
 
     return (behavior, (fitness,), info)
 
@@ -454,8 +461,7 @@ def three_d_bd(individual):
             # difference:
             diff_or = obj_or.conjugate * grip_or
             info['diversity_descriptor'] = diff_or
-    if not RESET_MODE:
-        ENV.close()
+
 
     return (behavior, (fitness,), info)
 
@@ -485,11 +491,8 @@ def pos_div_pos_grip_bd(individual):
     Returns:
         tuple: tuple of behavior (list) fitness(tuple) info(dict)
     """
-    if RESET_MODE:
-        global ENV
-    else:
-        ENV = gym.make(ENV_NAME, display=DISPLAY, obj=OBJECT, steps_to_roll=NB_STEPS_TO_ROLLOUT, object_position=OBJECT_POSITION, object_xyzw=OBJECT_XYZW)
-    o = ENV.reset()
+    global ENV
+    o = ENV.reset(load_all=not RESET_MODE)
 
     global COUNT_SUCCESS
 
@@ -555,6 +558,11 @@ def pos_div_pos_grip_bd(individual):
 
         if inf['touch'] and not already_touched:
             # first touch of object
+            info['end effector position relative object'], info['end effector xyzw relative object'] = ENV.p.multiplyTransforms(
+                *ENV.p.invertTransform(*ENV.p.getBasePositionAndOrientation(ENV.obj_id)),
+                inf['end effector position'],
+                inf['end effector xyzw']
+            )
             measure_grip_time = diversity_measure(inf)
             pos_touch_time = inf['end effector position']
             already_touched = True
@@ -656,8 +664,7 @@ def pos_div_pos_grip_bd(individual):
         raise Exception(f"BD should be either: pos_div_pos, pos_div_grip or pos_div_pos_grip. BD={BD}")
 
 
-    if not RESET_MODE:
-        ENV.close()
+
 
     if ALGO != 'ns_rand_multi_bd':
         behavior = np.where(behavior==None, 0, behavior)
@@ -688,13 +695,9 @@ def pos_div_pos_grip_bd(individual):
     return (behavior.tolist(), (fitness,), info)
 
 def simulate(individual, delta_pos=[0,0], delta_yaw=0, multiply_friction={}, reference=None):
-    
-    if RESET_MODE:
-        global ENV
-        o = ENV.reset(delta_pos=delta_pos, delta_yaw=delta_yaw, multiply_friction=multiply_friction)
-    else:
-        ENV = gym.make(ENV_NAME, display=DISPLAY, obj=OBJECT, delta_pos=D_POS[rep], steps_to_roll=NB_STEPS_TO_ROLLOUT)
-        o = ENV.reset()
+
+    global ENV
+    o = ENV.reset(delta_pos=delta_pos, delta_yaw=delta_yaw, multiply_friction=multiply_friction, load_all=not RESET_MODE)
 
     # initialize controller
     controller_info = controllers_info_dict[CONTROLLER]
@@ -722,8 +725,7 @@ def simulate(individual, delta_pos=[0,0], delta_yaw=0, multiply_friction={}, ref
             o, r, eo, inf = ENV.step(action_current_pos) # the robot stops moving
         ENV.env.mode = args.mode # unset the mode
 
-    if not RESET_MODE:
-        ENV.close()
+
     
     if reference is not None:
         inf['distance to reference'] = np.linalg.norm(reference - inf['object position'])
@@ -755,7 +757,7 @@ def eval_sucessfull_ind(individual, obstacle_pos=None, obstacle_size=None):
     else:
         ENV = gym.make(ENV_NAME, display=DISPLAY, obj=OBJECT, steps_to_roll=NB_STEPS_TO_ROLLOUT,
                        obstacle=True, obstacle_pos=obstacle_pos, obstacle_size=obstacle_size)
-    o = ENV.reset
+    o = ENV.reset()
 
     individual = np.around(np.array(individual), 3)
 
@@ -806,8 +808,7 @@ def eval_sucessfull_ind(individual, obstacle_pos=None, obstacle_size=None):
 
     binary_goal = r # choose if individual satisfied the is_success
 
-    if not RESET_MODE:
-        ENV.close()
+
 
     if SAVE_TRAJ:
         traj_array.append(closed_keypoint_idx)
@@ -891,8 +892,7 @@ def aurora_bd(individual):
         else:
             info['diversity_descriptor'] = measure_grip_time
 
-    if not RESET_MODE:
-        ENV.close()
+
 
     behavior_flat = [item for sublist in behavior for item in sublist]
 
@@ -1105,6 +1105,7 @@ if __name__ == "__main__":
         t_end = time.time()
 
         # complete run dict
+        details['env id'] = ENV_NAME
         details['run id'] = i
         details['controller'] = CONTROLLER
         details['object'] = OBJECT

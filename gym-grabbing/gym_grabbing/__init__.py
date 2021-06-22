@@ -7,3 +7,5 @@ register(id='pepper_grasping-v0', entry_point='gym_grabbing.envs:PepperGrasping'
 register(id='kuka_grasping-v0', entry_point='gym_grabbing.envs:KukaGrasping',max_episode_steps=2500)
 
 register(id='crustcrawler-v0', entry_point='gym_grabbing.envs:CrustCrawler', max_episode_steps=2500)
+
+register(id='kuka_iiwa_allegro-v0', entry_point='gym_grabbing.envs:Kuka_iiwa_allegro', max_episode_steps=2500)

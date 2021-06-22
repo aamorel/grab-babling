@@ -538,6 +538,14 @@
           <emissive>0 0 0 0</emissive>
         </material>
       </visual>
+      <collision name='left_finger_collision'>
+        <pose frame=''>0 0 0.04 0 0 0 </pose>
+        <geometry>
+            <box>
+              <size>0.01 0.01 0.08</size>
+            </box>
+        </geometry>
+      </collision>
     </link>
     <joint name='left_finger_base_joint' type='fixed'>
       <parent>left_finger</parent>
@@ -590,7 +598,7 @@
         <limit>
           <lower>-0.3</lower>
           <upper>0.1</upper>
-          <effort>100</effort>
+          <effort>10</effort>
           <velocity>1</velocity>
         </limit>
         <dynamics>
@@ -691,6 +699,14 @@
           <emissive>0 0 0 0</emissive>
         </material>
       </visual>
+      <collision name='right_finger_collision'>
+        <pose frame=''>0 0 0.04 0 0 0 </pose>
+        <geometry>
+            <box>
+              <size>0.01 0.01 0.08</size>
+            </box>
+        </geometry>
+      </collision>
     </link>
     <joint name='right_finger_base_joint' type='fixed'>
       <parent>right_finger</parent>

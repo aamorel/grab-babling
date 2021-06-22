@@ -266,7 +266,8 @@ def _dirname(resolved, a, args, context):
 def _eval_find(pkg):
     return get_package_share_directory(pkg)
 
-
+import gym_grabbing
+from pathlib import Path
 def _find(resolved, a, args, context):
     """
     Process $(find PKG).
@@ -275,10 +276,17 @@ def _find(resolved, a, args, context):
     :returns: updated resolved argument, ``str``
     :raises: :exc:SubstitutionException: if PKG invalidly specified
     """
-    if len(args) != 1:
-        raise SubstitutionException(
-            '$(find pkg) accepts exactly one argument [%s]' % a)
-    return resolved.replace('$(%s)' % a, _eval_find(args[0]))
+    #print(resolved, a, args, context)
+#    if len(args) != 1:
+#        raise SubstitutionException(
+#            '$(find pkg) accepts exactly one argument [%s]' % a)
+#    return resolved.replace('$(%s)' % a, _eval_find(args[0]))
+    folder = Path(gym_grabbing.__file__).resolve().parent/"envs/robots"
+    try:
+        folder = next(folder.glob("**/"+args[0]))
+    except StopIteration:
+        raise Exception(f"{args[0]} has not been found anywhere in gym_grabbing/gym_grabbing/envs/robots/")
+    return folder
 
 
 def _eval_arg(name, args):

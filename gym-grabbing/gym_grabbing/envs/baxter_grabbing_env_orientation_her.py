@@ -1,5 +1,5 @@
 from time import sleep
-import pybullet as p
+#import pybullet as p
 import numpy as np
 import gym
 import pyquaternion as pyq

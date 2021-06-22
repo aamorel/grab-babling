@@ -97,7 +97,8 @@ class CrustCrawler(RobotGrasping):
 
         return super().step(commands)
 
-
+    def get_fingers(self, x):
+        return np.array([-x, x])
         
     def reset_robot(self):
         for i, in zip(self.joint_ids):

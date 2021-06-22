@@ -6,7 +6,7 @@
     <link name="base_link">
         <visual>
             <geometry>
-                <mesh filename="mug.obj" scale="0.0038 0.0038 0.0038"/>
+                <mesh filename="mug-9.obj" scale="0.0038 0.0038 0.0038"/>
             </geometry>
             <origin rpy="1.57 0 1.57" xyz="0 0 0" />
             <material name="white">
