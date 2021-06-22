@@ -324,7 +324,7 @@ class RobotGrasping(GoalEnv):
         
         for c in self.info['contact robot robot']:
             if set(c[3:5]) not in self.allowed_collision_pair:
-                self.info['autocollision'] = True; print(c[3:5])
+                self.info['autocollision'] = True#; print(c[3:5])
                 break
 
         observation = self.get_obs()
