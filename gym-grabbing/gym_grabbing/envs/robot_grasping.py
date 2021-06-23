@@ -183,6 +183,9 @@ class RobotGrasping(GoalEnv):
             return out
         self.step = newstep
         
+        if self.reset_random_initial_state is False: # set a random position that won't change
+            self.new_random_initial_state()
+        
         
     def load_all(self):
         self.p.resetSimulation()
@@ -263,8 +266,6 @@ class RobotGrasping(GoalEnv):
         for _ in range(100): self.p.stepSimulation() # let the world run for a bit
         
         self.target = np.zeros(3) # expressed in the cartesian world
-        if self.reset_random_initial_state is False: # set a random position that won't change
-            self.reset_random_state();
         
         if self.mode in {'joint torques', 'inverse dynamics', 'pd stable'}: # disable motors to use torque control, with a small joint friction
             self.p.setJointMotorControlArray(bodyIndex=self.robot_id, jointIndices=self.joint_ids, controlMode=self.p.VELOCITY_CONTROL, forces=np.ones(self.n_joints)*1e-3)
@@ -611,3 +612,13 @@ class RobotGrasping(GoalEnv):
     def get_fingers(self, x):
         """Return the value of the fingers to control all finger with -1≤x≤1. Gripper opened: x=1, gripper closed: x=-1"""
         raise NotImplementedError(f'get_fingers() is not implemented in {self.__name__}.')
+    
+    def new_random_initial_state(self):
+        """ generate a new random initial state and save it"""
+        self.reset()
+        self.reset_random_state()
+        for _ in range(100): self.p.stepSimulation()
+        # updates initiale state variables so load_all() will use this new configuration
+        self.object_position, self.object_xyzw = self.p.getBasePositionAndOrientation(self.obj_id)
+        self.joint_positions = np.array([s[0] for s in self.p.getJointStates(self.robot_id, self.joint_ids)])
+        self.save_state = self.p.saveState() # save it

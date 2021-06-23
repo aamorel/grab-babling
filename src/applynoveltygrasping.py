@@ -143,8 +143,6 @@ if ALGO == 'ns_rand_aurora':
 # if reset, create global env
 # TODO: debug, for now RESET_MODE should be False
 ENV = gym.make(ENV_NAME, display=DISPLAY, obj=OBJECT, steps_to_roll=NB_STEPS_TO_ROLLOUT, reset_random_initial_state=False if args.initial_random else None, mode=args.mode)
-INITIAL_STATE = ENV.get_state() # get the pose to share
-
 
 
 # choose diversity measure if gripping time is given by the controller
@@ -953,8 +951,14 @@ bd_dict = {'2D': two_d_bd,
 
 if __name__ == "__main__":
     print(f"pop size={POP_SIZE}, ngen={NB_GEN}, object={OBJECT}, robot={ROBOT}, quality={QUALITY}, autocollide={AUTO_COLLIDE}, nexp={N_EXP}, reset mode={RESET_MODE}, parallelize={PARALLELIZE}, controller={CONTROLLER}, behavior descriptor={BD}, mode={args.mode}")
+    if args.mode == 'pd stable' and os.environ.get('OPENBLAS_NUM_THREADS') != '1':
+        print("WARNING: You better have to export OPENBLAS_NUM_THREADS to 1 in order to get the best performances when using 'pd stable' (np.linalg slows down with multiprocessing)")
+    initial_state = ENV.get_state()
     
     for _ in range(N_EXP):
+        if args.initial_random:
+            ENV.new_random_initial_state()
+            initial_state = ENV.get_state() # get the pose to share
 
         initial_genotype_size = NB_KEYPOINTS * GENE_PER_KEYPOINTS
         if CONTROLLER in {'interpolate keypoints end pause grip', 'interpolate keypoints grip'}:
@@ -1113,7 +1117,8 @@ if __name__ == "__main__":
         details['steps to roll'] = NB_STEPS_TO_ROLLOUT
         details['controller info'] = controllers_info_dict[CONTROLLER]
         details['mode'] = args.mode
-        for key, value in INITIAL_STATE.items():
+        details['behaviour descriptor'] = BD
+        for key, value in initial_state.items():
             details[key] = value
         if coverage is not None:
             details['successful'] = True
