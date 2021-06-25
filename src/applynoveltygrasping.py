@@ -736,7 +736,8 @@ def reduce_repeat(ind, results):
         successes += inf['is_success']
         mean_dist += inf['distance to reference']
     info['grasp robustness'] = successes + 1 / (1.00000001 + mean_dist/successes) if successes>0 else 0
-    info.pop('repeat_kwargs')
+    #info.pop('repeat_kwargs')
+    info['n is_success'] = successes
     
     return ind.behavior_descriptor.values, tuple(ind.fitness.values), info
 
@@ -950,7 +951,7 @@ bd_dict = {'2D': two_d_bd,
            'aurora': aurora_bd}
 
 if __name__ == "__main__":
-    print(f"pop size={POP_SIZE}, ngen={NB_GEN}, object={OBJECT}, robot={ROBOT}, quality={QUALITY}, autocollide={AUTO_COLLIDE}, nexp={N_EXP}, reset mode={RESET_MODE}, parallelize={PARALLELIZE}, controller={CONTROLLER}, behavior descriptor={BD}, mode={args.mode}")
+    print(f"pop size={POP_SIZE}, ngen={NB_GEN}, object={OBJECT}, robot={ROBOT}, robustness={QUALITY}, autocollide={AUTO_COLLIDE}, nexp={N_EXP}, reset mode={RESET_MODE}, parallelize={PARALLELIZE}, controller={CONTROLLER}, behavior descriptor={BD}, mode={args.mode}, bd={BD}, random initial={args.initial_random}, keep fail={args.keep_fail}, early stopping={args.early_stopping}")
     if args.mode == 'pd stable' and os.environ.get('OPENBLAS_NUM_THREADS') != '1':
         print("WARNING: You better have to export OPENBLAS_NUM_THREADS to 1 in order to get the best performances when using 'pd stable' (np.linalg slows down with multiprocessing)")
     initial_state = ENV.get_state()
@@ -1205,7 +1206,7 @@ if __name__ == "__main__":
                         ax[1].plot(gen_div_off[:, i], color=utils.color_list[color_index])
                 ax[1].legend()
                 plt.savefig(run_name + 'genetic_diversity_plot.png')
-            plt.close('all')
+        plt.close('all')
         # don't save some stuff
         if not SAVE_ALL:
             data['novelty distribution'] = None
@@ -1215,7 +1216,10 @@ if __name__ == "__main__":
         
         # saving the run
         utils.save_yaml(details, run_name + 'run_details.yaml')
-        np.savez_compressed(run_name+'run_data', **data)
+        
+        # cleaning data
+        data = {key:value for key, value in data.items() if not value is None or isinstance(value, np.ndarray) and value.dtype == np.dtype(object)}
+        np.savez_compressed(run_name+'run_data', **data) # or maybe save to parquet as a dataFrame
 
         # display some individuals
         if DISPLAY_HOF:

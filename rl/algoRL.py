@@ -795,8 +795,6 @@ class TQC_RED (TQC_dynamic_model): # https://arxiv.org/pdf/1905.06750.pdf
 			self.n_step_buffer[self.n_step_counter] = replay_buffer, buffer_action, new_obs, reward, done, infos # replace old
 			self.n_step_counter = (self.n_step_counter+1) % (self.n_step-1)
 """
-		
-
 
 
 class SAC_RCE(SAC): # recursive classification of examples

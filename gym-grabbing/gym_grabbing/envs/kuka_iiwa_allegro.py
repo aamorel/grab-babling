@@ -39,7 +39,7 @@ class Kuka_iiwa_allegro(RobotGrasping):
 
         super().__init__(
             robot=load_kuka,
-            camera={'target':(0,0,0.3), 'distance':0.7, 'pitch':-30, 'fov':90},
+            camera={'target':(0,0,0.3), 'distance':0.7, 'pitch':-20, 'fov':90},
             mode=mode,
             object_position=object_position,
             table_height=0.8,

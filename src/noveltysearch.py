@@ -753,6 +753,7 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
         assert repeat is not None and reduce_repeat is not None, "if repeat or reduce_repeat is given, both must be defined"
 
     # keep track of stats
+    success_ratio_per_generation = []
     mean_hist = []
     min_hist = []
     max_hist = []
@@ -1019,7 +1020,7 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
         fig_gif = plt.figure(figsize=(10, 10))
         ims = []
 
-    first_saved_ind_gen = None
+    first_saved_ind_gen = -1
 
     # begin evolution
     for gen in tqdm.tqdm(range(nb_gen), ascii=True):
@@ -1135,6 +1136,8 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
             # transform each BD to its reduced form
             inv_b_descriptors = reduce_behavior_descriptor(model, inv_b_descriptors, device)
         
+        count_success_per_gen = 0
+        n_eval = 0
         for ind, fit, bd, inf in zip(invalid_ind, inv_fitnesses, inv_b_descriptors, inv_infos):
             ind.behavior_descriptor.values = bd  # can be None in the change_bd case
             ind.info.values = inf
@@ -1143,6 +1146,14 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
             if monitor_print:
                 if inf['is_success']:
                     count_success += 1
+            
+            n_eval += 1
+            count_success_per_gen += inf.get('is_success', 0)
+            count_success_per_gen += inf.get('n is_success', 0) # add repetition success
+            n_eval += len(inf.get('repeat_kwargs', ())) # add repetition eval
+            
+        success_ratio_per_generation.append(count_success_per_gen/n_eval)
+        
         if monitor_print:
             t_eval.update(n=len(invalid_ind))
             t_success.update(n=count_success)
@@ -1645,7 +1656,7 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
         max_age_hist.append(int(np.max(ages)))
         mean_age_hist.append(mean_age)
 
-        if len(save_ind) != 0 and first_saved_ind_gen is None:
+        if len(save_ind) != 0 and first_saved_ind_gen < 0:
             first_saved_ind_gen = gen
 
         if algo_type == 'ns_rand_change_bd':
@@ -1729,6 +1740,7 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
     data['novelty distribution'] = np.array(novelty_distrib)
     data['qualities'] = multi_quality_hist # this is a dict of qualities
     data['first saved ind gen'] = np.array(first_saved_ind_gen)
+    data['success ratio per generation'] = np.array(success_ratio_per_generation)
     if algo_type == 'ns_rand_multi_bd':
         data['eligibility rates'] = np.array(bd_rates)
     if plot:
