@@ -5,6 +5,7 @@ import gym
 import numpy as np
 import torch as th
 from torch.nn.functional import logsigmoid, mse_loss
+from scipy.spatial import KDTree
 
 from stable_baselines3.common.save_util import save_to_pkl, load_from_pkl
 from stable_baselines3.common.buffers import ReplayBuffer
@@ -379,14 +380,14 @@ class TQC_RCE(TQC_dynamic_model): # recursive classification of examples https:/
 
 		self._n_updates += gradient_steps
 
-		logger.record("train/n_updates", self._n_updates, exclude="tensorboard")
-		logger.record("train/ent_coef", np.mean(ent_coefs))
-		logger.record("train/actor_loss", np.mean(actor_losses))
-		logger.record("train/critic_loss", np.mean(critic_losses))
+		self.logger.record("train/n_updates", self._n_updates, exclude="tensorboard")
+		self.logger.record("train/ent_coef", np.mean(ent_coefs))
+		self.logger.record("train/actor_loss", np.mean(actor_losses))
+		self.logger.record("train/critic_loss", np.mean(critic_losses))
 		if len(ent_coef_losses) > 0:
-			logger.record("train/ent_coef_loss", np.mean(ent_coef_losses))
+			self.logger.record("train/ent_coef_loss", np.mean(ent_coef_losses))
 		if len(model_losses) > 0:
-			logger.record("train/model_loss", np.mean(model_losses))
+			self.logger.record("train/model_loss", np.mean(model_losses))
 
 class TQC_SQIL(TQC_dynamic_model): # https://arxiv.org/pdf/1905.11108.pdf
 	def __init__(self, expert_replay_buffer=None, *args, **kwargs):
@@ -522,14 +523,14 @@ class TQC_SQIL(TQC_dynamic_model): # https://arxiv.org/pdf/1905.11108.pdf
 
 		self._n_updates += gradient_steps
 
-		logger.record("train/n_updates", self._n_updates, exclude="tensorboard")
-		logger.record("train/ent_coef", np.mean(ent_coefs))
-		logger.record("train/actor_loss", np.mean(actor_losses))
-		logger.record("train/critic_loss", np.mean(critic_losses))
+		self.logger.record("train/n_updates", self._n_updates, exclude="tensorboard")
+		self.logger.record("train/ent_coef", np.mean(ent_coefs))
+		self.logger.record("train/actor_loss", np.mean(actor_losses))
+		self.logger.record("train/critic_loss", np.mean(critic_losses))
 		if len(ent_coef_losses) > 0:
-			logger.record("train/ent_coef_loss", np.mean(ent_coef_losses))
+			self.logger.record("train/ent_coef_loss", np.mean(ent_coef_losses))
 		if len(model_losses) > 0:
-			logger.record("train/model_loss", np.mean(model_losses))
+			self.logger.record("train/model_loss", np.mean(model_losses))
 	
 
 		
@@ -743,12 +744,12 @@ class TQC_RED (TQC_dynamic_model): # https://arxiv.org/pdf/1905.06750.pdf
 
 		self._n_updates += gradient_steps
 
-		logger.record("train/n_updates", self._n_updates, exclude="tensorboard")
-		logger.record("train/ent_coef", np.mean(ent_coefs))
-		logger.record("train/actor_loss", np.mean(actor_losses))
-		logger.record("train/critic_loss", np.mean(critic_losses))
+		self.logger.record("train/n_updates", self._n_updates, exclude="tensorboard")
+		self.logger.record("train/ent_coef", np.mean(ent_coefs))
+		self.logger.record("train/actor_loss", np.mean(actor_losses))
+		self.logger.record("train/critic_loss", np.mean(critic_losses))
 		if len(ent_coef_losses) > 0:
-			logger.record("train/ent_coef_loss", np.mean(ent_coef_losses))
+			self.logger.record("train/ent_coef_loss", np.mean(ent_coef_losses))
 
 """
 	def _store_transition(
@@ -795,6 +796,150 @@ class TQC_RED (TQC_dynamic_model): # https://arxiv.org/pdf/1905.06750.pdf
 			self.n_step_buffer[self.n_step_counter] = replay_buffer, buffer_action, new_obs, reward, done, infos # replace old
 			self.n_step_counter = (self.n_step_counter+1) % (self.n_step-1)
 """
+
+class RandomNetwork(BaseModel):
+	def __init__(self, use_actions=True, *args, **kwargs):
+		super().__init__(*args, **kwargs)
+		self.use_actions = use_actions
+		self.features_extractor = self.features_extractor_class(self.observation_space, **self.features_extractor_kwargs)
+		input_dim = self.features_extractor.features_dim
+		if use_actions:
+			input_dim += self.action_space.shape[0]
+		self.rand_net = self.model = th.nn.Sequential(*create_mlp(input_dim=input_dim, output_dim=128, net_arch=[128, 128])).to(self.device).requires_grad_(requires_grad=False)
+		
+
+	def forward(self, states, actions=None):
+		data = states.clone().detach().to(self.device)
+		if self.use_actions:
+			assert actions.size()[1] == self.action_space.shape[0], "actions shape does not match the action space"
+			data = th.hstack((data, actions))
+		return self.rand_net(data)
+
+#import time
+class TQC_PWIL(TQC):
+	# https://arxiv.org/pdf/2006.04678.pdf
+	def __init__(self, demonstration_replay_buffer=None, T=None, *args, **kwargs):
+		super().__init__(*args, **kwargs)
+		self.random_network = RandomNetwork(
+			use_actions=True,
+			observation_space=self.observation_space,
+			action_space=self.action_space,
+			features_extractor_class=self.policy.features_extractor_class,
+			features_extractor_kwargs=self.policy.features_extractor_kwargs,
+			normalize_images=self.policy.normalize_images,
+			optimizer_class=self.policy.optimizer_class,
+			optimizer_kwargs=self.policy.optimizer_kwargs,
+		).to(self.device)
+		self.T = T
+		self.demonstration_replay_buffer = None
+		if demonstration_replay_buffer is not None:
+			self.demonstration_replay_buffer = load_from_pkl(demonstration_replay_buffer)
+			self.demonstration_replay_buffer.device = self.device
+			#print(self.demonstration_replay_buffer.observations.shape,self.demonstration_replay_buffer.actions.shape)
+			data = np.concatenate((self.demonstration_replay_buffer.observations,self.demonstration_replay_buffer.actions), axis=-1)
+			self.demonstrations = self.random_network.forward(
+				th.from_numpy(self.demonstration_replay_buffer.observations.squeeze(1)).to(self.device),
+				th.from_numpy(self.demonstration_replay_buffer.actions.squeeze(1)).to(self.device)
+			)
+			#self.demonstrations = KDTree(self.demonstrations.detach().numpy())
+			self.sub_demonstration = self.demonstrations.detach().clone()
+			#self.visited = np.array([]).reshape(-1,self.demonstrations.m)
+			self.D = len(data)
+			self.we = th.ones(self.D) / self.D
+		#self.c = 0
+		
+
+	def _store_transition(
+		self,
+		replay_buffer: ReplayBuffer,
+		buffer_action: np.ndarray,
+		new_obs: np.ndarray,
+		reward: np.ndarray,
+		done: np.ndarray,
+		infos: List[Dict[str, Any]],
+	) -> None: # the reward from the environment is replaced with the intrinsic PWIL reward
+		#print(self._last_obs)
+		embedding = self.random_network.forward(th.from_numpy(self._last_obs).to(self.device), th.from_numpy(buffer_action).to(self.device))#.numpy()
+		c = 0
+		#start = time.perf_counter()
+		# PWIL: compare to the whole support
+		wπ = 1/self.T
+		dist = th.norm(self.sub_demonstration - embedding, dim=-1)
+		argsort = th.argsort(dist)
+		i = 0
+		while wπ > 0:
+			j = argsort[i]
+			d, we = dist[j].item(), self.we[j].item()
+			
+			if wπ >= we:
+				c += we*d
+				wπ -= we
+			else:
+				c += wπ*d
+				we -= wπ
+				wπ = 0
+			i += 1
+		
+		self.sub_demonstration = self.sub_demonstration[(th.arange(self.sub_demonstration.size(0))[:,None]!=argsort[th.arange(i)]).all(-1)] # pop visited
+		
+		# simple knn version (won't compare to the whole support)
+#		for j in range(3):
+#			# find the nearest not in visited
+#			distances, indices = self.demonstrations.query(embedding, k=self.T)
+#			for d,i in zip(distances, indices):
+#				# if the neighbour at index i has not been visited
+#				if not (self.demonstrations.data[i] == self.visited).all(1).any():
+#					self.visited = np.vstack((self.visited, self.demonstrations.data[i])) # append
+#					break
+#			else:
+#				print("WARNING: all neighbours have been visited")
+#			c += d
+		
+		reward_ = reward if reward>0 else -c*1000
+		#print(time.perf_counter()-start, reward_)
+
+		# Store only the unnormalized version
+		if self._vec_normalize_env is not None:
+			new_obs_ = self._vec_normalize_env.get_original_obs()
+			#reward_ = self._vec_normalize_env.get_original_reward()
+		else:
+			# Avoid changing the original ones
+			#self._last_original_obs, new_obs_, reward_ = self._last_obs, new_obs, reward
+			self._last_original_obs, new_obs_, = self._last_obs, new_obs,
+
+		# As the VecEnv resets automatically, new_obs is already the
+		# first observation of the next episode
+		if done and infos[0].get("terminal_observation") is not None:
+			next_obs = infos[0]["terminal_observation"]
+			# VecNormalize normalizes the terminal observation
+			if self._vec_normalize_env is not None:
+				next_obs = self._vec_normalize_env.unnormalize_obs(next_obs)
+		else:
+			next_obs = new_obs_
+		
+		if done:
+			self.sub_demonstration = self.demonstrations.detach().clone()
+			self.we = th.ones(self.D) / self.D
+			#self.visited = np.array([]).reshape(-1,self.demonstrations.m) # empty it
+
+		replay_buffer.add(
+			self._last_original_obs,
+			next_obs,
+			buffer_action,
+			reward_,
+			done,
+			infos,
+		)
+
+		self._last_obs = new_obs
+		# Save the unnormalized observation
+		if self._vec_normalize_env is not None:
+			self._last_original_obs = new_obs_
+	
+#	def train(self, gradient_steps: int, batch_size: int = 64) -> None:
+#		start = time.perf_counter()
+#		super().train(gradient_steps, batch_size)
+#		print("train", time.perf_counter()- start)
 
 
 class SAC_RCE(SAC): # recursive classification of examples
@@ -898,11 +1043,11 @@ class SAC_RCE(SAC): # recursive classification of examples
 
 		self._n_updates += gradient_steps
 
-		logger.record("train/n_updates", self._n_updates, exclude="tensorboard")
-		logger.record("train/ent_coef", np.mean(ent_coefs))
-		logger.record("train/actor_loss", np.mean(actor_losses))
-		logger.record("train/critic_loss", np.mean(critic_losses))
+		self.logger.record("train/n_updates", self._n_updates, exclude="tensorboard")
+		self.logger.record("train/ent_coef", np.mean(ent_coefs))
+		self.logger.record("train/actor_loss", np.mean(actor_losses))
+		self.logger.record("train/critic_loss", np.mean(critic_losses))
 		if len(ent_coef_losses) > 0:
-			logger.record("train/ent_coef_loss", np.mean(ent_coef_losses))
+			self.logger.record("train/ent_coef_loss", np.mean(ent_coef_losses))
 
 

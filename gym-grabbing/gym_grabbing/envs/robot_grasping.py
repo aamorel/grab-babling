@@ -198,6 +198,7 @@ class RobotGrasping(GoalEnv):
         if self.gravity: self.p.setGravity(0., 0., -9.81) # set gravity
         
         self.robot_id = self.robot()
+        self.reset_robot()
         self.joint_ids = np.array([i for i in range(self.p.getNumJoints(self.robot_id)) if self.p.getJointInfo(self.robot_id, i)[3]>-1] if self.joint_ids is None else self.joint_ids, dtype=int)
         self.n_joints = len(self.joint_ids)
         self.n_actions = 8 if self.mode=='inverse kinematics' else self.n_joints - self.n_control_gripper + 1
@@ -464,25 +465,32 @@ class RobotGrasping(GoalEnv):
         aabbMin, aabbMax = self.p.getAABB(self.obj_id)
         self.obj_length = np.linalg.norm(np.array(aabbMax)- np.array(aabbMin)).item() # approximate maximum length of the object
 
-    def reset(self, delta_pos: ArrayLike = [0,0], delta_yaw: float = 0, multiply_friction:float={}, object_position=None, object_xyzw=None, joint_positions=None, load_all=False):
+    def reset(self, delta_pos: ArrayLike = [0,0], delta_yaw: float = 0, multiply_friction:float={}, object_position=None, object_xyzw=None, joint_positions=None, load=None):
         """
         delta_pos and self.delta_pos are relative to the initial position (during init)
         object_position, object_xyzw, joint_positions are absolute, they overwrite everything
         """
-        if load_all is True:
+        load = load or 'state'
+        load = load.strip().lower()
+        assert load in {'all', 'state', 'none', 'reset'}
+        if load == 'all':
             self.load_all()
-        elif load_all is False:
+        elif load == 'state':
             assert not self.has_reset_object, "you can not remove/change the object and restore a state: use either reset() or reset_object(), not both"
             self.p.restoreState(self.save_state)
-        elif load_all is None: # leave as it is
+        elif load == 'none': # leave as it is
             pass
+        elif load == 'reset':
+            self.p.resetBasePositionAndOrientation(self.obj_id, self.object_position, self.object_xyzw)
+            self.reset_robot()
+            for _ in range(100): self.p.stepSimulation()
         
         if (not np.any(delta_pos)) and delta_yaw==0 and len(multiply_friction)==0  and (not self.reset_random_initial_state) and (not self.random_var) and object_position is None and object_xyzw is None and joint_positions is None:
             return self.get_obs() # do not need to change the position
         elif self.reset_random_initial_state:
             self.reset_random_state()
+
         pos, qua = self.p.getBasePositionAndOrientation(self.obj_id)
-        
         pos = [pos[0]+delta_pos[0], pos[1]+delta_pos[1], pos[2]]
         if self.random_var:
             pos[0] += random.gauss(0, self.random_var)

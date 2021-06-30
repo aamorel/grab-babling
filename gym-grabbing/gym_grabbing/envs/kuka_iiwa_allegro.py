@@ -128,8 +128,8 @@ class Kuka_iiwa_allegro(RobotGrasping):
 
 
 if __name__ == "__main__": # testing
-    env = LBR_iiwa_kuka(display=True, gripper_display=True, left=True)
-    for i in range(env.p.getNumJoints(env.robot_id)): print("joint info", p.getJointInfo(env.robot_id, i))
+    env = Kuka_iiwa_allegro(display=True, gripper_display=True, left=True)
+    #for i in range(env.p.getNumJoints(env.robot_id)): print("joint info", env.p.getJointInfo(env.robot_id, i))
     
     for i in range(10000000000):
             env.step([0,np.sin(i/1000),0,0,0,0,np.sin(i/1000), np.sin(i/1000)])

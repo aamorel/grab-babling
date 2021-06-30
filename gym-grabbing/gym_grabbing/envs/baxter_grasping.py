@@ -44,7 +44,8 @@ class BaxterGrasping(RobotGrasping):
         **kwargs
     ):
         
-            
+        self.fixed_arm = fixed_arm
+        self.left = left
         obj = obj.strip()
         cwd = Path(__file__).parent
         if obj not in {"cuboid", "cube", "sphere", "cylinder", "paper roll"}:
@@ -87,14 +88,6 @@ class BaxterGrasping(RobotGrasping):
             
             b = self.p.loadURDF(fileName=str(urdf), basePosition=[0, -0.8, -.074830], baseOrientation=[0,0,-1,-1], useFixedBase=False, flags=self.p.URDF_USE_SELF_COLLISION | self.p.URDF_MERGE_FIXED_LINKS if fixed_arm else self.p.URDF_USE_SELF_COLLISION)
             #for i in range(self.p.getNumJoints(b)): print("joint info", self.p.getJointInfo(b, i))
-            right = {12:0.08, 13:-1.0, 14:1.19, 15:1.94, 16:-0.67, 18:1.03, 19:0.50}
-            left = {34:-0.08, 35:-1.0, 36:-1.19, 37:1.94, 38:0.67, 40:1.03, 41:-0.50}
-            if fixed_arm:
-                for i,v in enumerate(left.values() if left else right.values()):
-                    self.p.resetJointState(b, i, targetValue=v)
-            else:
-                for i,v in {**right, **left}.items():
-                    self.p.resetJointState(b, i, targetValue=v) # put baxter in untuck position
             
             return b
             
@@ -173,3 +166,14 @@ class BaxterGrasping(RobotGrasping):
 
     def get_fingers(self, x):
         return np.array([x, -x])
+    
+    def reset_robot(self):
+            # put baxter in untuck position
+            right = {12:0.08, 13:-1.0, 14:1.19, 15:1.94, 16:-0.67, 18:1.03, 19:0.50}
+            left = {34:-0.08, 35:-1.0, 36:-1.19, 37:1.94, 38:0.67, 40:1.03, 41:-0.50}
+            if self.fixed_arm:
+                for i,v in enumerate(left.values() if self.left else right.values()):
+                    self.p.resetJointState(self.robot_id, i, targetValue=v)
+            else:
+                for i,v in {**right, **left}.items():
+                    self.p.resetJointState(self.robot_id, i, targetValue=v)

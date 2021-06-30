@@ -30,7 +30,7 @@ def cleanStr(x):
     return str(x).strip().lower()
 
 parser = argparse.ArgumentParser()
-parser.add_argument("-r", "--robot", help="The robot environment", type=cleanStr, default="baxter", choices=["baxter", "kuka", "pepper", "crustcrawler", "kuka_iiwa_allegro"])
+parser.add_argument("-r", "--robot", help="The robot environment", type=cleanStr, default="baxter", choices=["baxter", "kuka", "pepper", "crustcrawler", "kuka_iiwa_allegro", "ur10_shadow", "franka_panda"])
 parser.add_argument("-o", "--object", help="The object to grasp", type=str, default="sphere")
 parser.add_argument("-p", "--population", help="The poulation size", type=partial(greater, "population size", 1), default=96)
 parser.add_argument("-g", "--generation", help="The number of generation", type=partial(greater, "number of generation", 1), default=1000)
@@ -98,12 +98,12 @@ elif ROBOT == 'pepper':
     AUTO_COLLIDE = False
 
 
-elif ROBOT in {'kuka', 'kuka_iiwa_allegro'}:
-    ENV_NAME = 'kuka_grasping-v0' if ROBOT == 'kuka' else 'kuka_iiwa_allegro-v0'
+elif ROBOT in {'kuka', 'kuka_iiwa_allegro', 'franka_panda'}:
+    ENV_NAME = {'kuka':'kuka_grasping-v0', 'kuka_iiwa_allegro':'kuka_iiwa_allegro-v0', 'franka_panda':'franka_panda-v0'}[args.robot]
     GENE_PER_KEYPOINTS = 7  # kuka is controlled in joints space: 7 joints
     LINK_ID_CONTACT = [8, 9, 10, 11, 12, 13]  # link ids that can have a grasping contact
     NB_STEPS_TO_ROLLOUT = 1
-    NB_ITER = int(1500 if args.mode == "pd stable" else 2000 / NB_STEPS_TO_ROLLOUT)
+    NB_ITER = int((1500 if args.mode == "pd stable" else 2000) / NB_STEPS_TO_ROLLOUT)
 
         
 elif ROBOT == 'crustcrawler':
@@ -112,6 +112,13 @@ elif ROBOT == 'crustcrawler':
     LINK_ID_CONTACT = [12,13,14]  # link ids that can have a grasping contact
     NB_STEPS_TO_ROLLOUT = 1
     NB_ITER = int(2500 / NB_STEPS_TO_ROLLOUT)
+
+elif ROBOT == 'ur10_shadow':
+    ENV_NAME = 'ur10_shadow-v0'
+    GENE_PER_KEYPOINTS = 6
+    NB_STEPS_TO_ROLLOUT = 1
+    NB_ITER = int((1500 if args.mode == "pd stable" else 2000) / NB_STEPS_TO_ROLLOUT)
+    AUTO_COLLIDE = False
 
 # for closed_loop control
 if ROBOT == 'baxter':
@@ -311,7 +318,7 @@ def analyze_triumphants(triumphant_archive, run_name):
     np.savez_compressed(
         file=run_name + 'individuals',
         genotypes=np.array(triumphant_archive),
-        wxyzs=np.array([m.info.values['end effector xyzw relative object'] for m in triumphant_archive]), # quaternions
+        xyzws=np.array([m.info.values['end effector xyzw relative object'] for m in triumphant_archive]), # quaternions
         positions=np.array([m.info.values['end effector position relative object'] for m in triumphant_archive]),
     ) # save all triumphants and infos
 
@@ -490,7 +497,7 @@ def pos_div_pos_grip_bd(individual):
         tuple: tuple of behavior (list) fitness(tuple) info(dict)
     """
     global ENV
-    o = ENV.reset(load_all=not RESET_MODE)
+    o = ENV.reset(load='state' if RESET_MODE else 'all')
 
     global COUNT_SUCCESS
 
@@ -693,7 +700,7 @@ def pos_div_pos_grip_bd(individual):
 def simulate(individual, delta_pos=[0,0], delta_yaw=0, multiply_friction={}, reference=None):
 
     global ENV
-    o = ENV.reset(delta_pos=delta_pos, delta_yaw=delta_yaw, multiply_friction=multiply_friction, load_all=not RESET_MODE)
+    o = ENV.reset(delta_pos=delta_pos, delta_yaw=delta_yaw, multiply_friction=multiply_friction, load='state' if RESET_MODE else 'all')
 
     # initialize controller
     controller_info = controllers_info_dict[CONTROLLER]
@@ -951,7 +958,7 @@ bd_dict = {'2D': two_d_bd,
            'aurora': aurora_bd}
 
 if __name__ == "__main__":
-    print(f"pop size={POP_SIZE}, ngen={NB_GEN}, object={OBJECT}, robot={ROBOT}, robustness={QUALITY}, autocollide={AUTO_COLLIDE}, nexp={N_EXP}, reset mode={RESET_MODE}, parallelize={PARALLELIZE}, controller={CONTROLLER}, behavior descriptor={BD}, mode={args.mode}, bd={BD}, random initial={args.initial_random}, keep fail={args.keep_fail}, early stopping={args.early_stopping}")
+    print(f"pop size={POP_SIZE}, ngen={NB_GEN}, object={OBJECT}, robot={ROBOT}, robustness={QUALITY}, autocollide={AUTO_COLLIDE}, nexp={N_EXP}, reset mode={RESET_MODE}, parallelize={PARALLELIZE}, controller={CONTROLLER}, behavior descriptor={BD}, mode={args.mode}, algorithm={ALGO}, random initial={args.initial_random}, keep fail={args.keep_fail}, early stopping={args.early_stopping}")
     if args.mode == 'pd stable' and os.environ.get('OPENBLAS_NUM_THREADS') != '1':
         print("WARNING: You better have to export OPENBLAS_NUM_THREADS to 1 in order to get the best performances when using 'pd stable' (np.linalg slows down with multiprocessing)")
     initial_state = ENV.get_state()

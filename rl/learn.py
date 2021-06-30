@@ -16,7 +16,7 @@ from stable_baselines3.common import results_plotter
 import gym
 import gym_grabbing
 import numpy as np
-from algoRL import TQC_RCE, TQC_SQIL, TQC_RED, SAC_RCE, InverseModel, ForwardModel, train_dynamic_model, initialize_bc_policy, behaviouralCloningWithModel
+from algoRL import TQC_RCE, TQC_SQIL, TQC_RED, SAC_RCE, InverseModel, ForwardModel, train_dynamic_model, initialize_bc_policy, behaviouralCloningWithModel, TQC_PWIL
 from sb3_contrib import TQC
 from functools import partial
 from pathlib import Path
@@ -102,7 +102,7 @@ def learnReach(log_path, vec_env=False, mode='joint torques', her=False):
 		replay_buffer_class=replay_buffer_class,
 		replay_buffer_kwargs=replay_buffer_kwargs,
 	)
-	model.learn(10000000, callback=eval_callback, tb_log_name='TQC_reach')
+	model.learn(10000000, callback=eval_callback, tb_log_name='tqc_reach')
 	
 	
 def learnSimple(log_path, ReplayBufferPath=None, sqil=False, action_strategy='inverse model', device='auto'):
@@ -110,7 +110,7 @@ def learnSimple(log_path, ReplayBufferPath=None, sqil=False, action_strategy='in
 	if sqil is set to True, all rewards must be set to 1 in the replay buffer
 	otherwise, it is a simple RL algorithm (TQC) with a ReplayBuffer initialized if given
 	"""
-	env = lambda display=False: gym.make('kuka_grasping-v0', display=display, obj='cube', steps_to_roll=1, mode='joint torques')#, reset_random_initial_state=True, reach=True)
+	env = lambda display=False: gym.wrappers.TimeLimit(gym.make('kuka_grasping-v0', display=display, obj='cube', steps_to_roll=1, mode='joint torques'), max_episode_steps=1500)#, reset_random_initial_state=True, reach=True)
 	# Use deterministic actions for evaluation
 	eval_callback = Callback(env(), best_model_save_path=log_path, log_path=log_path, eval_freq=25000, deterministic=False, render=False, n_eval_episodes=2)
 
@@ -128,13 +128,13 @@ def learnSimple(log_path, ReplayBufferPath=None, sqil=False, action_strategy='in
 	if sqil:
 		assert isinstance('ReplayBufferPath', str), 'ReplayBufferPath must be provided if using SQIL'
 		model = model_class(expert_replay_buffer=ReplayBufferPath, action_strategy=action_strategy)
-		model, inverseModel = behaviouralCloningWithModel(collection_timesteps=10000, use_inverse=True, repeat=5, model=model, expert_replay_buffer=ReplayBufferPath, device=device)
+		#model, inverseModel = behaviouralCloningWithModel(collection_timesteps=10000, use_inverse=True, repeat=5, model=model, expert_replay_buffer=ReplayBufferPath, device=device)
 	else:
 		model = model_class()
 		if ReplayBufferPath is not None:
 			model.load_replay_buffer(ReplayBufferPath)
 	
-	model.learn(10000000, callback=eval_callback, tb_log_name='sqil' if sqil else 'TQC')
+	model.learn(10000000, callback=eval_callback, tb_log_name='sqil' if sqil else 'tqc')
 	
 def learnRCE(log_path, examplesPath, pretrain=None, device='auto', action_strategy='inverse model'):
 	env = lambda: gym.make('kuka_grasping-v0', display=False, obj='cube', steps_to_roll=1, mode='joint torques')#, reset_random_initial_state=True)
@@ -160,7 +160,7 @@ def learnRCE(log_path, examplesPath, pretrain=None, device='auto', action_strate
 	if pretrain is not None:
 		model, inverseModel = behaviouralCloningWithModel(collection_timesteps=10000, use_inverse=True, repeat=5, model=model, expert_replay_buffer=pretrain, device=device)
 	
-	model.learn(10000000, callback=eval_callback, tb_log_name='RCE')
+	model.learn(10000000, callback=eval_callback, tb_log_name='rce')
 	
 def learnRED(log_path, demonstration_replay_buffer, action_strategy='current policy', device='auto'):
 	env = lambda display=False: gym.make('kuka_grasping-v0', display=display, obj='cube', steps_to_roll=1, mode='joint torques')#, reset_random_initial_state=True, reach=True)
@@ -179,7 +179,27 @@ def learnRED(log_path, demonstration_replay_buffer, action_strategy='current pol
 		target_update_interval=1,
 	)
 	#model.pretrain(collection_timesteps=10000, repeat=2, expert_replay_buffer=demonstration_replay_buffer)
-	model.learn(total_timesteps=10000000, callback=eval_callback, tb_log_name='RED')
+	model.learn(total_timesteps=10000000, callback=eval_callback, tb_log_name='red')
+	#model.load_replay_buffer(demonstration_replay_buffer)
+ 
+def learnPWIL(log_path, demonstration_replay_buffer, device='auto', load_replay_buffer=None):
+	max_episode_steps = 1500
+	env = lambda display=False: gym.wrappers.TimeLimit(gym.make('kuka_grasping-v0', display=display, obj='cube', steps_to_roll=1, mode='joint torques'), max_episode_steps=max_episode_steps)#, reset_random_initial_state=True, reach=True)
+	eval_callback = Callback(env(), best_model_save_path=log_path, log_path=log_path, eval_freq=25000, deterministic=False, render=False, n_eval_episodes=2)
+	model = TQC_PWIL(
+		demonstration_replay_buffer=demonstration_replay_buffer,
+		T=max_episode_steps,
+		policy='MlpPolicy',
+		env=env(),
+		tensorboard_log=log_path,
+		device=device,
+		policy_kwargs={'net_arch':dict(qf=[400, 300], pi=[256, 256]), 'activation_fn':th.nn.LeakyReLU},
+		#learning_starts=1,
+	)
+	#model.pretrain(collection_timesteps=10000, repeat=2, expert_replay_buffer=demonstration_replay_buffer)
+	model.learn(total_timesteps=10000000, callback=eval_callback, tb_log_name='pwil')
+	if load_replay_buffer is not None:
+		model.load_replay_buffer(load_replay_buffer)
 
 	
 def testBC2(): # raw bc
@@ -218,8 +238,8 @@ if __name__ == '__main__':
 	data_path = folder/"data"
 	log_path.mkdir(exist_ok=True)
 	
-	learnReach(log_path=log_path, vec_env=False, mode='joint torques', her=True)
-	#learnSimple(log_path=log_path, ReplayBufferPath='/Users/Yakumo/Downloads/replayBufferCubeSingleConfigRewardOff.pkl', sqil=True, action_strategy='inverse model')
+	#learnReach(log_path=log_path, vec_env=False, mode='joint torques', her=True)
+	#learnSimple(log_path=log_path, ReplayBufferPath=data_path/'replay_buffer_reward_off_cube_kuka_single_config', sqil=True, action_strategy='behaviour policy')
 	#learnSimple(log_path=log_path, ReplayBufferPath='/home/yakumo/Documents/AurelienMorel/rl/replayBufferCubeSingleConfigRewardOff.pkl', sqil=True, action_strategy='inverse model')
 	#learnRCE(log_path=log_path, '/Users/Yakumo/Downloads/examples_cube.npz', pretrain='/Users/Yakumo/Downloads/replayBufferCubeSingleConfigRewardOff.pkl', action_strategy='inverse model')
 	#learnRCE(log_path=log_path, '/home/yakumo/Documents/AurelienMorel/rl/examples_cube.npz', pretrain='/home/yakumo/Documents/AurelienMorel/rl/replayBufferCubeSingleConfigRewardOff.pkl', action_strategy='inverse model')
@@ -228,5 +248,6 @@ if __name__ == '__main__':
 	#testBC2()
 	#plot('/Users/Yakumo/Downloads/TQC')
 	#learnRED(log_path=log_path, demonstration_replay_buffer='/Users/Yakumo/Downloads/replayBufferCubeSingleConfigRewardOff.pkl')
+	learnPWIL(log_path=log_path, demonstration_replay_buffer=data_path/'replay_buffer_reward_off_cube_kuka_single_config_pwil', load_replay_buffer=data_path/'replay_buffer_reward_off_cube_kuka_single_config')
 	print('end')
 	
