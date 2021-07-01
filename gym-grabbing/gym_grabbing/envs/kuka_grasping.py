@@ -16,7 +16,6 @@ class KukaGrasping(RobotGrasping):
         obstacle_pos=None,
         obstacle_size=0.1,
         object_position=[0, 0.1, 0],
-        mode='joint position',
         **kwargs
 	):
         
@@ -39,7 +38,6 @@ class KukaGrasping(RobotGrasping):
         super().__init__(
             robot=load_kuka,
             camera={'target':(0,0,0.3), 'distance':0.7, 'pitch':-30, 'fov':90},
-            mode=mode,
             object_position=object_position,
             table_height=0.8,
             joint_ids=[0, 1, 2, 3, 4, 5, 6, 8, 10, 11, 13],#[0,1,2,3,4,5,6,9,11,12,14]

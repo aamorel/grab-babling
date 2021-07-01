@@ -879,8 +879,9 @@ class TQC_PWIL(TQC):
 				we -= wπ
 				wπ = 0
 			i += 1
-		
-		self.sub_demonstration = self.sub_demonstration[(th.arange(self.sub_demonstration.size(0))[:,None]!=argsort[th.arange(i)]).all(-1)] # pop visited
+		to_keep = (th.arange(self.sub_demonstration.size(0))[:,None]!=argsort[th.arange(i)]).all(-1)
+		self.sub_demonstration = self.sub_demonstration[to_keep] # pop visited
+		self.we = self.we[to_keep]
 		
 		# simple knn version (won't compare to the whole support)
 #		for j in range(3):

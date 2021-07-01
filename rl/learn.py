@@ -243,6 +243,6 @@ if __name__ == '__main__':
 	#testBC2()
 	#plot('/Users/Yakumo/Downloads/TQC')
 	#learnRED(log_path=log_path, demonstration_replay_buffer=data_path/'replay_buffer_reward_off_cube_kuka_single_config')
-	#learnPWIL(log_path=log_path, demonstration_replay_buffer=data_path/'replay_buffer_reward_off_cube_kuka_single_config_pwil', load_replay_buffer=data_path/'replay_buffer_reward_off_cube_kuka_single_config')
+	#learnPWIL(log_path=log_path, demonstration_replay_buffer=data_path/'replay_buffer_reward_off_cube_kuka_single_config_pwil')#, load_replay_buffer=data_path/'replay_buffer_reward_off_cube_kuka_single_config')
 	print('end')
 	

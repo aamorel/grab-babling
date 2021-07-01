@@ -23,7 +23,7 @@ FOLDER = "/Users/Yakumo/Downloads/kukaPdStable/kukaSingleConfPdStable"
 with open(next(Path(FOLDER).glob('**/run_details.yaml')), 'r') as f:
 	INFO = yaml.safe_load(f) # get some common parameters
 INFO['mode'] = 'joint torques' # set it if pd stable to joint torques
-ENV = gym.make(f"{INFO['robot']}_grasping-v0", display=False, obj=INFO['object'] ,steps_to_roll=INFO['steps to roll'], mode=INFO['mode'])
+ENV = gym.make(f"{INFO['env id']}", display=False, obj=INFO['object'] ,steps_to_roll=INFO['steps to roll'], mode=INFO['mode'])
 
 def simulate(ind, object_position=None, object_xyzw=None, joint_positions=None, position2torque=False): # return a list of transitions (s, s', a, r, done) if there is a grasping else None
 	#print(object_position)
@@ -57,7 +57,7 @@ def simulate(ind, object_position=None, object_xyzw=None, joint_positions=None, 
 		
 	return transitions if r is True else None
 
-def generateBuffer(outFolder, bufferSize=1000000, reward_on=False):
+def generateBuffer(bufferSize=1000000, reward_on=False):
 	"""save a replay buffer for one object. If reward_on is set to True, all the rewards are set 1."""
 	inPath = Path(FOLDER)
 	individuals = []
@@ -82,7 +82,8 @@ def generateBuffer(outFolder, bufferSize=1000000, reward_on=False):
 		for t in transitions_array:
 			state, nextState, action, reward, done, info = t
 			replayBuffer.add(state, nextState, action, True if reward_on else reward, done, [info])
-	path = outFolder+f"/replay_buffer_reward_{'on' if reward_on else 'off'}_{INFO['object']}_{INFO['robot']}"
+	
+	path = Path(__file__).resolve().parent/f"data/replay_buffer_reward_{'on' if reward_on else 'off'}_{INFO['object']}_{INFO['robot']}"
 	save_to_pkl(path=path, obj=replayBuffer)
 	print(f"Saved as {path}.pkl")
 	
@@ -116,5 +117,5 @@ def generateExamples(outFolder):
 	np.savez_compressed(Path(outFolder)/f"examples_{INFO['object']}.npz", **{'examples':examples, 'example_next_states': nextExamples, 'example_actions':actions})
 
 if __name__ == "__main__":
-	generateBuffer('/Users/Yakumo/Downloads', bufferSize=1000000, reward_on=True)
+	generateBuffer(bufferSize=1000000, reward_on=True)
 	#generateExamples('/Users/Yakumo/Downloads')
