@@ -573,7 +573,7 @@ class TQC_SQIL(TQC_dynamic_model): # https://arxiv.org/pdf/1905.11108.pdf
 		return quantile_huber_loss(current_quantiles, target_quantiles, sum_over_quantiles=False)
 		
 class RandomNetworkDistillation(BaseModel):
-	def __init__(self, use_actions=False, output_dim=64 *args, **kwargs):
+	def __init__(self, use_actions=False, output_dim=64, *args, **kwargs):
 		super().__init__(*args, **kwargs)
 		self.use_actions = use_actions
 		self.features_extractor = self.features_extractor_class(self.observation_space, **self.features_extractor_kwargs)
