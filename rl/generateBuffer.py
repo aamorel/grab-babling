@@ -11,6 +11,7 @@ import json, yaml
 from multiprocessing import Pool
 import sys
 from itertools import starmap
+from functools import partial
 import gym_grabbing
 
 # bad!
@@ -25,14 +26,17 @@ with open(next(Path(FOLDER).glob('**/run_details.yaml')), 'r') as f:
 INFO['mode'] = 'joint torques' # set it if pd stable to joint torques
 ENV = gym.make(f"{INFO['env id']}", display=False, obj=INFO['object'] ,steps_to_roll=INFO['steps to roll'], mode=INFO['mode'])
 
-def simulate(ind, object_position=None, object_xyzw=None, joint_positions=None, position2torque=False): # return a list of transitions (s, s', a, r, done) if there is a grasping else None
+def simulate(ind, object_position=None, object_xyzw=None, joint_positions=None, position2torque=False, success_only=False, fast_only=float('inf')): # return a list of transitions (s, s', a, r, done) if there is a grasping else None
 	#print(object_position)
+	assert fast_only > 0, "must be positive"
 	global ENV
 	l, u, = ENV.lowerLimits, ENV.upperLimits
 	controller_info = INFO['controller info']
 	o = previous_observation = ENV.reset(object_position=object_position, object_xyzw=object_xyzw, joint_positions=joint_positions)
 	controller = InterpolateKeyPointsGrip(ind, **controller_info, initial=ENV.get_joint_state())
-	transitions = [None]*controller_info['n_iter']
+	transitions = []
+	achieved = False
+	time_before_success = 0
 	for k in range(controller_info['n_iter']): # simulation
 		action = controller.get_action(k,o)
 		if position2torque: # convert position to torque
@@ -49,15 +53,21 @@ def simulate(ind, object_position=None, object_xyzw=None, joint_positions=None, 
 			)[:-ENV.n_control_gripper] / ENV.maxForce[:-ENV.n_control_gripper]
 
 		o, r, done, inf = ENV.step(action)
-		#torque_action = inf['applied joint motor torques'] / ENV.maxForce
-		#transitions[k] = previous_observation, o, np.hstack([torque_action[:-ENV.n_control_gripper], action[-1]]), r, done
-			
-		transitions[k] = previous_observation, o, action, r, done, inf
+		if r and not achieved:
+			achieved = True
+		elif achieved and not r:
+			if success_only: transitions = [] # grasp then drop: discard before
+			achieved = False
+		if achieved or not success_only:
+			transitions.append([previous_observation, o, action, r, done, inf])
 		previous_observation = o
-		
-	return transitions if r is True else None
+		time_before_success += not achieved
+	if r and time_before_success<fast_only:
+		transitions[-1][4] = True # done
+		return transitions
+	else: return None
 
-def generateBuffer(bufferSize=1000000, reward_on=False):
+def generateBuffer(bufferSize=1000000, reward_on=False, success_only=True):
 	"""save a replay buffer for one object. If reward_on is set to True, all the rewards are set 1."""
 	inPath = Path(FOLDER)
 	individuals = []
@@ -69,8 +79,8 @@ def generateBuffer(bufferSize=1000000, reward_on=False):
 	
 
 	with Pool() as p:
-		transitions = tuple(filter(None, p.starmap(simulate, individuals)))
-	#transitions = tuple(filter(None, starmap(simulate, individuals)))
+		transitions = tuple(filter(None, p.starmap(partial(simulate, success_only=success_only, fast_only=float('inf')), individuals)))
+	
 	if len(transitions) == 0: sys.exit("all individuals failed")
 	transitions_array = np.vstack(np.array(transitions, dtype=object))
 	print('shape',transitions_array.shape, "n_success", len(transitions), "n_individuals", len(individuals))
@@ -83,7 +93,7 @@ def generateBuffer(bufferSize=1000000, reward_on=False):
 			state, nextState, action, reward, done, info = t
 			replayBuffer.add(state, nextState, action, True if reward_on else reward, done, [info])
 	
-	path = Path(__file__).resolve().parent/f"data/replay_buffer_reward_{'on' if reward_on else 'off'}_{INFO['object']}_{INFO['robot']}"
+	path = Path(__file__).resolve().parent/f"data/replay_buffer_reward_{'on' if reward_on else 'off'}_{INFO['object']}_{INFO['robot']}{'_success_only' if success_only else ''}"
 	save_to_pkl(path=path, obj=replayBuffer)
 	print(f"Saved as {path}.pkl")
 	
@@ -117,5 +127,5 @@ def generateExamples(outFolder):
 	np.savez_compressed(Path(outFolder)/f"examples_{INFO['object']}.npz", **{'examples':examples, 'example_next_states': nextExamples, 'example_actions':actions})
 
 if __name__ == "__main__":
-	generateBuffer(bufferSize=1000000, reward_on=True)
+	generateBuffer(bufferSize=-1, reward_on=True, success_only=False)
 	#generateExamples('/Users/Yakumo/Downloads')

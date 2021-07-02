@@ -136,7 +136,7 @@ def learnSimple(log_path, ReplayBufferPath=None, sqil=False, action_strategy='in
 	
 	model.learn(10000000, callback=eval_callback, tb_log_name='sqil' if sqil else 'tqc')
 	
-def learnRCE(log_path, examplesPath, pretrain=None, device='auto', action_strategy='inverse model'):
+def learnRCE(log_path, example_replay_buffer, pretrain=None, device='auto', action_strategy='inverse model', load_replay_buffer=None):
 	env = lambda: gym.make('kuka_grasping-v0', display=False, obj='cube', steps_to_roll=1, mode='joint torques')#, reset_random_initial_state=True)
 	env = DummyVecEnv([env])
 	
@@ -146,10 +146,10 @@ def learnRCE(log_path, examplesPath, pretrain=None, device='auto', action_strate
 	#states, next_states, actions = np.load(examplesPath).values()
 	
 	model = TQC_RCE(
-		**np.load(examplesPath),
+		example_replay_buffer=example_replay_buffer,
 		policy='MlpPolicy',
 		env=env,
-		learning_starts=200000,
+		#learning_starts=200000,
 		tensorboard_log=log_path,
 		device=device,
 		action_strategy=action_strategy,
@@ -159,7 +159,8 @@ def learnRCE(log_path, examplesPath, pretrain=None, device='auto', action_strate
 	) #, batch_size=1024, train_freq=10, policy_kwargs={'net_arch':dict(pi=[256, 128], qf=[512, 256])}, target_update_interval=10
 	if pretrain is not None:
 		model, inverseModel = behaviouralCloningWithModel(collection_timesteps=10000, use_inverse=True, repeat=5, model=model, expert_replay_buffer=pretrain, device=device)
-	
+	if load_replay_buffer is not None:
+		model.load_replay_buffer(load_replay_buffer)
 	model.learn(10000000, callback=eval_callback, tb_log_name='rce')
 	
 def learnRED(log_path, demonstration_replay_buffer, action_strategy='current policy', device='auto'):
@@ -237,12 +238,12 @@ if __name__ == '__main__':
 	
 	#learnReach(log_path=log_path, vec_env=False, mode='joint torques', her=True)
 	#learnSimple(log_path=log_path, ReplayBufferPath=data_path/'replay_buffer_reward_on_cube_kuka_single_config', sqil=True, action_strategy='behaviour policy')
-	#learnRCE(log_path=log_path, '/home/yakumo/Documents/AurelienMorel/rl/examples_cube.npz', pretrain='/home/yakumo/Documents/AurelienMorel/rl/replayBufferCubeSingleConfigRewardOff.pkl', action_strategy='inverse model')
+	#learnRCE(log_path=log_path, example_replay_buffer=data_path/"replay_buffer_reward_on_cube_kuka_success_only.pkl", action_strategy='behaviour policy', load_replay_buffer=data_path/"replay_buffer_reward_on_cube_kuka_single_config.pkl")
 	#enjoy('/Users/yakumo/Downloads/last_model.zip', TQC)
 	#behaviouralCloningWithModel(collection_timesteps=10000, use_inverse=True, repeat=5, expert_replay_buffer='/Users/Yakumo/Downloads/replayBufferCubeSingleConfigRewardOff.pkl')
 	#testBC2()
 	#plot('/Users/Yakumo/Downloads/TQC')
-	#learnRED(log_path=log_path, demonstration_replay_buffer=data_path/'replay_buffer_reward_off_cube_kuka_single_config')
-	#learnPWIL(log_path=log_path, demonstration_replay_buffer=data_path/'replay_buffer_reward_off_cube_kuka_single_config_pwil')#, load_replay_buffer=data_path/'replay_buffer_reward_off_cube_kuka_single_config')
+	#learnRED(log_path=log_path, demonstration_replay_buffer=data_path/'replay_buffer_reward_on_cube_kuka_single_config', action_strategy='behaviour policy')
+	#learnPWIL(log_path=log_path, demonstration_replay_buffer=data_path/'replay_buffer_reward_on_cube_kuka_single_config_pwil')#, load_replay_buffer=data_path/'replay_buffer_reward_on_cube_kuka_single_config')
 	print('end')
 	

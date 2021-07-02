@@ -197,14 +197,13 @@ class TQC_dynamic_model(TQC):
 		return state_dicts_names, torch_variable_names
 
 class TQC_RCE(TQC_dynamic_model): # recursive classification of examples https://arxiv.org/pdf/2103.12656v1.pdf
-	def __init__(self, examples=np.array([]), example_actions=None, example_next_states=None, n_step=10, *args, **kwargs):
+	def __init__(self, example_replay_buffer=None, n_step=10, *args, **kwargs):
 
 		super().__init__(*args, **kwargs)
-		self.examples = th.from_numpy(examples).to(self.device)
-		if example_actions is not None:
-			assert len(examples) == len(example_actions), f"The length of examples ({len(examples)}) must be equal to the length of example_actions {len(example_actions)}"
-		self.example_actions = None if example_actions is None else th.from_numpy(example_actions).to(self.device)
-		self.example_next_states = None if example_next_states is None else th.from_numpy(example_next_states).to(self.device)
+		if example_replay_buffer is not None:
+			self.example_replay_buffer = load_from_pkl(example_replay_buffer)
+			self.example_replay_buffer.device = self.device
+		else: self.example_replay_buffer = None
 		self.n_step = n_step
 		self.critic_loss, self.critic_last, self.critic_examples, self.actor_loss, self.entropy = None, None, None, None, None
 
@@ -301,8 +300,9 @@ class TQC_RCE(TQC_dynamic_model): # recursive classification of examples https:/
 				self.ent_coef_optimizer.step()
 
 			# RCE ADAPTATION ###########################################################
-			sample_id = th.randperm(len(self.examples))[:batch_size]
-			examples = self.replay_buffer._normalize_obs(self.examples[sample_id], self._vec_normalize_env) # sample examples without replacement
+			#sample_id = th.randperm(len(self.examples))[:batch_size]
+			#examples = self.replay_buffer._normalize_obs(self.examples[sample_id], self._vec_normalize_env) # sample examples without replacement
+			example_replay_data = self.example_replay_buffer.sample(batch_size=batch_size, env=self._vec_normalize_env)
 			
 			
 			with th.no_grad():
@@ -312,8 +312,9 @@ class TQC_RCE(TQC_dynamic_model): # recursive classification of examples https:/
 					example_actions = self.dynamic_model(examples, example_next_states)
 				elif self.action_strategy == 'current policy':
 					example_actions, example_log_prob = self.actor.action_log_prob(examples) # get the action given the example
+					
 				else:
-					example_actions = self.example_actions[sample_id]
+					example_actions = example_replay_data.actions#self.example_actions[sample_id]
 				# Select action according to policy
 				next_actions, next_log_prob = self.actor.action_log_prob(replay_data.next_observations)
 				futur_actions, futur_log_prob = self.actor.action_log_prob(futur_observations)
@@ -345,7 +346,7 @@ class TQC_RCE(TQC_dynamic_model): # recursive classification of examples https:/
 				
 			# Get current Quantile estimates using action from the replay buffer
 			current_quantiles = self.critic(replay_data.observations, replay_data.actions).unsqueeze(-1) # make it brodcastable to do pairwise operations (double sum)
-			example_quantiles = self.critic(examples, example_actions) # don't need to broadcast
+			example_quantiles = self.critic(example_replay_data.observations, example_actions) # don't need to broadcast
 			# Compute critic loss, not summing over the quantile dimension as in the paper.
 			example_loss = -(1-self.gamma) * logsigmoid(example_quantiles) #+ max(0,1-self.num_timesteps/1000000)*logsigmoid(-current_quantiles).mean())
 			experience_loss = -(1+self.gamma*w) * (y*logsigmoid(current_quantiles) + (1-y)*logsigmoid(-current_quantiles))
@@ -388,6 +389,9 @@ class TQC_RCE(TQC_dynamic_model): # recursive classification of examples https:/
 			self.logger.record("train/ent_coef_loss", np.mean(ent_coef_losses))
 		if len(model_losses) > 0:
 			self.logger.record("train/model_loss", np.mean(model_losses))
+
+	def _excluded_save_params(self) -> List[str]:
+		return super()._excluded_save_params() + ["example_replay_buffer"]
 
 class TQC_SQIL(TQC_dynamic_model): # https://arxiv.org/pdf/1905.11108.pdf
 	def __init__(self, expert_replay_buffer=None, *args, **kwargs):
@@ -569,16 +573,16 @@ class TQC_SQIL(TQC_dynamic_model): # https://arxiv.org/pdf/1905.11108.pdf
 		return quantile_huber_loss(current_quantiles, target_quantiles, sum_over_quantiles=False)
 		
 class RandomNetworkDistillation(BaseModel):
-	def __init__(self, use_actions=False, *args, **kwargs):
+	def __init__(self, use_actions=False, output_dim=64 *args, **kwargs):
 		super().__init__(*args, **kwargs)
 		self.use_actions = use_actions
 		self.features_extractor = self.features_extractor_class(self.observation_space, **self.features_extractor_kwargs)
 		input_dim = self.features_extractor.features_dim
 		if use_actions:
 			input_dim += self.action_space.shape[0]
-		self.train_net = self.model = th.nn.Sequential(*create_mlp(input_dim=input_dim, output_dim=128, net_arch=[256, 128])).to(self.device)
+		self.train_net = self.model = th.nn.Sequential(*create_mlp(input_dim=input_dim, output_dim=output_dim, net_arch=[32,32])).to(self.device)
 		self.optimizer = self.optimizer_class(self.parameters(), lr=1e-3, **self.optimizer_kwargs)
-		self.rand_net = self.model = th.nn.Sequential(*create_mlp(input_dim=input_dim, output_dim=128, net_arch=[128, 128])).to(self.device).requires_grad_(requires_grad=False)
+		self.rand_net = self.model = th.nn.Sequential(*create_mlp(input_dim=input_dim, output_dim=output_dim, net_arch=[ 64])).to(self.device).requires_grad_(requires_grad=False)
 		
 	
 	def train_step(self, observations, actions, dones=0):
@@ -750,6 +754,9 @@ class TQC_RED (TQC_dynamic_model): # https://arxiv.org/pdf/1905.06750.pdf
 		self.logger.record("train/critic_loss", np.mean(critic_losses))
 		if len(ent_coef_losses) > 0:
 			self.logger.record("train/ent_coef_loss", np.mean(ent_coef_losses))
+	
+	def _excluded_save_params(self) -> List[str]:
+		return super()._excluded_save_params() + ["demonstration_replay_buffer"]
 
 """
 	def _store_transition(
@@ -805,7 +812,7 @@ class RandomNetwork(BaseModel):
 		input_dim = self.features_extractor.features_dim
 		if use_actions:
 			input_dim += self.action_space.shape[0]
-		self.rand_net = self.model = th.nn.Sequential(*create_mlp(input_dim=input_dim, output_dim=128, net_arch=[128, 128])).to(self.device).requires_grad_(requires_grad=False)
+		self.rand_net = self.model = th.nn.Sequential(*create_mlp(input_dim=input_dim, output_dim=64, net_arch=[32,])).to(self.device).requires_grad_(requires_grad=False)
 		
 
 	def forward(self, states, actions=None):
@@ -842,10 +849,10 @@ class TQC_PWIL(TQC):
 				th.from_numpy(self.demonstration_replay_buffer.actions.squeeze(1)).to(self.device)
 			)
 			#self.demonstrations = KDTree(self.demonstrations.detach().numpy())
-			self.sub_demonstration = self.demonstrations.detach().clone()
+			self.sub_demonstration = self.demonstrations.detach().clone().to(self.device)
 			#self.visited = np.array([]).reshape(-1,self.demonstrations.m)
 			self.D = len(data)
-			self.we = th.ones(self.D) / self.D
+			self.we = th.ones(self.D).to(self.device) / self.D
 		#self.c = 0
 		
 
@@ -871,7 +878,7 @@ class TQC_PWIL(TQC):
 			j = argsort[i]
 			d, we = dist[j].item(), self.we[j].item()
 			
-			if wπ >= we:
+			if wπ >= we and i+1<len(self.demonstrations)/self.T:
 				c += we*d
 				wπ -= we
 			else:
@@ -919,8 +926,8 @@ class TQC_PWIL(TQC):
 			next_obs = new_obs_
 		
 		if done:
-			self.sub_demonstration = self.demonstrations.detach().clone()
-			self.we = th.ones(self.D) / self.D
+			self.sub_demonstration = self.demonstrations.detach().clone().to(self.device)
+			self.we = th.ones(self.D).to(self.device) / self.D
 			#self.visited = np.array([]).reshape(-1,self.demonstrations.m) # empty it
 
 		replay_buffer.add(
@@ -937,10 +944,8 @@ class TQC_PWIL(TQC):
 		if self._vec_normalize_env is not None:
 			self._last_original_obs = new_obs_
 	
-#	def train(self, gradient_steps: int, batch_size: int = 64) -> None:
-#		start = time.perf_counter()
-#		super().train(gradient_steps, batch_size)
-#		print("train", time.perf_counter()- start)
+	def _excluded_save_params(self) -> List[str]:
+		return super()._excluded_save_params() + ["demonstration_replay_buffer"]
 
 
 class SAC_RCE(SAC): # recursive classification of examples
