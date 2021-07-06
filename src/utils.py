@@ -349,9 +349,12 @@ def setFlowStyle(seq): # represent seq in flow style in the yaml file
     s.fa.set_flow_style()
     return s
     
-def save_yaml(data:dict, path:str):
+def save_yaml(data:dict, path=None):
     for key, value in data.items(): # setup yaml
         if isinstance(value, (tuple, list, np.ndarray)):
             data[key] = setFlowStyle(value)
-    with open(path, 'w') as f:
-        yaml.dump(data, f)
+        elif isinstance(value, dict):
+            save_yaml(value)
+    if path is not None:
+        with open(path, 'w') as f:
+            yaml.dump(data, f)
