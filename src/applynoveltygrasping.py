@@ -89,7 +89,7 @@ if ROBOT == 'baxter':
     LINK_ID_CONTACT = [47, 48, 49, 50, 51, 52]  # link ids that can have a grasping contact
     NB_STEPS_TO_ROLLOUT = 10
     NB_ITER = int(2000 / NB_STEPS_TO_ROLLOUT)
-    if RESET_MODE: ENV_KWARGS.update({'fixed_arm':True}) # best performance
+    ENV_KWARGS.update({'fixed_arm':RESET_MODE}) # best performance
 
 elif ROBOT == 'pepper':
     ENV_NAME = 'pepper_grasping-v0'
@@ -162,10 +162,10 @@ if QUALITY:
 if ALGO == 'ns_rand_aurora':
     N_SAMPLES = 4
 
-
+ENV_KWARGS.update(dict(id=ENV_NAME, display=DISPLAY, obj=OBJECT, steps_to_roll=NB_STEPS_TO_ROLLOUT, mode=args.mode))
 # if reset, create global env
 # TODO: debug, for now RESET_MODE should be False
-ENV = gym.make(ENV_NAME, display=DISPLAY, obj=OBJECT, steps_to_roll=NB_STEPS_TO_ROLLOUT, reset_random_initial_state=False if args.initial_random else None, mode=args.mode, **ENV_KWARGS)
+ENV = gym.make(**ENV_KWARGS, reset_random_initial_state=False if args.initial_random else None)
 
 
 # choose diversity measure if gripping time is given by the controller
@@ -703,7 +703,6 @@ def pos_div_pos_grip_bd(individual):
     
     
     if QUALITY and binary_goal: # np.random.randint(2)
-        #info['repeat_kwargs'] = [dict(delta_pos=D_POS[rep], delta_yaw=ANGLE_NOISE*(rep%2*2-1), multiply_friction=FRICTION_NOISE if rep%2==0 else {key:1/value for key, value in FRICTION_NOISE.items()}, reference=np.array(inf['object position'])) for rep in range(N_REP_RAND)]
         info['repeat_kwargs'] = [{**repeat_kwargs, 'reference':np.array(inf['object position'])} for repeat_kwargs in REPEAT_KWARGS]
     return (behavior.tolist(), (fitness,), info)
 
@@ -749,10 +748,10 @@ def reduce_repeat(ind, results):
     info = ind.info.values
     successes = 0
     mean_dist = 0
-    for inf in results:
+    for i, inf in enumerate(results):
         successes += inf['is_success']
         mean_dist += inf['distance to reference']
-    info['grasp robustness'] = successes + 1 / (1.00000001 + mean_dist/successes) if successes>0 else 0
+    info['grasp robustness'] = (successes + 1 / (1.00000001 + mean_dist/successes) if successes>0 else 0) / (i+1)
     #info.pop('repeat_kwargs')
     info['n is_success'] = successes
     
@@ -1125,19 +1124,13 @@ if __name__ == "__main__":
         t_end = time.time()
 
         # complete run dict
-        details['env id'] = ENV_NAME
         details['run id'] = i
         details['controller'] = CONTROLLER
-        details['object'] = OBJECT
-        details['robot'] = ROBOT
         details['bootstrap folder'] = BOOTSTRAP_FOLDER
         details['run time'] = t_end - t_start
-        details['steps to roll'] = NB_STEPS_TO_ROLLOUT
         details['controller info'] = controllers_info_dict[CONTROLLER]
-        details['mode'] = args.mode
         details['behaviour descriptor'] = BD
-        for key, value in initial_state.items():
-            details[key] = value
+        details['env kwargs'] = {**ENV_KWARGS, **initial_state}
         if coverage is not None:
             details['successful'] = True
             details['diversity coverage'] = coverage
