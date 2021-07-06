@@ -82,12 +82,14 @@ N_EXP = args.nruns
 NB_KEYPOINTS = 3
 PAUSE_FRAC = 0.66
 
+ENV_KWARGS = {}
 if ROBOT == 'baxter':
     ENV_NAME = 'baxter_grasping-v0'
     GENE_PER_KEYPOINTS = 7  # baxter is joints space: 8 joints
     LINK_ID_CONTACT = [47, 48, 49, 50, 51, 52]  # link ids that can have a grasping contact
     NB_STEPS_TO_ROLLOUT = 10
     NB_ITER = int(2000 / NB_STEPS_TO_ROLLOUT)
+    if RESET_MODE: ENV_KWARGS.update({'fixed_arm':True}) # best performance
 
 elif ROBOT == 'pepper':
     ENV_NAME = 'pepper_grasping-v0'
@@ -163,7 +165,7 @@ if ALGO == 'ns_rand_aurora':
 
 # if reset, create global env
 # TODO: debug, for now RESET_MODE should be False
-ENV = gym.make(ENV_NAME, display=DISPLAY, obj=OBJECT, steps_to_roll=NB_STEPS_TO_ROLLOUT, reset_random_initial_state=False if args.initial_random else None, mode=args.mode)
+ENV = gym.make(ENV_NAME, display=DISPLAY, obj=OBJECT, steps_to_roll=NB_STEPS_TO_ROLLOUT, reset_random_initial_state=False if args.initial_random else None, mode=args.mode, **ENV_KWARGS)
 
 
 # choose diversity measure if gripping time is given by the controller
