@@ -2,13 +2,14 @@ from gym import Env, GoalEnv, spaces
 from time import sleep
 import pybullet_data
 from pybullet_utils.bullet_client import BulletClient
-from gym_grabbing.envs.utils import PDControllerStable#, suppress_output
+from gym_grabbing.envs.utils import PDControllerStable, MLP#, suppress_output
 from pathlib import Path
 import weakref
 import functools
 import numpy as np
 from collections import OrderedDict
 import time
+import torch as th
 
 
 from typing import Dict, List, Tuple, Sequence, Callable, Any, Union, Optional
@@ -48,7 +49,6 @@ class RobotGrasping(GoalEnv):
         end_effector_id: int = -1, # link id of the end effector
         joint_ids: Optional[ArrayLike] = None, # array of int, ids of joints to control, controlable joints of the gripper must be at the end
         n_control_gripper: int = 1, # number of controllable joints belonging to the gripper
-        n_actions: int = 1, # nb of dimensions of the action space
         center_workspace: Union[int, ArrayLike] = -1, # position of the center of the sphere, supposing the workspace is a sphere (robotic arm) and the robot is not moving, if int, the position of the robot link is used
         radius: float = 1, # radius of the workspace
         contact_ids: ArrayLike = [], # link id (int) of the robot gripper that can have a grasping contact
@@ -59,6 +59,7 @@ class RobotGrasping(GoalEnv):
         reach = False, # the robot must reach a fictitious target placed in the reachable space, the table si not spawned
         gravity = True,
         goal = False,
+        npmp_decoder=None, # neural probabilistic motor primitives decoder
     ):
         assert mode in {'joint positions', 'joint velocities', 'joint torques', 'pd stable','inverse kinematics', 'inverse dynamics', 'impedance position', 'impedance velocity', 'impedance acceleration'}, "mode must be either joint positions, joint velocities, joint torques, pd stable, inverse kinematics, inverse dynamics, impedance position, impedance velocity, impedance acceleration"
         weakref.finalize(self, self.close) # cleanup
@@ -98,6 +99,8 @@ class RobotGrasping(GoalEnv):
         self.pd_controller = PDControllerStable(self.p)
         self.time_step = self.p.getPhysicsEngineParameters()["fixedTimeStep"]
         self.kps, self.kds = 300, 500 # pd_controller gains, these will become an array later
+        self.cumreward = 0
+        self.npmp_decoder = None if npmp_decoder is None else MLP.load(npmp_decoder).requires_grad_(requires_grad=False)
         
         
         self.camera = dict(
@@ -130,33 +133,36 @@ class RobotGrasping(GoalEnv):
         ))
 
         self.load_all()
-        
-        self.action_space = spaces.Box(-1., 1., shape=(self.n_actions,), dtype='float32')
-        #self.observation_space = gym.spaces.Box(-1., 1., shape=(15+len(self.joint_ids)*3,), dtype='float32') # TODO: add image if asked
-        # TODO: use OrderedDict to make sure we got the right order when concatenating during observation
+	
         high = [
-            1,1,1,1,1,1,                        # object orientation
-            np.inf,np.inf,np.inf,               # object linear velocity
-            np.inf,np.inf,np.inf,               # object angular velocity
+            1,1,1,                              # end effector position (robot frame)
+            1,1,1,1,1,1,                        # end effector orientation (robot frame)
+            np.inf,np.inf,np.inf,               # end effector linear velocity
             *[1 for i in self.joint_ids],       # joint positions
             *[np.inf for i in self.joint_ids],  # joint velocity
             *[1 for i in self.joint_ids],       # joint torque sensors Mz
-            1,1,1,1,1,1,                        # end effector orientation (robot frame)
-            np.inf,np.inf,np.inf,               # end effector linear velocity
+            1,1,1,1,1,1,                        # object orientation
+            np.inf,np.inf,np.inf,               # object linear velocity
+            np.inf,np.inf,np.inf,               # object angular velocity
             1,1,1,                              # object position (robot frame)
-            1,1,1,                              # end effector position (robot frame)
         ]
         high = np.array(high, dtype=np.float32)
         if self.reach and self.goal: # HER
             self.observation_space = spaces.Dict(
                 {
-                    "observation": spaces.Box(-high[:-6], high[:-6], dtype='float32'),
-                    "achieved_goal": spaces.Box(-high[-6:-3], high[-6:-3], dtype='float32'),
+                    "achieved_goal": spaces.Box(-high[:3], high[:3], dtype='float32'),
+                    "observation": spaces.Box(-high[3:-3], high[3:-3], dtype='float32'),
                     "desired_goal": spaces.Box(-high[-3:], high[-3:], dtype='float32'),
                 }
             )
         else:
             self.observation_space = spaces.Box(-high, high, dtype='float32')
+        
+        self.robot_space = spaces.Box(-high[:-15], high[:-15], dtype='float32') # robot state only
+        if self.npmp_decoder is not None:
+            self.n_actions = self.npmp_decoder.observation_space.shape[0]-self.robot_space.shape[0]
+        self.action_space = spaces.Box(-1., 1., shape=(self.n_actions,), dtype='float32')
+                 
         
         self.info = {
             'closed gripper': False,
@@ -175,10 +181,14 @@ class RobotGrasping(GoalEnv):
         oldstep = self.step
         self.gripper = 1 # open
         def newstep(action=None): # decorate step
-            assert action is None or len(action) == self.n_actions
-            self.gripper = action[-1]
-            self.info['closed gripper'] = action[-1]<0
-            out = oldstep(action)
+            assert action is None or (len(action) == self.n_actions and np.isfinite(action).all()), f"observation is not valid"
+            if self.npmp_decoder is not None:
+                action_ = self.npmp_decoder(th.as_tensor(np.hstack((self.info['robot state'], action)), dtype=th.float)).detach().numpy()
+            else:
+                action_ = action
+            self.gripper = action_[-1]
+            self.info['closed gripper'] = action_[-1]<0
+            out = oldstep(action_)
             self.last_action[:] = action
             return out
         self.step = newstep
@@ -348,10 +358,10 @@ class RobotGrasping(GoalEnv):
             reward = self.compute_reward(achieved_goal=achieved_goal, desired_goal=desired_goal, _info={**self.info})
             self.p.resetBasePositionAndOrientation(self.obj_id, self.target, (0,0,0,1))
         else: # binary reward: grasped or not
-            reward = len(self.info['contact object table'] + self.info['contact object plane'])==0 and self.info['touch'] and not penetration
-            self.info['is_success'] = reward
+            reward = len(self.info['contact object table'] + self.info['contact object plane'] + self.info['contact robot table'])==0 and self.info['touch'] and not penetration
+            self.info['is_success'] = self.cumreward > (100 / self.steps_to_roll) # success if the robot has been holding for a bit
         
-        
+        self.cumreward += reward
         is_out = np.logical_or(self.info['joint positions']<=self.lowerLimits, self.info['joint positions']>=self.upperLimits)
         done = False#np.all(is_out[:-self.n_control_gripper]).item() if self.early_stopping else False
         
@@ -470,6 +480,7 @@ class RobotGrasping(GoalEnv):
         delta_pos and self.delta_pos are relative to the initial position (during init)
         object_position, object_xyzw, joint_positions are absolute, they overwrite everything
         """
+        self.cumreward = 0
         load = load or 'state'
         load = load.strip().lower()
         assert load in {'all', 'state', 'none', 'reset'}
@@ -547,17 +558,17 @@ class RobotGrasping(GoalEnv):
         end_or = self.p.getMatrixFromQuaternion(end_or)[:6]
         end_lin_vel, _ = self.p.multiplyTransforms(*self.p.invertTransform((0,0,0), absolute_center[1]), self.info['end effector linear velocity'], (0,0,0,1))
         
-        observation = [obj_or, *obj_vel, pos, vel, sensor_torques, end_or, end_lin_vel]#, self.last_action])
+        self.info['robot state'] = np.hstack([end_pos, end_or, end_lin_vel, pos, vel, sensor_torques,]) # robot state without the object state
         if self.reach and self.goal:
             # the order during concatenation matters: there is a for loop in stable baselines in CombinedExtractor
             observation = OrderedDict([
-                ("observation", np.hstack(observation)),
                 ("achieved_goal", end_pos),
+                ("observation", np.array([end_or, end_lin_vel, pos, vel, sensor_torques, obj_or, *obj_vel])),
                 ("desired_goal", obj_pos),
             ])
         else:
-            observation += [end_pos, obj_pos]
-            observation = np.hstack(observation)
+            observation = np.hstack((self.info['robot state'], obj_or, *obj_vel, obj_pos))
+            assert np.isfinite(observation).all(), f"observation is not valid: {observation}"
         return observation
             
     def reset_object(self, obj=None, delta_pos=[0,0]): # TODO: delete, useless

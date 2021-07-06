@@ -2,6 +2,11 @@ import numpy as np
 from sklearn.cluster import KMeans
 from scipy.spatial import cKDTree as KDTree
 from scipy.spatial import distance
+from scipy import interpolate
+from stable_baselines3.common.torch_layers import create_mlp
+from stable_baselines3.common.policies import BaseModel
+from stable_baselines3.common.preprocessing import get_action_dim
+import torch as th
 import inspect
 import functools
 import os
@@ -145,3 +150,60 @@ class PDControllerStable(object):
     maxF = np.array(maxForces)
     generalized_forces = np.clip(tau, -maxF, maxF)
     return generalized_forces
+
+class MLP(BaseModel):
+    def __init__(self, *args, net_arch=[32,32], **kwargs):
+        super(MLP, self).__init__(*args, **kwargs)
+
+        self.features_extractor = self.features_extractor_class(self.observation_space, **self.features_extractor_kwargs)
+        self.net_arch = net_arch
+
+        self.mlp = th.nn.Sequential(*create_mlp(input_dim=self.features_extractor.features_dim, output_dim=get_action_dim(self.action_space), net_arch=net_arch, activation_fn=th.nn.LeakyReLU))
+        self.optimizer_kwargs['lr'] = self.optimizer_kwargs.get('lr', 5e-4)
+        self.optimizer = self.optimizer_class(self.parameters(), **self.optimizer_kwargs)
+    
+    def forward(self, data):
+        return self.mlp(data)
+
+    def _get_constructor_parameters(self):
+        data = super()._get_constructor_parameters()
+
+        data.update(
+            dict(
+                net_arch=self.net_arch,
+                optimizer_class=self.optimizer_class,
+                optimizer_kwargs=self.optimizer_kwargs,
+                features_extractor_class=self.features_extractor_class,
+                features_extractor_kwargs=self.features_extractor_kwargs,
+            )
+        )
+        return data
+
+class InterpolateKeyPointsGrip():
+
+    def __init__(self, individual, n_iter, genes_per_keypoint, nb_keypoints, initial=None):
+        """Interpolate actions between keypoints
+           Only one parameter (last gene) for the gripper, specifying the time at which it should close
+        """
+        assert len(individual) == nb_keypoints * genes_per_keypoint + 1, f"len(individual)={len(individual)} must be equal to nb_keypoints({nb_keypoints}) * genes_per_keypoint({genes_per_keypoint}) + 1(gripper) = {nb_keypoints * genes_per_keypoint + 1}"
+        self.n_iter = n_iter
+        actions = np.split(np.array(individual[:-1]), nb_keypoints)
+
+        interval_size = int(n_iter / nb_keypoints)
+        interp_x = [int(interval_size / 2 + i * interval_size) for i in range(nb_keypoints)]
+        if initial is not None: # add initial joint states to get a smooth motion
+            assert len(initial) == genes_per_keypoint, f"The length of initial={len(initial)} must be genes_per_keypoint={genes_per_keypoint}"
+            actions.insert(0, initial) # the gripper is not included
+            interp_x.insert(0, 0)
+        self.action_polynome = interpolate.interp1d(interp_x, actions, kind='quadratic', axis=0,
+                                                    bounds_error=False, fill_value='extrapolate')
+        self.open_loop = True
+        self.grip_time = int((individual[-1]+1)/2 * n_iter)
+
+    def get_action(self, i, _o=None):
+        if i <= self.n_iter:
+            action = self.action_polynome(i)
+            action = np.append(action, 1 if i < self.grip_time else -1)  # gripper: 1=open, -1=closed
+            return action
+        else: # feed last action
+            return self.get_action(self.n_iter)

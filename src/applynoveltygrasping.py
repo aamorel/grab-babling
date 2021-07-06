@@ -133,12 +133,26 @@ DIFF_OR_THRESH = 0.4  # threshold for clustering grasping orientations
 COV_LIMIT = 0.1  # threshold for changing behavior descriptor in change_bd ns
 N_LAG = int(200 / NB_STEPS_TO_ROLLOUT)  # number of steps before the grip time used in the pos_div_grip BD
 ARCHIVE_LIMIT = 10000
-N_REP_RAND = 5
+N_REP_RAND = 20
 DISPLACEMENT_RADIUS = 0.02 # radius of the displacement of the object during quality evaluation
 ANGLE_NOISE = 10 / 180 * np.pi # the yaw rotation of the object will alternate with -ANGLE_NOISE and ANGLE_NOISE during robustness evaluation
-FRICTION_NOISE = {'lateral':1.2, 'rolling':10, 'spinning':10} # the lateral friction of the object will be multiplied by FRICTION_NOISE and 1/FRICTION_NOISE when evaluating robustness
+FRICTION_NOISE = {'lateral':2, 'rolling':10, 'spinning':10} # the lateral friction of the object will be multiplied by FRICTION_NOISE and 1/FRICTION_NOISE when evaluating robustness
 COUNT_SUCCESS = 0
 NO_CONTACT_TABLE = args.contact_table
+
+# precompute noise for robustness
+rng = np.random.default_rng()
+REPEAT_KWARGS = [None]*N_REP_RAND
+for i in range(N_REP_RAND):
+    d = float('inf')
+    while d > 1:
+        delta_pos = rng.random(size=(2,))*2-1
+        d = np.linalg.norm(delta_pos)
+    REPEAT_KWARGS[i] = dict(
+        delta_pos=delta_pos*DISPLACEMENT_RADIUS,
+        delta_yaw=ANGLE_NOISE*(2*rng.random()-1),
+        multiply_friction={key:rng.choice([value, 1, 1/value]) for key, value in FRICTION_NOISE.items()},
+    )
 
 if QUALITY:
     D_POS = utils.circle_coordinates(N_REP_RAND, DISPLACEMENT_RADIUS)
@@ -619,7 +633,7 @@ def pos_div_pos_grip_bd(individual):
 
     # choose if individual satisfied the is_success
     # the object should not touch the table neither the plane, must touch the gripper without penetration (with a margin of 0.005), be grasped right after closing the gripper (within 1s), touch the table when the gripper is closing
-    grasp = r #and grip_info['time close touch']<1*240/NB_STEPS_TO_ROLLOUT and len(grip_info['contact object table'])>0 # and not contact_robot_table
+    grasp = r and grip_info['time close touch']<1*240/NB_STEPS_TO_ROLLOUT and len(grip_info['contact object table'])>0 # and not contact_robot_table
 
     if grasp: # there is maybe a grasp
         action_current_pos = np.hstack((ENV.get_joint_state(position=True, normalized=True), -1)) # get the current position + close the gripper
@@ -687,14 +701,8 @@ def pos_div_pos_grip_bd(individual):
     
     
     if QUALITY and binary_goal: # np.random.randint(2)
-        info['repeat_kwargs'] = [
-            dict(
-                delta_pos=D_POS[rep],
-                delta_yaw=ANGLE_NOISE*(rep%2*2-1),
-                multiply_friction=FRICTION_NOISE if rep%2==0 else {key:1/value for key, value in FRICTION_NOISE.items()},
-                reference=np.array(inf['object position'])
-            ) for rep in range(N_REP_RAND)
-        ]
+        #info['repeat_kwargs'] = [dict(delta_pos=D_POS[rep], delta_yaw=ANGLE_NOISE*(rep%2*2-1), multiply_friction=FRICTION_NOISE if rep%2==0 else {key:1/value for key, value in FRICTION_NOISE.items()}, reference=np.array(inf['object position'])) for rep in range(N_REP_RAND)]
+        info['repeat_kwargs'] = [{**repeat_kwargs, 'reference':np.array(inf['object position'])} for repeat_kwargs in REPEAT_KWARGS]
     return (behavior.tolist(), (fitness,), info)
 
 def simulate(individual, delta_pos=[0,0], delta_yaw=0, multiply_friction={}, reference=None):

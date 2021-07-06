@@ -124,7 +124,7 @@ class Kuka_iiwa_allegro(RobotGrasping):
     
     def reset_robot(self):
         for i, in zip(self.joint_ids,):
-            p.resetJointState(self.robot_id, i, targetValue=0)
+            self.p.resetJointState(self.robot_id, i, targetValue=0)
 
 
 if __name__ == "__main__": # testing

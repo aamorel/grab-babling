@@ -39,7 +39,7 @@ class KukaGrasping(RobotGrasping):
             robot=load_kuka,
             camera={'target':(0,0,0.3), 'distance':0.7, 'pitch':-30, 'fov':90},
             object_position=object_position,
-            table_height=0.8,
+            table_height=kwargs.pop('table_height') if 'table_height' in kwargs else 0.8,
             joint_ids=[0, 1, 2, 3, 4, 5, 6, 8, 10, 11, 13],#[0,1,2,3,4,5,6,9,11,12,14]
             contact_ids=[8, 9, 10, 11, 12, 13],#[9,11,12,14],
             n_control_gripper=4,

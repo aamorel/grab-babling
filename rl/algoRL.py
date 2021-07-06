@@ -74,9 +74,9 @@ def train_dynamic_model(replay_buffer, dynamic_model: Union[ForwardModel, Invers
 		#print(replay_data.observations.tolist())
 	return dynamic_model_loss.mean().item()
 		
-def initialize_bc_policy(algo, expert_replay_buffer, dynamic_model: Optional[Union[ForwardModel, InverseModel]] = None, n_iter=100000, batch_size=256, env=None):
+def initialize_bc_policy(algo, demonstration_replay_buffer, dynamic_model: Optional[Union[ForwardModel, InverseModel]] = None, n_iter=100000, batch_size=256, env=None):
 	for i in range(n_iter):
-		replay_data = expert_replay_buffer.sample(batch_size, env=env)
+		replay_data = demonstration_replay_buffer.sample(batch_size, env=env)
 		action, log_prob = algo.actor.action_log_prob(replay_data.observations) 
 		if isinstance(dynamic_model, ForwardModel):
 			prediction = dynamic_model(replay_data.observations, action) # state prediction
@@ -95,7 +95,7 @@ def initialize_bc_policy(algo, expert_replay_buffer, dynamic_model: Optional[Uni
 		#print(policy_loss.mean().item(), zip(prediction[0].tolist(), target[0].tolist()))
 	return policy_loss.mean().item()
 
-def behaviouralCloningWithModel(collection_timesteps=100000, repeat=10000, use_inverse=False, model=None, expert_replay_buffer='', device='auto', save_path=None): # train dynamic model and bc
+def behaviouralCloningWithModel(collection_timesteps=100000, repeat=10000, use_inverse=False, model=None, demonstration_replay_buffer='', device='auto', save_path=None): # train dynamic model and bc
 	env = lambda display=False: gym.make('kuka_grasping-v0', display=False, obj='cube', steps_to_roll=1, mode='joint torques', reset_random_initial_state=True)#, early_stopping=True)
 	venv = VecNormalize(DummyVecEnv([env]), norm_obs=True, norm_reward=False)
 	if model is None:
@@ -122,7 +122,7 @@ def behaviouralCloningWithModel(collection_timesteps=100000, repeat=10000, use_i
 		
 		dynamic_model_loss = train_dynamic_model(replay_buffer=model.replay_buffer, dynamic_model=dynamic_model, n_iter=collection_timesteps, batch_size=512)
 		print(i, 'dynamic model', dynamic_model_loss)
-		policy_loss = initialize_bc_policy(model, expert_replay_buffer=load_from_pkl(expert_replay_buffer, model.verbose), dynamic_model=dynamic_model, n_iter=collection_timesteps, batch_size=512)
+		policy_loss = initialize_bc_policy(model, demonstration_replay_buffer=load_from_pkl(demonstration_replay_buffer, model.verbose), dynamic_model=dynamic_model, n_iter=collection_timesteps, batch_size=512)
 		print(i, 'policy', policy_loss)
 	if save_path is not None:
 		model.save(save_path+'/TQC_bc.pkl')
@@ -162,7 +162,7 @@ class TQC_dynamic_model(TQC):
 		self.dynamic_model.optimizer.step()
 		return dynamic_model_loss.item()
 		
-	def pretrain(self, collection_timesteps=10000, repeat=1000, expert_replay_buffer=None):
+	def pretrain(self, collection_timesteps=10000, repeat=1000, demonstration_replay_buffer=None):
 		use_dynamic_model = self.action_strategy in {'inverse model', 'forward model'}
 		self.learn(0) # setup
 		dummyCallback = ConvertCallback(None)
@@ -180,8 +180,8 @@ class TQC_dynamic_model(TQC):
 			if use_dynamic_model:
 				dynamic_self_loss = train_dynamic_self(replay_buffer=self.replay_buffer, dynamic_self=self.dynamic_model, n_iter=collection_timesteps, batch_size=self.batch_size)
 				print(i, 'dynamic self', dynamic_self_loss)
-			if expert_replay_buffer is not None:
-				policy_loss = initialize_bc_policy(self, expert_replay_buffer=load_from_pkl(expert_replay_buffer, self.verbose), dynamic_model=self.dynamic_model, n_iter=collection_timesteps, batch_size=self.batch_size)
+			if demonstration_replay_buffer is not None:
+				policy_loss = initialize_bc_policy(self, demonstration_replay_buffer=load_from_pkl(demonstration_replay_buffer, self.verbose), dynamic_model=self.dynamic_model, n_iter=collection_timesteps, batch_size=self.batch_size)
 				print(i, 'policy', policy_loss)
 		return self
 		
@@ -197,13 +197,13 @@ class TQC_dynamic_model(TQC):
 		return state_dicts_names, torch_variable_names
 
 class TQC_RCE(TQC_dynamic_model): # recursive classification of examples https://arxiv.org/pdf/2103.12656v1.pdf
-	def __init__(self, example_replay_buffer=None, n_step=10, *args, **kwargs):
+	def __init__(self, demonstration_replay_buffer=None, n_step=10, *args, **kwargs):
 
 		super().__init__(*args, **kwargs)
-		if example_replay_buffer is not None:
-			self.example_replay_buffer = load_from_pkl(example_replay_buffer)
-			self.example_replay_buffer.device = self.device
-		else: self.example_replay_buffer = None
+		if demonstration_replay_buffer is not None:
+			self.demonstration_replay_buffer = load_from_pkl(demonstration_replay_buffer)
+			self.demonstration_replay_buffer.device = self.device
+		else: self.demonstration_replay_buffer = None
 		self.n_step = n_step
 		self.critic_loss, self.critic_last, self.critic_examples, self.actor_loss, self.entropy = None, None, None, None, None
 
@@ -302,7 +302,7 @@ class TQC_RCE(TQC_dynamic_model): # recursive classification of examples https:/
 			# RCE ADAPTATION ###########################################################
 			#sample_id = th.randperm(len(self.examples))[:batch_size]
 			#examples = self.replay_buffer._normalize_obs(self.examples[sample_id], self._vec_normalize_env) # sample examples without replacement
-			example_replay_data = self.example_replay_buffer.sample(batch_size=batch_size, env=self._vec_normalize_env)
+			example_replay_data = self.demonstration_replay_buffer.sample(batch_size=batch_size, env=self._vec_normalize_env)
 			
 			
 			with th.no_grad():
@@ -311,7 +311,7 @@ class TQC_RCE(TQC_dynamic_model): # recursive classification of examples https:/
 					example_next_states = self.replay_buffer._normalize_obs(self.example_next_states[sample_id], self._vec_normalize_env)
 					example_actions = self.dynamic_model(examples, example_next_states)
 				elif self.action_strategy == 'current policy':
-					example_actions, example_log_prob = self.actor.action_log_prob(examples) # get the action given the example
+					example_actions, example_log_prob = self.actor.action_log_prob(example_replay_data.observations) # get the action given the example
 					
 				else:
 					example_actions = example_replay_data.actions#self.example_actions[sample_id]
@@ -391,17 +391,17 @@ class TQC_RCE(TQC_dynamic_model): # recursive classification of examples https:/
 			self.logger.record("train/model_loss", np.mean(model_losses))
 
 	def _excluded_save_params(self) -> List[str]:
-		return super()._excluded_save_params() + ["example_replay_buffer"]
+		return super()._excluded_save_params() + ["demonstration_replay_buffer"]
 
 class TQC_SQIL(TQC_dynamic_model): # https://arxiv.org/pdf/1905.11108.pdf
-	def __init__(self, expert_replay_buffer=None, *args, **kwargs):
+	def __init__(self, demonstration_replay_buffer=None, *args, **kwargs):
 
 		super().__init__(*args, **kwargs)
-		if expert_replay_buffer is None:
-			self.expert_replay_buffer = None
+		if demonstration_replay_buffer is None:
+			self.demonstration_replay_buffer = None
 		else:
-			self.expert_replay_buffer = load_from_pkl(expert_replay_buffer, self.verbose)
-			self.expert_replay_buffer.device = self.device
+			self.demonstration_replay_buffer = load_from_pkl(demonstration_replay_buffer, self.verbose)
+			self.demonstration_replay_buffer.device = self.device
 
 		self.n_target_quantiles = self.critic.quantiles_total - self.top_quantiles_to_drop_per_net * self.critic.n_critics
 
@@ -422,7 +422,7 @@ class TQC_SQIL(TQC_dynamic_model): # https://arxiv.org/pdf/1905.11108.pdf
 		for gradient_step in range(gradient_steps):
 			# Sample replay buffer
 			replay_data = self.replay_buffer.sample(batch_size, env=self._vec_normalize_env)
-			expert_replay_data = self.expert_replay_buffer.sample(batch_size, env=self._vec_normalize_env)
+			expert_replay_data = self.demonstration_replay_buffer.sample(batch_size, env=self._vec_normalize_env)
 
 
 			# We need to sample because `log_std` may have changed between two gradient steps
@@ -539,7 +539,7 @@ class TQC_SQIL(TQC_dynamic_model): # https://arxiv.org/pdf/1905.11108.pdf
 
 		
 	def _excluded_save_params(self) -> List[str]:
-		return super()._excluded_save_params() + ["expert_replay_buffer"]
+		return super()._excluded_save_params() + ["demonstration_replay_buffer"]
 		
 	def compute_loss(self, replay_data, action_strategy, ent_coef):
 		with th.no_grad():
@@ -701,8 +701,8 @@ class TQC_RED (TQC_dynamic_model): # https://arxiv.org/pdf/1905.06750.pdf
 
 				# td error + entropy term
 				target_quantiles = next_quantiles - ent_coef * next_log_prob.reshape(-1, 1)
-				rewards = -self.rnd(replay_data.observations, replay_data.actions) # intrinsic rewards
-				rewards = th.maximum(rewards, replay_data.rewards) # take the max to mix instrinsic and extrinsic, supposing replay_data.rewards is binary
+				rewards = -self.rnd(replay_data.observations, replay_data.actions)*100 # intrinsic rewards
+				#rewards = th.maximum(rewards, replay_data.rewards) # take the max to mix instrinsic and extrinsic, supposing replay_data.rewards is binary
 				target_quantiles = rewards + (1 - replay_data.dones) * self.gamma * target_quantiles
 				# Make target_quantiles broadcastable to (batch_size, n_critics, n_target_quantiles).
 				target_quantiles.unsqueeze_(dim=1)
@@ -878,7 +878,7 @@ class TQC_PWIL(TQC):
 			j = argsort[i]
 			d, we = dist[j].item(), self.we[j].item()
 			
-			if wπ >= we and i+1<len(self.demonstrations)/self.T:
+			if wπ >= we and i<int(len(self.demonstrations)/self.T)-1:
 				c += we*d
 				wπ -= we
 			else:
@@ -903,8 +903,9 @@ class TQC_PWIL(TQC):
 #				print("WARNING: all neighbours have been visited")
 #			c += d
 		
-		reward_ = reward if reward>0 else -c*1000
-		#print(time.perf_counter()-start, reward_)
+		#reward_ = reward if reward>0 else -c*1000
+		reward_ = -c*1000
+		#print(reward_, i)
 
 		# Store only the unnormalized version
 		if self._vec_normalize_env is not None:
