@@ -622,7 +622,7 @@ class TQC_RED (TQC_dynamic_model): # https://arxiv.org/pdf/1905.06750.pdf
 	def learn(self, total_timesteps, *args, **kwargs):
 		dones = 0
 		loss = None
-		for i in range(int(total_timesteps/1000.)):
+		for i in range(int(total_timesteps/100.)):
 			replay_data = self.demonstration_replay_buffer.sample(self.batch_size, env=self._vec_normalize_env)
 			if self.action_strategy == 'inverse model':
 				actions = self.dynamic_model(replay_data.observations, replay_data.next_observations)
