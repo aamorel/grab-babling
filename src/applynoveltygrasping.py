@@ -749,7 +749,7 @@ def reduce_repeat(ind, results):
     successes = 0
     mean_dist = 0
     i = 0
-    for inf in enumerate(results):
+    for inf in results:
         successes += inf['is_success']
         mean_dist += inf['distance to reference']
         i += 1
