@@ -726,7 +726,7 @@ def update_repeat(invalid_ind, inv_b_descriptors, inv_fitnesses, inv_infos, repe
             ind_indices.append(i)
             split_indices.append(len(inf['repeat_kwargs']))
     
-    split_indices = split_indices[:-1] # pop the last element
+    split_indices = np.cumsum(split_indices)[:-1].tolist() # pop the last element
     repeat_results = list(toolbox.map(partial(unpack_repeat, f=repeat), to_repeat)) # re-evaluate
     repeat_gathered = [repeat_results[i:j] for i,j in zip([0]+split_indices, split_indices+[None])] # split, map returns an ordered result
     for ind_index, repeat_result in zip(ind_indices, repeat_gathered): # fuse the results and update

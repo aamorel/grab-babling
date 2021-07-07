@@ -748,12 +748,10 @@ def reduce_repeat(ind, results):
     info = ind.info.values
     successes = 0
     mean_dist = 0
-    i = 0
-    for inf in results:
+    for i, inf in enumerate(results):
         successes += inf['is_success']
         mean_dist += inf['distance to reference']
-        i += 1
-    info['grasp robustness'] = (successes + 1 / (1.00000001 + mean_dist/successes) if successes>0 else 0) / i
+    info['grasp robustness'] = (successes + 1 / (1.00000001 + mean_dist/successes) if successes>0 else 0) / (i+1)
     #info.pop('repeat_kwargs')
     info['n is_success'] = successes
     
