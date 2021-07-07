@@ -602,7 +602,7 @@ class RandomNetworkDistillation(BaseModel):
 		
 		
 class TQC_RED (TQC_dynamic_model): # https://arxiv.org/pdf/1905.06750.pdf
-	def __init__(self, demonstration_replay_buffer, use_actions=False, *args, **kwargs):
+	def __init__(self, demonstration_replay_buffer, use_actions=True, *args, **kwargs):
 		super().__init__(*args, **kwargs)
 		self.demonstration_replay_buffer = load_from_pkl(demonstration_replay_buffer)
 		self.demonstration_replay_buffer.device = self.device

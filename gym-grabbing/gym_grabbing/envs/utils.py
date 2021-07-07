@@ -152,13 +152,16 @@ class PDControllerStable(object):
     return generalized_forces
 
 class MLP(BaseModel):
-    def __init__(self, *args, net_arch=[32,32], **kwargs):
+    def __init__(self, *args, net_arch=[32,32], output_function=None, **kwargs):
         super(MLP, self).__init__(*args, **kwargs)
 
         self.features_extractor = self.features_extractor_class(self.observation_space, **self.features_extractor_kwargs)
         self.net_arch = net_arch
 
-        self.mlp = th.nn.Sequential(*create_mlp(input_dim=self.features_extractor.features_dim, output_dim=get_action_dim(self.action_space), net_arch=net_arch, activation_fn=th.nn.LeakyReLU))
+        layers = create_mlp(input_dim=self.features_extractor.features_dim, output_dim=get_action_dim(self.action_space), net_arch=net_arch, activation_fn=th.nn.LeakyReLU)
+        if output_function is not None:
+            layers += [getattr(th.nn, output_function)() if isinstance(output_function, str) else output_function()]
+        self.mlp = th.nn.Sequential(*layers)
         self.optimizer_kwargs['lr'] = self.optimizer_kwargs.get('lr', 5e-4)
         self.optimizer = self.optimizer_class(self.parameters(), **self.optimizer_kwargs)
     

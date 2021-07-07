@@ -161,7 +161,8 @@ class RobotGrasping(GoalEnv):
         self.robot_space = spaces.Box(-high[:-15], high[:-15], dtype='float32') # robot state only
         if self.npmp_decoder is not None:
             self.n_actions = self.npmp_decoder.observation_space.shape[0]-self.robot_space.shape[0]
-        self.action_space = spaces.Box(-1., 1., shape=(self.n_actions,), dtype='float32')
+        action_high = 1 if self.npmp_decoder is None else 2
+        self.action_space = spaces.Box(-action_high, action_high, shape=(self.n_actions,), dtype='float32')
                  
         
         self.info = {
