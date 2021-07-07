@@ -748,10 +748,12 @@ def reduce_repeat(ind, results):
     info = ind.info.values
     successes = 0
     mean_dist = 0
-    for i, inf in enumerate(results):
+    i = 0
+    for inf in enumerate(results):
         successes += inf['is_success']
         mean_dist += inf['distance to reference']
-    info['grasp robustness'] = (successes + 1 / (1.00000001 + mean_dist/successes) if successes>0 else 0) / (i+1)
+        i += 1
+    info['grasp robustness'] = (successes + 1 / (1.00000001 + mean_dist/successes) if successes>0 else 0) / i
     #info.pop('repeat_kwargs')
     info['n is_success'] = successes
     
@@ -1130,7 +1132,8 @@ if __name__ == "__main__":
         details['run time'] = t_end - t_start
         details['controller info'] = controllers_info_dict[CONTROLLER]
         details['behaviour descriptor'] = BD
-        details['env kwargs'] = {**ENV_KWARGS, **initial_state}
+        details['env kwargs'] = ENV_KWARGS
+        details['initial state'] = initial_state
         if coverage is not None:
             details['successful'] = True
             details['diversity coverage'] = coverage
