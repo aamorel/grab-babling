@@ -120,7 +120,7 @@ def learn(model_class, kwargs=None, load=None, log_path=None, device='auto', loa
 			tensorboard_log=log_path,
 			device=device,
 			policy_kwargs={'net_arch':dict(qf=[256, 256], pi=[256, 256]), 'activation_fn':th.nn.LeakyReLU},
-			**kwargs,
+			**(kwargs or {}),
 		)
 	
 	if load_replay_buffer:
@@ -157,9 +157,9 @@ if __name__ == '__main__':
 	#model_class = TQC_RED; kwargs = dict(demonstration_replay_buffer=data_path/'replay_buffer_reward_on_cube_kuka_single_config.pkl')
 	#model_class = TQC_PWIL; kwargs = dict(demonstration_replay_buffer=data_path/'replay_buffer_reward_on_cube_kuka_single_config_pwil.pkl', T=1500)
 	
-	load_replay_buffer = None#data_path/"replay_buffer_reward_on_cube_kuka_single_config.pkl"
+	load_replay_buffer = data_path/"replay_buffer_reward_on_cube_kuka_single_config.pkl"
 	load = None
-	env_kwargs = dict(id='kuka_grasping-v0', display=False, obj='cube', steps_to_roll=1, mode='joint torques')
+	env_kwargs = dict(id='kuka_grasping-v0', display=False, obj='cube', steps_to_roll=1, mode='joint torques')#,npmp_decoder='')
 	
 	learn(
 		model_class=model_class,

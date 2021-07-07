@@ -132,7 +132,7 @@ def behaviouralCloningWithModel(collection_timesteps=100000, repeat=10000, use_i
 	
 class TQC_dynamic_model(TQC):
 	def __init__(self,
-		action_strategy='current policy',
+		action_strategy='behaviour policy',
 		*args, **kwargs
 	):
 		action_strategy_clean = action_strategy.strip().lower()

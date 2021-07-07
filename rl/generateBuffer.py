@@ -119,10 +119,11 @@ def generateBuffer(bufferSize=1000000, reward_on=False, success_only=True, npmp_
 	
 	add(episodes)
 	print("rb", replayBuffer.full, replayBuffer.pos)
+	episode_length = np.mean([len(e)-K for e in episodes])
 	while not replayBuffer.full:
-		n_evals = 2*(bufferSize-replayBuffer.pos)
+		n_evals = int(2 * (bufferSize-replayBuffer.pos) / episode_length)
 		with Pool() as p:
-			episodes = tuple(filter(None, p.starmap(partial(simulate, success_only=success_only, fast_only=float('inf'), noise=0.1), [other_individuals[i] for i in np.random.choice(len(other_individuals), n_evals, replace=False)])))
+			episodes = tuple(filter(None, p.starmap(partial(simulate, success_only=success_only, fast_only=float('inf'), noise=0.1), [other_individuals[i] for i in np.random.choice(len(other_individuals), n_evals, replace=True)])))
 		print("success", len(episodes), "eval", n_evals)
 		add(episodes)
 	
