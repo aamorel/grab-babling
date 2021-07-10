@@ -161,7 +161,7 @@ class RobotGrasping(GoalEnv):
         self.robot_space = spaces.Box(-high[:-15], high[:-15], dtype='float32') # robot state only
         if self.npmp_decoder is not None:
             self.n_actions = self.npmp_decoder.observation_space.shape[0]-self.robot_space.shape[0]
-        action_high = 1 if self.npmp_decoder is None else 2
+        action_high = 1 # if self.npmp_decoder is None else 2
         self.action_space = spaces.Box(-action_high, action_high, shape=(self.n_actions,), dtype='float32')
                  
         
@@ -182,11 +182,13 @@ class RobotGrasping(GoalEnv):
         oldstep = self.step
         self.gripper = 1 # open
         def newstep(action=None): # decorate step
-            assert action is None or (len(action) == self.n_actions and np.isfinite(action).all()), f"observation is not valid"
+            assert action is None or (len(action) == self.n_actions and np.isfinite(action).all()), f"action is not valid"
             if self.npmp_decoder is not None:
-                action_ = self.npmp_decoder(th.as_tensor(np.hstack((self.info['robot state'], action)), dtype=th.float)).detach().numpy()
+                action_ = self.npmp_decoder(th.as_tensor(np.hstack((self.info['robot state'], action)), dtype=th.float)[None]).squeeze().detach().numpy()
+                assert np.isfinite(action_).all(), f"decoder action is not valid"
             else:
                 action_ = action
+            #self.a = action_
             self.gripper = action_[-1]
             self.info['closed gripper'] = action_[-1]<0
             out = oldstep(action_)

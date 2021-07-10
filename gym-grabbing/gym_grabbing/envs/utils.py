@@ -6,6 +6,7 @@ from scipy import interpolate
 from stable_baselines3.common.torch_layers import create_mlp
 from stable_baselines3.common.policies import BaseModel
 from stable_baselines3.common.preprocessing import get_action_dim
+from stable_baselines3.common.distributions import DiagGaussianDistribution, SquashedDiagGaussianDistribution, CategoricalDistribution, MultiCategoricalDistribution, BernoulliDistribution, StateDependentNoiseDistribution
 import torch as th
 import inspect
 import functools
@@ -152,21 +153,45 @@ class PDControllerStable(object):
     return generalized_forces
 
 class MLP(BaseModel):
-    def __init__(self, *args, net_arch=[32,32], output_function=None, **kwargs):
+    def __init__(self, *args, net_arch=[32,32], output_transform=None, **kwargs):
         super(MLP, self).__init__(*args, **kwargs)
 
         self.features_extractor = self.features_extractor_class(self.observation_space, **self.features_extractor_kwargs)
         self.net_arch = net_arch
+        self.output_transform = output_transform
+        distributions = {
+            "DiagGaussianDistribution": DiagGaussianDistribution,
+            "SquashedDiagGaussianDistribution": SquashedDiagGaussianDistribution,
+            "CategoricalDistribution": CategoricalDistribution,
+            "MultiCategoricalDistribution": MultiCategoricalDistribution,
+            "BernoulliDistribution": BernoulliDistribution,
+            "StateDependentNoiseDistribution": StateDependentNoiseDistribution,
+        }
+        self.action_dim = get_action_dim(self.action_space)
+        output_dim = self.action_dim
+        if output_transform in distributions:
+            self.distribution = distributions[output_transform](self.action_dim)
+            if output_transform in {"DiagGaussianDistribution", "SquashedDiagGaussianDistribution"}: output_dim = self.action_dim*2
+        else:
+            self.distribution = None
 
-        layers = create_mlp(input_dim=self.features_extractor.features_dim, output_dim=get_action_dim(self.action_space), net_arch=net_arch, activation_fn=th.nn.LeakyReLU)
-        if output_function is not None:
-            layers += [getattr(th.nn, output_function)() if isinstance(output_function, str) else output_function()]
+        layers = create_mlp(input_dim=self.features_extractor.features_dim, output_dim=output_dim, net_arch=net_arch, activation_fn=th.nn.LeakyReLU)
+        if output_transform is not None and output_transform not in distributions:
+            layers += [getattr(th.nn, output_transform)() if isinstance(output_transform, str) else output_transform()]
         self.mlp = th.nn.Sequential(*layers)
         self.optimizer_kwargs['lr'] = self.optimizer_kwargs.get('lr', 5e-4)
         self.optimizer = self.optimizer_class(self.parameters(), **self.optimizer_kwargs)
     
-    def forward(self, data):
-        return self.mlp(data)
+    
+    def forward(self, data, deterministic=False):
+        out = self.mlp(self.features_extractor(data))
+        if self.distribution is None:
+            return out
+        elif self.output_transform in {"DiagGaussianDistribution", "SquashedDiagGaussianDistribution"}:
+            mean, log_std = th.split(out, self.action_dim, dim=-1)
+            return self.distribution.actions_from_params(mean_actions=mean, log_std=log_std, deterministic=deterministic)
+        else:
+            return self.distribution.actions_from_params(action_logits=out, deterministic=deterministic)
 
     def _get_constructor_parameters(self):
         data = super()._get_constructor_parameters()
@@ -178,6 +203,7 @@ class MLP(BaseModel):
                 optimizer_kwargs=self.optimizer_kwargs,
                 features_extractor_class=self.features_extractor_class,
                 features_extractor_kwargs=self.features_extractor_kwargs,
+                output_transform=self.output_transform,
             )
         )
         return data

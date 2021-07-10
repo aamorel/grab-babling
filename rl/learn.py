@@ -110,6 +110,7 @@ def learnReach(log_path, vec_env=False, mode='joint torques', her=False):
 def learn(model_class, kwargs=None, load=None, log_path=None, device='auto', load_replay_buffer=None, max_episode_steps=1500, env_kwargs=None, enjoy=None):
 	env_kwargs_ = env_kwargs or dict(id='kuka_grasping-v0', display=False, obj='cube', steps_to_roll=1, mode='joint torques')
 	env = lambda display=False: gym.wrappers.TimeLimit(gym.make(**env_kwargs_), max_episode_steps=max_episode_steps)
+	#env = lambda: VecCheckNan(DummyVecEnv([env]), raise_exception=True)
 	eval_callback = Callback(env(), best_model_save_path=log_path, log_path=log_path, eval_freq=25000, deterministic=True, render=False, n_eval_episodes=2)
 	if load is not None:
 		model = model_class.load(load)
@@ -152,14 +153,14 @@ if __name__ == '__main__':
 	log_path.mkdir(exist_ok=True)
 	
 	#model_class = TQC; kwargs = None
-	#model_class = TQC_RCE; kwargs = dict(demonstration_replay_buffer=data_path/'replay_buffer_reward_on_cube_kuka_success_only.pkl')
+	#model_class = TQC_RCE; kwargs = dict(demonstration_replay_buffer=data_path/'replay_buffer_reward_on_cube_kuka_success_only.pkl', action_strategy='current policy')
 	#model_class = TQC_SQIL; kwargs = dict(demonstration_replay_buffer=data_path/'replay_buffer_reward_on_cube_kuka_single_config.pkl')
 	#model_class = TQC_RED; kwargs = dict(demonstration_replay_buffer=data_path/'replay_buffer_reward_on_cube_kuka_single_config.pkl')
 	#model_class = TQC_PWIL; kwargs = dict(demonstration_replay_buffer=data_path/'replay_buffer_reward_on_cube_kuka_single_config_pwil.pkl', T=1500)
 	
-	load_replay_buffer = data_path/"replay_buffer_reward_on_cube_kuka_single_config.pkl"
+	load_replay_buffer = None#data_path/"replay_buffer_reward_on_cube_kuka_single_config.pkl"
 	load = None
-	env_kwargs = dict(id='kuka_grasping-v0', display=False, obj='cube', steps_to_roll=1, mode='joint torques')#,npmp_decoder='')
+	env_kwargs = dict(id='kuka_grasping-v0', display=False, obj='cube', steps_to_roll=1, mode='joint torques')#, npmp_decoder='/Users/Yakumo/Downloads/npmp_decoder')
 	
 	learn(
 		model_class=model_class,
