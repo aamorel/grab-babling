@@ -273,22 +273,42 @@ def diversity_measure(inf):
 
     return measure
 
+def cluster_quaternion(triumphant_archive, max_size):
+    n = len(triumphant_archive)
+    if n < 2:
+        return None, triumphant_archive
+    rng = np.random.default_rng()
+    if n > max_size and max_size>0: # subsample to reduce computation and memory
+        archive = [triumphant_archive[i] for i in rng.choice(n, max_size, replace=False)]
+        n = max_size
+    else:
+        archive = [triumphant_archive[i] for i in range(n)]
+    
+    q = np.array([m.info.values["diversity_descriptor"].unit.elements for m in archive])
+    # cluster the triumphants with respect to grasping descriptor
+    cluster = AgglomerativeClustering(
+        n_clusters=None,
+        affinity='precomputed',
+        compute_full_tree=True,
+        distance_threshold=DIFF_OR_THRESH,
+        linkage='average'
+    )
+    
+    # compute absolute_distance matrix in quaternion space, https://github.com/KieranWynn/pyquaternion/blob/99025c17bab1c55265d61add13375433b35251af/pyquaternion/quaternion.py#L772
+    cluster = cluster.fit(np.min(np.linalg.norm([q+q[:,None], q-q[:,None]], axis=-1), axis=0))
+    return cluster, archive
 
-def analyze_triumphants(triumphant_archive, run_name):
+def callback(gen, archive, max_size=25000):
+    cluster, _ = cluster_quaternion(archive, max_size)
+    return {'n clusters': cluster.n_clusters_ if cluster else len(archive)}
+
+def analyze_triumphants(triumphant_archive, run_name, max_size=25000):
     if len(triumphant_archive) < 2:
         print('No individual completed the is_success.')
-        return None, None, None, None, None
+        return None, None, None, None
     
     # analyze the triumphants following the diversity descriptor
     measure = 'diversity_descriptor'
-    nb_of_triumphants = len(triumphant_archive)
-
-    # sample the triumphant archive to reduce computational cost
-    #while len(triumphant_archive) >= 10000:
-        #triumphant_archive.pop(random.randint(0, len(triumphant_archive) - 1))
-
-    #random.shuffle(triumphant_archive)
-    nb_sub_triumphants = len(triumphant_archive)
 
     # compute coverage and uniformity metrics: easy approach, use CVT cells in quaternion space
     bounds = [[-1, 1], [-1, 1], [-1, 1], [-1, 1]]
@@ -301,12 +321,7 @@ def analyze_triumphants(triumphant_archive, run_name):
     coverage = np.count_nonzero(grid) / NB_CELLS
     uniformity = utils.compute_uniformity(grid).item()
 
-    # cluster the triumphants with respect to grasping descriptor
-    clustering = AgglomerativeClustering(n_clusters=None, affinity='precomputed', compute_full_tree=True,
-                                         distance_threshold=DIFF_OR_THRESH, linkage='average')
-    
-    # compute absolute_distance matrix in quaternion space, https://github.com/KieranWynn/pyquaternion/blob/99025c17bab1c55265d61add13375433b35251af/pyquaternion/quaternion.py#L772
-    clustering = clustering.fit(np.minimum(np.linalg.norm(q+q[:,None], axis=-1), np.linalg.norm(q-q[:,None], axis=-1)))
+    clustering, triumphant_archive = cluster_quaternion(triumphant_archive, max_size) # subsample
 	
     number_of_clusters = clustering.n_clusters_
     labels = clustering.labels_
@@ -331,14 +346,16 @@ def analyze_triumphants(triumphant_archive, run_name):
 
                 np.save(run_name + 'type' + str(i) + '_' + str(j), ind,
                         allow_pickle=True)
+    xyzws = np.array([m.info.values['end effector xyzw relative object'] for m in triumphant_archive])
+    xyzws /= np.linalg.norm(xyzws, axis=-1)[:,None]
     np.savez_compressed(
         file=run_name + 'individuals',
         genotypes=np.array(triumphant_archive),
-        xyzws=np.array([m.info.values['end effector xyzw relative object'] for m in triumphant_archive]), # quaternions
+        xyzws=xyzws, # quaternions
         positions=np.array([m.info.values['end effector position relative object'] for m in triumphant_archive]),
     ) # save all triumphants and infos
 
-    return coverage, uniformity, clustered_triumphants, number_of_clusters, nb_of_triumphants
+    return coverage, uniformity, clustered_triumphants, number_of_clusters
     
 
 def two_d_bd(individual):
@@ -1104,13 +1121,14 @@ if __name__ == "__main__":
                 bootstrap_individuals=boostrap_inds, multi_quality=MULTI_QUALITY_MEASURES,
                 monitor_print=True,                  final_filter=final_filter if RESET_MODE else None,
                 repeat=simulate if QUALITY else None,reduce_repeat=reduce_repeat if QUALITY else None,
-                early_stopping=args.early_stopping,
+                early_stopping=args.early_stopping,  callback=callback,
             )
             i += 1 # raise if failed 10 times
             if i>=10: raise Exception("The initial population failed 10 times")
         
         pop, archive, hof, details, figures, data, triumphant_archive = res
-        print('Number of triumphants: ', len(triumphant_archive))
+        nb_of_triumphants = len(triumphant_archive)
+        print('Number of triumphants: ', nb_of_triumphants)
         if len(triumphant_archive)==0 and not args.keep_fail: continue # do not report the logs
         
         i = 0 # create run directory
@@ -1120,10 +1138,11 @@ if __name__ == "__main__":
         os.mkdir(run_name)
         
         # analyze triumphant archive diversity
-        coverage, uniformity, clustered_triumphants, number_of_clusters, nb_of_triumphants = analyze_triumphants(triumphant_archive, run_name)
+        coverage, uniformity, clustered_triumphants, number_of_clusters = analyze_triumphants(triumphant_archive, run_name)
         t_end = time.time()
 
         # complete run dict
+        details['robot'] = ROBOT
         details['run id'] = i
         details['controller'] = CONTROLLER
         details['bootstrap folder'] = BOOTSTRAP_FOLDER

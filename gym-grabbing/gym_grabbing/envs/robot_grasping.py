@@ -467,7 +467,7 @@ class RobotGrasping(GoalEnv):
             try:
                 obj_to_grab_id = self.p.loadURDF(str(urdf), pos, self.object_xyzw, useMaximalCoordinates=True) # the scale is set in the urdf file
             except self.p.error as e:
-                raise self.p.error(f"{e}: "+path)
+                raise self.p.error(f"{e}: "+str(urdf))
         #elif obj is None:
             #pass # do not load any object
         else:

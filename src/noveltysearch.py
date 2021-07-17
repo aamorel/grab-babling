@@ -734,12 +734,38 @@ def update_repeat(invalid_ind, inv_b_descriptors, inv_fitnesses, inv_infos, repe
     return inv_b_descriptors, inv_fitnesses, inv_infos
 
 
-def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, mini=True, plot=False, nb_gen=100,
-                 algo_type='ns_nov', bound_genotype=1, pop_size=30, parallelize=False,
-                 measures=False, choose_evaluate=None, bd_indexes=None, archive_limit_size=None,
-                 archive_limit_strat='random', nb_cells=1000, analyze_archive=False, altered_novelty=False,
-                 alteration_degree=None, novelty_metric='minkowski', save_ind_cond=None, plot_gif=False,
-                 bootstrap_individuals=None, multi_quality=None, monitor_print=False, final_filter=None, repeat=None, reduce_repeat=None, early_stopping=-1):
+def novelty_algo(
+    evaluate_individual_list, # evaluation function
+    initial_gen_size, # genotype size
+    bd_bounds_list, # behavioural descriptor limits
+    mini=True,
+    plot=False,
+    nb_gen=100, # number of generations
+    algo_type='ns_nov', # algorithm
+    bound_genotype=1, # genotype limit
+    pop_size=30, # population size
+    parallelize=False,
+    measures=False,
+    choose_evaluate=None,
+    bd_indexes=None,
+    archive_limit_size=None,
+    archive_limit_strat='random',
+    nb_cells=1000,
+    analyze_archive=False,
+    altered_novelty=False,
+    alteration_degree=None,
+    novelty_metric='minkowski',
+    save_ind_cond=None,
+    plot_gif=False,
+    bootstrap_individuals=None,
+    multi_quality=None,
+    monitor_print=False,
+    final_filter=None, # re-evalutae a last time to filter
+    repeat=None, # repetition evaluation function
+    reduce_repeat=None, # reduction function to reduce datas from repeat
+    early_stopping=-1, # stop if count_success > early_stopping
+    callback=None, # callback at the end of each generation to log metrics
+):
                  
     if multi_quality is not None:
         quality_names = np.unique([quality_name.strip() for bd_qual in multi_quality for quality_name in bd_qual]) # get unqiue quality names
@@ -753,7 +779,10 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
         assert repeat is not None and reduce_repeat is not None, "if repeat or reduce_repeat is given, both must be defined"
 
     # keep track of stats
-    success_ratio_per_generation = []
+    #success_ratio_per_generation = []
+    successes, successes_repeat = [], []
+    evals, evals_repeat = [], []
+    metrics = {}
     mean_hist = []
     min_hist = []
     max_hist = []
@@ -983,6 +1012,9 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
     # attribute fitness and behavior descriptors to individuals
     if monitor_print:
         count_success = 0
+    
+    eval, eval_repeat = len(pop), len(pop)
+    success, success_repeat= 0, 0
     for ind, fit, bd, inf in zip(pop, fitnesses, b_descriptors, infos):
         ind.behavior_descriptor.values = bd
         ind.info.values = inf
@@ -990,6 +1022,16 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
         if monitor_print:
             if inf['is_success']:
                 count_success += 1
+
+        eval_repeat += len(inf.get('repeat_kwargs', ()))
+        success += inf['is_success']
+        success_repeat += inf['is_success'] + inf.get('n is_success', False)
+    evals.append(eval)
+    evals_repeat.append(eval_repeat)
+    successes.append(success)
+    successes_repeat.append(success_repeat)
+    n_evaluations_including_repetition = eval_repeat
+    
     if monitor_print:
         t_eval.update(n=len(pop))
         t_success.update(n=count_success)
@@ -1136,8 +1178,8 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
             # transform each BD to its reduced form
             inv_b_descriptors = reduce_behavior_descriptor(model, inv_b_descriptors, device)
         
-        count_success_per_gen = 0
-        n_eval = 0
+        eval, eval_repeat = len(invalid_ind), len(invalid_ind)
+        success, success_repeat= 0, 0
         for ind, fit, bd, inf in zip(invalid_ind, inv_fitnesses, inv_b_descriptors, inv_infos):
             ind.behavior_descriptor.values = bd  # can be None in the change_bd case
             ind.info.values = inf
@@ -1147,12 +1189,16 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
                 if inf['is_success']:
                     count_success += 1
             
-            n_eval += 1
-            count_success_per_gen += inf.get('is_success', 0)
-            count_success_per_gen += inf.get('n is_success', 0) # add repetition success
-            n_eval += len(inf.get('repeat_kwargs', ())) # add repetition eval
+            eval_repeat += len(inf.get('repeat_kwargs', ()))
+            success += inf['is_success']
+            success_repeat += inf['is_success'] + inf.get('n is_success', False)
+        evals.append(eval)
+        evals_repeat.append(eval_repeat)
+        successes.append(success)
+        successes_repeat.append(success_repeat)
+        n_evaluations_including_repetition += eval_repeat
             
-        success_ratio_per_generation.append(count_success_per_gen/n_eval)
+        #success_ratio_per_generation.append(count_success_per_gen/n_eval)
         
         if monitor_print:
             t_eval.update(n=len(invalid_ind))
@@ -1716,8 +1762,19 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
                     color = CM(i / nb_gen)
                     im_l.append(plt.scatter(bds_arr[:, 0], bds_arr[:, 1], color=color, label='Historic'))
                 ims.append(im_l)
+        
+        if callback is not None:
+            metric = callback(gen, [ind for ind in save_ind])
+            if gen == 0:
+                metrics = {key:[value] for key, value in metric.items()}
+            else:
+                assert set(metric.keys()) == set(metrics.keys()), "metrics are inconsistent"
+                for key, value in metric.items():
+                    metrics[key].append(value)
     
     details['number of successful before filter'] = len(save_ind)
+    details['n evaluations'] = nb_offsprings_to_generate * details['nb of generations']
+    details['n evaluations including repetitions'] = n_evaluations_including_repetition
     if final_filter is not None: # re-evaluate if asked
         save_ind = [ind for ind, info in zip(save_ind, toolbox.map(final_filter, save_ind)) if info[save_ind_cond]]
     
@@ -1740,7 +1797,12 @@ def novelty_algo(evaluate_individual_list, initial_gen_size, bd_bounds_list, min
     data['novelty distribution'] = np.array(novelty_distrib)
     data['qualities'] = multi_quality_hist # this is a dict of qualities
     data['first saved ind gen'] = np.array(first_saved_ind_gen)
-    data['success ratio per generation'] = np.array(success_ratio_per_generation)
+    data['n success'] = np.array(successes)
+    data['n success including repetitions'] = np.array(successes_repeat)
+    data['n evaluations'] = np.array(evals)
+    data['n evaluations inluding repetitions'] = np.array(evals_repeat)
+    for key, value in metrics.items():
+        data[key] = np.array(value)
     if algo_type == 'ns_rand_multi_bd':
         data['eligibility rates'] = np.array(bd_rates)
     if plot:
