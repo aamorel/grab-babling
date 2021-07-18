@@ -782,7 +782,7 @@ def novelty_algo(
     #success_ratio_per_generation = []
     successes, successes_repeat = [], []
     evals, evals_repeat = [], []
-    metrics = {}
+    metrics = None
     mean_hist = []
     min_hist = []
     max_hist = []
@@ -1764,13 +1764,14 @@ def novelty_algo(
                 ims.append(im_l)
         
         if callback is not None:
-            metric = callback(gen, [ind for ind in save_ind])
-            if gen == 0:
-                metrics = {key:[value] for key, value in metric.items()}
-            else:
-                assert set(metric.keys()) == set(metrics.keys()), "metrics are inconsistent"
-                for key, value in metric.items():
-                    metrics[key].append(value)
+            metric = callback(gen, [ind for ind in save_ind],  [p for p in pop])
+            if metric is not None:
+                if metrics is None:
+                    metrics = {key:[value] for key, value in metric.items()}
+                else:
+                    assert set(metric.keys()) == set(metrics.keys()), "metrics are inconsistent"
+                    for key, value in metric.items():
+                        metrics[key].append(value)
     
     details['number of successful before filter'] = len(save_ind)
     details['n evaluations'] = nb_offsprings_to_generate * details['nb of generations']
