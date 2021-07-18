@@ -1764,7 +1764,7 @@ def novelty_algo(
                 ims.append(im_l)
         
         if callback is not None:
-            metric = callback(gen, [ind for ind in save_ind],  [p for p in pop])
+            metric = callback(gen=gen, archive=[ind for ind in save_ind],  pop=[p for p in pop])
             if metric is not None:
                 if metrics is None:
                     metrics = {key:[value] for key, value in metric.items()}

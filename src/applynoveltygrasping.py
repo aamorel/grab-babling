@@ -298,7 +298,7 @@ def cluster_quaternion(triumphant_archive, max_size):
     cluster = cluster.fit(np.min(np.linalg.norm([q+q[:,None], q-q[:,None]], axis=-1), axis=0))
     return cluster, archive
 
-def callback(gen, archive, max_size=20000, *args, **kwargs):
+def callback(gen, archive, pop, max_size=20000, *args, **kwargs):
     if gen % 100 == 0:
         cluster, _ = cluster_quaternion(archive, max_size)
         return {'n clusters': cluster.n_clusters_ if cluster else len(archive)}
