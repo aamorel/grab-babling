@@ -102,7 +102,7 @@ class RobotGrasping(GoalEnv):
         self.cumreward = 0
         self.npmp_decoder = None if npmp_decoder is None else MLP.load(npmp_decoder).requires_grad_(requires_grad=False)
         
-        
+        self.metadata['video.frames_per_second'] = 240 / steps_to_roll
         self.camera = dict(
             width=camera.get('width', 1024),
             height=camera.get('height', 1024),

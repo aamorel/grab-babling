@@ -107,7 +107,7 @@ elif ROBOT in {'kuka', 'kuka_iiwa_allegro', 'franka_panda'}:
     NB_STEPS_TO_ROLLOUT = 1
     NB_ITER = int((1500 if args.mode == "pd stable" else 2000) / NB_STEPS_TO_ROLLOUT)
 
-        
+
 elif ROBOT == 'crustcrawler':
     ENV_NAME = 'crustcrawler-v0'
     GENE_PER_KEYPOINTS = 6
@@ -283,7 +283,7 @@ def cluster_quaternion(triumphant_archive, max_size):
         n = max_size
     else:
         archive = [triumphant_archive[i] for i in range(n)]
-    
+
     q = np.array([m.info.values["diversity_descriptor"].unit.elements for m in archive])
     # cluster the triumphants with respect to grasping descriptor
     cluster = AgglomerativeClustering(
@@ -293,23 +293,23 @@ def cluster_quaternion(triumphant_archive, max_size):
         distance_threshold=DIFF_OR_THRESH,
         linkage='average'
     )
-    
+
     # compute absolute_distance matrix in quaternion space, https://github.com/KieranWynn/pyquaternion/blob/99025c17bab1c55265d61add13375433b35251af/pyquaternion/quaternion.py#L772
     cluster = cluster.fit(np.min(np.linalg.norm([q+q[:,None], q-q[:,None]], axis=-1), axis=0))
     return cluster, archive
 
-def callback(gen, archive, pop, max_size=20000, *args, **kwargs):
+def callback(gen, archive, pop, max_size=10000, *args, **kwargs):
     if gen % 100 == 0:
         cluster, _ = cluster_quaternion(archive, max_size)
         return {'n clusters': cluster.n_clusters_ if cluster else len(archive)}
     else:
         return None
 
-def analyze_triumphants(triumphant_archive, run_name, max_size=25000):
+def analyze_triumphants(triumphant_archive, run_name, max_size=20000):
     if len(triumphant_archive) < 2:
         print('No individual completed the is_success.')
         return None, None, None, None
-    
+
     # analyze the triumphants following the diversity descriptor
     measure = 'diversity_descriptor'
 
@@ -325,14 +325,14 @@ def analyze_triumphants(triumphant_archive, run_name, max_size=25000):
     uniformity = utils.compute_uniformity(grid).item()
 
     clustering, triumphant_archive = cluster_quaternion(triumphant_archive, max_size) # subsample
-	
+
     number_of_clusters = clustering.n_clusters_
     labels = clustering.labels_
 
     indices, toSplit = np.nonzero(labels==np.arange(number_of_clusters)[:,None])
     indices = np.cumsum(np.count_nonzero(indices==np.arange(number_of_clusters-1)[:,None], axis=-1))
     clustered_triumphants = [[triumphant_archive[i] for i in subindices] for subindices in np.split(toSplit, indices)]
-    
+
     print(number_of_clusters, 'types of grasping were found.')
     print('Coverage of', coverage, 'and uniformity of', uniformity)
 
@@ -359,7 +359,7 @@ def analyze_triumphants(triumphant_archive, run_name, max_size=25000):
     ) # save all triumphants and infos
 
     return coverage, uniformity, clustered_triumphants, number_of_clusters
-    
+
 
 def two_d_bd(individual):
     """Evaluates an individual: computes its value in the behavior descriptor space,
@@ -389,7 +389,7 @@ def two_d_bd(individual):
             ENV.get_joint_state(position=True, normalized=True) if args.mode in {'joint positions', 'pd stable'} else
             ENV.get_joint_state(position=False, normalized=True) if args.mode == 'joint velocities' else None
     )
-    
+
 
     for i in range(NB_ITER):
         # apply previously chosen action
@@ -428,11 +428,11 @@ def three_d_bd(individual):
         global ENV
     else:
         ENV = gym.make(ENV_NAME, display=DISPLAY, obj=OBJECT, steps_to_roll=NB_STEPS_TO_ROLLOUT, object_position=OBJECT_POSITION, object_xyzw=OBJECT_XYZW)
-    
+
     o = ENV.reset()
 
     individual = np.around(np.array(individual), 3)
-    
+
     # initialize controller
     controller_info = controllers_info_dict[CONTROLLER]
     controller = controllers_dict[CONTROLLER](
@@ -442,7 +442,7 @@ def three_d_bd(individual):
             ENV.get_joint_state(position=True, normalized=True) if args.mode in {'joint positions', 'pd stable'} else
             ENV.get_joint_state(position=False, normalized=True) if args.mode == 'joint velocities' else None
     )
-    
+
 
     # for precise measure when we have the gripper assumption
     grabbed = False
@@ -461,7 +461,7 @@ def three_d_bd(individual):
 
         if eo:
             break
-        
+
         if hasattr(controller, 'grip_time'):
             # we are in the case where the gripping time is given
             # in consequence, we can do the precise measure of the grabbing orientation
@@ -520,7 +520,7 @@ def pos_div_pos_grip_bd(individual):
     div: the measure described by diversity_measure, eligible if the object is grabbed
     pos: the final position of the end effector, eligible if the object is grasped
     grip: the orientation of the gripper N_LAG steps before the gripping time, eligible if the object is touched
-    
+
     This evaluation function can be used with either BD as:
     pos_div_pos
     pos_div_grip
@@ -551,7 +551,7 @@ def pos_div_pos_grip_bd(individual):
     assert(hasattr(controller, 'grip_time'))
     # lag_time = controller.grip_time - N_LAG
     lag_time = NB_ITER / 2
-    
+
 
 
     # for precise measure when we have the gripper assumption
@@ -588,7 +588,7 @@ def pos_div_pos_grip_bd(individual):
             initial_object_position = inf['object position']
 
         if eo: break
-        
+
         if i >= controller.grip_time and not already_grasped:
             # first action that orders the gripper closure
             # measure_grip_time = diversity_measure(inf)
@@ -609,11 +609,11 @@ def pos_div_pos_grip_bd(individual):
             already_touched = True
             if already_grasped:
                 grasped_before_touch = True
-        
+
         if inf['touch'] and closing: # get the time step difference between when start closing and touching
             grip_info["time close touch"] = i - closing
             closing = None
-        
+
         if i >= lag_time and not lag_measured:
             # gripper orientation
             grip_or_lag = np.array(inf['end effector xyzw'])
@@ -629,7 +629,7 @@ def pos_div_pos_grip_bd(individual):
                 differential_dist = new_dist - prev_dist
                 if differential_dist > 0:
                     positive_dist_slope += differential_dist
-            
+
                 prev_dist = new_dist
 
         # if robot has a self-collision monitoring
@@ -640,7 +640,7 @@ def pos_div_pos_grip_bd(individual):
             return (behavior, (fitness,), info)
 
 
-        
+
         info['reward'] += r
         info['energy'] += np.abs(inf['applied joint motor torques']).sum()
         contact_robot_table = contact_robot_table or len(inf['contact robot table'])>0
@@ -668,7 +668,7 @@ def pos_div_pos_grip_bd(individual):
             o, r, eo, inf = ENV.step(action_current_pos) # the robot stops moving
         ENV.env.mode = args.mode # unset the mode
         grasp = r
-    
+
     info['is_success'] = binary_goal = False
     if grasp:
         COUNT_SUCCESS += 1
@@ -690,7 +690,7 @@ def pos_div_pos_grip_bd(individual):
         grip_or_lag = np.array([grip_or_lag[3], *grip_or_lag[:3]]) # wxyz
     else:
         grip_or_lag = None
-    
+
     behavior[3:7] = measure_grip_time # this one is common to the 3
     if BD == 'pos_div_pos':
         behavior[7:10] = pos_touch_time
@@ -720,8 +720,8 @@ def pos_div_pos_grip_bd(individual):
                 info['mean positive slope'] -= 1
         else:
             info['mean positive slope'] = positive_dist_slope / NB_ITER + 1
-    
-    
+
+
     if QUALITY and binary_goal: # np.random.randint(2)
         info['repeat_kwargs'] = [{**repeat_kwargs, 'reference':np.array(inf['object position'])} for repeat_kwargs in REPEAT_KWARGS]
     return (behavior.tolist(), (fitness,), info)
@@ -740,7 +740,7 @@ def simulate(individual, delta_pos=[0,0], delta_yaw=0, multiply_friction={}, ref
             ENV.get_joint_state(position=True, normalized=True) if args.mode in {'joint positions', 'pd stable'} else
             ENV.get_joint_state(position=False, normalized=True) if args.mode == 'joint velocities' else None
     )
-    
+
     for i in range(NB_ITER):
         #ENV.render()
         o, r, eo, inf = ENV.step(controller.get_action(i, o))
@@ -758,12 +758,12 @@ def simulate(individual, delta_pos=[0,0], delta_yaw=0, multiply_friction={}, ref
         ENV.env.mode = args.mode # unset the mode
 
 
-    
+
     if reference is not None:
         inf['distance to reference'] = np.linalg.norm(reference - inf['object position'])
-    
+
     return inf
-    
+
 def reduce_repeat(ind, results):
     info = ind.info.values
     successes = 0
@@ -774,7 +774,7 @@ def reduce_repeat(ind, results):
     info['grasp robustness'] = (successes + 1 / (1.00000001 + mean_dist/successes) if successes>0 else 0) / (i+1)
     #info.pop('repeat_kwargs')
     info['n is_success'] = successes
-    
+
     return ind.behavior_descriptor.values, tuple(ind.fitness.values), info
 
 def final_filter(ind, n=3): # filter n times because env.reset() is kind of stochastic
@@ -803,7 +803,7 @@ def eval_sucessfull_ind(individual, obstacle_pos=None, obstacle_size=None):
             ENV.get_joint_state(position=True, normalized=True) if args.mode in {'joint positions', 'pd stable'} else
             ENV.get_joint_state(position=False, normalized=True) if args.mode == 'joint velocities' else None
     )
-    
+
 
     # for precise measure when we have the gripper assumption
     already_grasped = False
@@ -829,7 +829,7 @@ def eval_sucessfull_ind(individual, obstacle_pos=None, obstacle_size=None):
 
         if eo:
             break
-        
+
         if i >= controller.grip_time and not already_grasped:
             # first action that orders the gripper closure
             already_grasped = True
@@ -855,7 +855,7 @@ def aurora_bd(individual):
         global ENV
     else:
         ENV = gym.make(ENV_NAME, display=DISPLAY, obj=OBJECT, steps_to_roll=NB_STEPS_TO_ROLLOUT, object_position=OBJECT_POSITION, object_xyzw=OBJECT_XYZW)
-    
+
     o = ENV.reset()
 
     individual = np.around(np.array(individual), 3)
@@ -870,7 +870,7 @@ def aurora_bd(individual):
             ENV.get_joint_state(position=False, normalized=True) if args.mode == 'joint velocities' else None
     )
 
-    
+
 
     # for precise measure when we have the gripper assumption
     already_touched = False
@@ -884,7 +884,7 @@ def aurora_bd(individual):
     sample_step = NB_ITER / (N_SAMPLES + 1)
     for point in range(N_SAMPLES):
         sample_points.append(sample_step * (point + 1))
-    
+
     behavior = []
 
     for i in range(NB_ITER):
@@ -991,7 +991,7 @@ if __name__ == "__main__":
     if args.mode == 'pd stable' and os.environ.get('OPENBLAS_NUM_THREADS') != '1':
         print("WARNING: You better have to export OPENBLAS_NUM_THREADS to 1 in order to get the best performances when using 'pd stable' (np.linalg slows down with multiprocessing)")
     initial_state = ENV.get_state()
-    
+
     for _ in range(N_EXP):
         if args.initial_random:
             ENV.new_random_initial_state()
@@ -1040,7 +1040,7 @@ if __name__ == "__main__":
                 obstacle_pos = obstacle_pos.transpose()
                 obstacle_pos[obstacle_pos[:, 2] < 0] = -obstacle_pos[obstacle_pos[:, 2] < 0]
                 obstacle_pos = sphere_radius * obstacle_pos
-            
+
             else:
                 n_obst_bins = 10
                 obstacle_pos = utils.half_sphere_projection(r=sphere_radius, num=n_obst_bins)
@@ -1052,7 +1052,7 @@ if __name__ == "__main__":
             for path in path_to_inds:
                 ind = np.load(path, allow_pickle=True)
                 inds.append(ind)
-            
+
             count_sucess = np.zeros((len(obstacle_pos), len(inds)))
             for i, pos in enumerate(obstacle_pos):
                 for j, ind in enumerate(inds):
@@ -1076,7 +1076,7 @@ if __name__ == "__main__":
             for path in path_to_inds_no_qual:
                 ind = np.load(path, allow_pickle=True)
                 inds_no_qual.append(ind)
-            
+
             quality_qual_inds = []
             quality_no_qual_inds = []
             for ind in inds_qual:
@@ -1128,18 +1128,18 @@ if __name__ == "__main__":
             )
             i += 1 # raise if failed 10 times
             if i>=10: raise Exception("The initial population failed 10 times")
-        
+
         pop, archive, hof, details, figures, data, triumphant_archive = res
         nb_of_triumphants = len(triumphant_archive)
         print('Number of triumphants: ', nb_of_triumphants)
         if len(triumphant_archive)==0 and not args.keep_fail: continue # do not report the logs
-        
+
         i = 0 # create run directory
         while os.path.exists('runs/run%i/' % i):
             i += 1
         run_name = 'runs/run%i/' % i
         os.mkdir(run_name)
-        
+
         # analyze triumphant archive diversity
         coverage, uniformity, clustered_triumphants, number_of_clusters = analyze_triumphants(triumphant_archive, run_name)
         t_end = time.time()
@@ -1165,7 +1165,7 @@ if __name__ == "__main__":
             details['successful'] = False
             details['number of successful'] = 0
             details['number of clusters'] = 0
-        
+
         # direct plotting and saving figures
         if PLOT:
             fig = figures['figure']
@@ -1178,7 +1178,7 @@ if __name__ == "__main__":
             if MULTI_QUALITY_MEASURES is not None:
                 fig_3 = figures['figure_3']
                 fig_3.savefig(run_name + 'qualities.png')
-                
+
             if BD != 'change_bd':
                 # plot final states
                 archive_behavior = np.array([ind.behavior_descriptor.values for ind in archive]) if len(archive)>0 else None # archive can be empty if the offspring size is too small
@@ -1246,10 +1246,10 @@ if __name__ == "__main__":
             data['population genetic statistics'] = None
             data['offsprings genetic statistics'] = None
 
-        
+
         # saving the run
         utils.save_yaml(details, run_name + 'run_details.yaml')
-        
+
         # cleaning data
         data = {key:value for key, value in data.items() if not value is None or isinstance(value, np.ndarray) and value.dtype == np.dtype(object)}
         np.savez_compressed(run_name+'run_data', **data) # or maybe save to parquet as a dataFrame
@@ -1259,7 +1259,7 @@ if __name__ == "__main__":
             DISPLAY = True
             for ind in hof:
                 evaluation_function(ind)
-        
+
         if DISPLAY_RAND:
             DISPLAY = True
             nb_show = 10
