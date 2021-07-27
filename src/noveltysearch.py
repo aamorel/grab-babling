@@ -205,9 +205,9 @@ def assess_novelties(pop, archive, algo_type, bd_bounds, bd_indexes, bd_filters,
     Returns:
         list: list of novelties of current individuals
     """
-        
+
     concatenated_quality_names = None if multi_qual is None else [', '.join([quality_name.strip()[1:] for quality_name in quality_names]) for quality_names in multi_qual]
-    
+
     if not archive:
         # archive is empty --> only consider current population
         reference_pop = pop
@@ -245,7 +245,7 @@ def assess_novelties(pop, archive, algo_type, bd_bounds, bd_indexes, bd_filters,
                 if not(None in bd_value):  # if the bd has a value
                     bd_lists[idx].append(bd[bd_filter])
                     tree_ref_pop_indexes[idx].append(ref_pop_idx)
-        
+
         for idx in range(nb_bd):
             if len(bd_lists[idx]) > 0:
                 neigh = Nearest(n_neighbors=K + 1, metric=novelty_metric[idx])
@@ -286,7 +286,7 @@ def assess_novelties(pop, archive, algo_type, bd_bounds, bd_indexes, bd_filters,
                     novelty.append(None)
             novelty = tuple(novelty)
             novelties.append(novelty)
-            
+
     else:
         # extract all the behavior descriptors that are not None to create the tree
         b_ds = np.array([ind.behavior_descriptor.values for ind in reference_pop if ind.behavior_descriptor.values is not None])
@@ -316,7 +316,7 @@ def assess_novelties(pop, archive, algo_type, bd_bounds, bd_indexes, bd_filters,
             for i, nov in enumerate(novelties):
                 # each novelty is incremented by a random float between -rand_range and rang_range
                 novelties[i] = (nov[0] + (random.random() * 2 - 0.5) * rand_range,)
-            
+
             # compute ranking after (using altered novelties)
             nov_n = np.array(novelties).flatten()
             order = nov_n.argsort()
@@ -539,7 +539,7 @@ def select_n_multi_bd_tournsize(pop, n, tournsize, bd_filters, multi_quality, pu
                 tourn_idxs = [i for i in list(range(pop_size)) if i not in unwanted_list]
                 if len(tourn_idxs) == 0:
                     empty = True
-        
+
         else:
             if putback:
                 tourn_idxs = random.sample(range(pop_size), tournsize)
@@ -561,7 +561,7 @@ def select_n_multi_bd_tournsize(pop, n, tournsize, bd_filters, multi_quality, pu
             for i, nov in enumerate(nov_list):
                 if nov is not None:
                     inventory[i] += 1
-        
+
         # choose the bd to use for comparison
         bd_idx = choose_bd_strategy(inventory)
 
@@ -611,7 +611,7 @@ def select_n_multi_bd_tournsize(pop, n, tournsize, bd_filters, multi_quality, pu
             selected.append(pop[ind_idx])
             if not putback:
                 unwanted_list.append(ind_idx)
-            
+
     return selected
 
 
@@ -645,7 +645,7 @@ def add_to_grid_map(member, grid, cvt, toolbox):
     # find the corresponding cell
     member_bd = member.behavior_descriptor.values
     grid_index = cvt.get_grid_index(member_bd)
-    
+
     # get the competitor
     competitor = grid[grid_index]
 
@@ -667,26 +667,26 @@ def train_autoencoder(train_loader, device, optimizer, model, criterion):
             # reshape mini-batch data to [N, 784] matrix
             # load it to the active device
             batch_features = batch_features.to(device)
-            
+
             # reset the gradients back to zero
             # PyTorch accumulates gradients on subsequent backward passes
             optimizer.zero_grad()
-            
+
             # compute reconstructions
             outputs = model(batch_features.float())
-            
+
             # compute training reconstruction loss
             train_loss = criterion(outputs, batch_features.float())
-            
+
             # compute accumulated gradients
             train_loss.backward()
-            
+
             # perform parameter update based on current gradients
             optimizer.step()
-            
+
             # add the mini-batch training loss to epoch loss
             loss += train_loss.item()
-        
+
         # compute the epoch training loss
         loss = loss / len(train_loader)
         losses.append(loss)
@@ -725,7 +725,7 @@ def update_repeat(invalid_ind, inv_b_descriptors, inv_fitnesses, inv_infos, repe
                 to_repeat.append((ind, repeat_kwargs)) # add to the queue ind and kwargs
             ind_indices.append(i)
             split_indices.append(len(inf['repeat_kwargs']))
-    
+
     split_indices = np.cumsum(split_indices)[:-1].tolist() # pop the last element
     repeat_results = list(toolbox.map(partial(unpack_repeat, f=repeat), to_repeat)) # re-evaluate
     repeat_gathered = [repeat_results[i:j] for i,j in zip([0]+split_indices, split_indices+[None])] # split, map returns an ordered result
@@ -766,7 +766,7 @@ def novelty_algo(
     early_stopping=-1, # stop if count_success > early_stopping
     callback=None, # callback at the end of each generation to log metrics
 ):
-                 
+
     if multi_quality is not None:
         quality_names = np.unique([quality_name.strip() for bd_qual in multi_quality for quality_name in bd_qual]) # get unqiue quality names
         for quality_name in quality_names:
@@ -774,12 +774,12 @@ def novelty_algo(
             quality_name = quality_name[1:] # discard + or -
     else:
         quality_names = None
-        
+
     if repeat is not None or reduce_repeat is not None:
         assert repeat is not None and reduce_repeat is not None, "if repeat or reduce_repeat is given, both must be defined"
 
     # keep track of stats
-    #success_ratio_per_generation = []
+    n_evaluations_including_repetition = 0
     successes, successes_repeat = [], []
     evals, evals_repeat = [], []
     metrics = None
@@ -953,16 +953,16 @@ def novelty_algo(
                 grid_hist.append(np.zeros(nb_cells))
                 cvt_member = utils.CVT(num_centroids=nb_cells, bounds=bd_bounds[bd_filter])
                 cvt.append(cvt_member)
-                
+
         else:
             grid = np.zeros(nb_cells)
             grid_hist = np.zeros(nb_cells)
             cvt = utils.CVT(num_centroids=nb_cells, bounds=bd_bounds)
-    
+
     # initialize map_elites grid
     if algo_type == 'map_elites':
         grid_map = [None] * nb_cells
-     
+
     # initialize ranking similarities and novelty differences lists if analyzing the archive
     ranking_similarities = []
     novelty_differences = []
@@ -1012,7 +1012,7 @@ def novelty_algo(
     # attribute fitness and behavior descriptors to individuals
     if monitor_print:
         count_success = 0
-    
+
     eval, eval_repeat = len(pop), len(pop)
     success, success_repeat= 0, 0
     for ind, fit, bd, inf in zip(pop, fitnesses, b_descriptors, infos):
@@ -1023,15 +1023,6 @@ def novelty_algo(
             if inf['is_success']:
                 count_success += 1
 
-        eval_repeat += len(inf.get('repeat_kwargs', ()))
-        success += inf['is_success']
-        success_repeat += inf['is_success'] + inf.get('n is_success', False)
-    evals.append(eval)
-    evals_repeat.append(eval_repeat)
-    successes.append(success)
-    successes_repeat.append(success_repeat)
-    n_evaluations_including_repetition = eval_repeat
-    
     if monitor_print:
         t_eval.update(n=len(pop))
         t_success.update(n=count_success)
@@ -1053,7 +1044,7 @@ def novelty_algo(
         if isinstance(save_ind_cond, str):
             if member.info.values[save_ind_cond]:
                 save_ind.append(member)
-    
+
     if algo_type == 'map_elites':
         for ind in pop:
             add_to_grid_map(ind, grid_map, cvt, toolbox)
@@ -1069,7 +1060,7 @@ def novelty_algo(
         if early_stopping >= 0 and len(save_ind) >= early_stopping:
             details['nb of generations'] = gen
             break
-        
+
         # ###################################### SELECT ############################################
         if algo_type == 'map_elites':
             offsprings = []
@@ -1142,7 +1133,7 @@ def novelty_algo(
                 else:
                     # novelty search: selection on novelty
                     offsprings = toolbox.select(pop, nb_offsprings_to_generate, fit_attr='novelty')
-        
+
         offsprings = list(map(toolbox.clone, offsprings))  # clone selected indivduals
 
         # ###################################### MUTATE ############################################
@@ -1177,7 +1168,7 @@ def novelty_algo(
 
             # transform each BD to its reduced form
             inv_b_descriptors = reduce_behavior_descriptor(model, inv_b_descriptors, device)
-        
+
         eval, eval_repeat = len(invalid_ind), len(invalid_ind)
         success, success_repeat= 0, 0
         for ind, fit, bd, inf in zip(invalid_ind, inv_fitnesses, inv_b_descriptors, inv_infos):
@@ -1188,7 +1179,7 @@ def novelty_algo(
             if monitor_print:
                 if inf['is_success']:
                     count_success += 1
-            
+
             eval_repeat += len(inf.get('repeat_kwargs', ()))
             success += inf['is_success']
             success_repeat += inf['is_success'] + inf.get('n is_success', False)
@@ -1197,13 +1188,13 @@ def novelty_algo(
         successes.append(success)
         successes_repeat.append(success_repeat)
         n_evaluations_including_repetition += eval_repeat
-            
+
         #success_ratio_per_generation.append(count_success_per_gen/n_eval)
-        
+
         if monitor_print:
             t_eval.update(n=len(invalid_ind))
             t_success.update(n=count_success)
-        
+
         # compute novelty for all current individuals (novelty of population may have changed)
         if algo_type != 'random_search' and algo_type != 'map_elites':
             novelties = assess_novelties(current_pool, archive, algo_type, bd_bounds, bd_indexes, bd_filters,
@@ -1214,7 +1205,7 @@ def novelty_algo(
             for ind, nov in zip(current_pool, novelties):
                 ind.novelty.values = nov
         # an individual with bd = None will have 0 novelty
-        
+
         # add all generated individuals to historic and potentially to saved individuals
         if save_ind_cond == 1:
             save_ind.append(offsprings)
@@ -1225,7 +1216,7 @@ def novelty_algo(
             if isinstance(save_ind_cond, str):
                 if member.info.values[save_ind_cond]:
                     save_ind.append(member)
-        
+
         # ###################################### FILL ARCHIVE ############################################
         # fill archive with individuals from the offsprings group (direct references to those individuals)
         # grid follows the archive
@@ -1257,7 +1248,7 @@ def novelty_algo(
                         member = offsprings[i]
                         archive.append(member)
                         add_to_grid(member, grid, cvt, measures, algo_type, bd_filters)
-            
+
         # ###################################### REPLACE ############################################
         if algo_type == 'classic_ea':
             # replacement: keep the most fit individuals
@@ -1301,10 +1292,10 @@ def novelty_algo(
 
             # transform each BD to its reduced form
             behavior_descriptors = reduce_behavior_descriptor(model, extend_descriptors, device)
-            
+
             for ind, bd in zip(archive, behavior_descriptors):
                 ind.behavior_descriptor.values = bd
-            
+
             # recomputing BD also for the current population
             pop_extended_descriptors = []
             for ind in pop:
@@ -1315,7 +1306,7 @@ def novelty_algo(
 
             for ind, bd in zip(pop, pop_behavior_descriptors):
                 ind.behavior_descriptor.values = bd
-        
+
         if archive_limit_size is not None:
             # implement archive size limitation strategy
             if len(archive) >= archive_limit_size:
@@ -1342,7 +1333,7 @@ def novelty_algo(
                         remove_from_grid(member, grid, cvt, measures, algo_type, bd_filters)
 
                     archive = archive[:nb_ind_to_keep]
-                
+
                 if archive_limit_strat == 'oldest':
                     # strategy 2: remove oldest individuals
                     members_to_remove = archive[:nb_ind_to_remove]
@@ -1373,7 +1364,7 @@ def novelty_algo(
                         removal_idx = np.argmin(nov_n)
                         remove_from_grid(archive[removal_idx], grid, cvt, measures, algo_type, bd_filters)
                         archive.pop(removal_idx)
-                
+
                 if archive_limit_strat == 'grid_density':
                     # strategy 5: remove individuals with probability proportional to grid density
                     # extract all the behavior descriptors
@@ -1413,7 +1404,7 @@ def novelty_algo(
                                 cell_idx += int(dim_idx * ((bins_per_dim - 1) ** k))
                             grid_density[cell_idx] += 1
                             cells[cell_idx].append(ind_idx)
-                    
+
                     grid_density = grid_density / np.sum(grid_density)
 
                     grid_law = np.cumsum(grid_density)
@@ -1439,7 +1430,7 @@ def novelty_algo(
                         if i not in removal_indices:
                             temp_archive.append(archive[i])
                     archive = temp_archive
-                    
+
                 if archive_limit_strat == 'grid':
                     # strategy 6: remove individuals at intersection of grid
                     # extract all the behavior descriptors
@@ -1538,7 +1529,7 @@ def novelty_algo(
                     for member in members_to_remove:
                         remove_from_grid(member, grid, cvt, measures, algo_type, bd_filters)
                     archive = archive[:nb_ind_to_keep]
-                
+
                 if archive_limit_strat == 'most_novel':
                     # strategy 9: remove most novel individuals
                     novelties = assess_novelties(archive, archive, algo_type, bd_bounds, bd_indexes, bd_filters,
@@ -1603,7 +1594,7 @@ def novelty_algo(
         # gather all the ages in one list and compute stats
         ages = np.array([ind.gen_info.values['age'] for ind in pop])
         mean_age = np.mean(ages)
-        
+
         if measures:
             # re-build population grid (new grid at each generation)
             if algo_type == 'ns_rand_multi_bd':
@@ -1678,7 +1669,7 @@ def novelty_algo(
                     """
 
             else:
- 
+
                 # compute coverage
                 coverage = np.count_nonzero(grid) / nb_cells
                 coverage_hist.append(coverage)
@@ -1710,7 +1701,7 @@ def novelty_algo(
             # and a choose_evaluate functions which chooses which evaluation function to use
             # based on the info_change_bd dictionnary (returns an index)
             info_change_bd['coverage'] = coverage
-            
+
             old_eval_index = eval_index
             eval_index = choose_evaluate(info_change_bd)
             evaluate_individual = evaluate_individual_list[eval_index]
@@ -1719,7 +1710,7 @@ def novelty_algo(
                 # behavior descriptor has changed
                 # add info
                 info_change_bd['changed'] = True
-                
+
                 # empty the archive
                 archive = []
 
@@ -1731,7 +1722,7 @@ def novelty_algo(
                     # re-initialize the CVT grid
                     grid = np.zeros(nb_cells)
                     cvt = utils.CVT(num_centroids=nb_cells, bounds=bd_bounds)
-        
+
         if plot_gif:
             if GIF_TYPE == 'full':
                 im_l = []
@@ -1762,7 +1753,7 @@ def novelty_algo(
                     color = CM(i / nb_gen)
                     im_l.append(plt.scatter(bds_arr[:, 0], bds_arr[:, 1], color=color, label='Historic'))
                 ims.append(im_l)
-        
+
         if callback is not None:
             metric = callback(gen=gen, archive=[ind for ind in save_ind],  pop=[p for p in pop])
             if metric is not None:
@@ -1772,13 +1763,13 @@ def novelty_algo(
                     assert set(metric.keys()) == set(metrics.keys()), "metrics are inconsistent"
                     for key, value in metric.items():
                         metrics[key].append(value)
-    
+
     details['number of successful before filter'] = len(save_ind)
     details['n evaluations'] = nb_offsprings_to_generate * details['nb of generations']
     details['n evaluations including repetitions'] = n_evaluations_including_repetition
     if final_filter is not None: # re-evaluate if asked
         save_ind = [ind for ind, info in zip(save_ind, toolbox.map(final_filter, save_ind)) if info[save_ind_cond]]
-    
+
     data['population genetic statistics'] = np.array(gen_stat_hist)
     data['offsprings genetic statistics'] = np.array(gen_stat_hist_off)
     data['archive coverage'] = np.array(coverage_hist)
@@ -1798,17 +1789,17 @@ def novelty_algo(
     data['novelty distribution'] = np.array(novelty_distrib)
     data['qualities'] = multi_quality_hist # this is a dict of qualities
     data['first saved ind gen'] = np.array(first_saved_ind_gen)
-    data['n success'] = np.array(successes)
-    data['n success including repetitions'] = np.array(successes_repeat)
-    data['n evaluations'] = np.array(evals)
-    data['n evaluations inluding repetitions'] = np.array(evals_repeat)
+    data['successes'] = np.array(successes)
+    data['successes including repetitions'] = np.array(successes_repeat)
+    data['evaluations'] = np.array(evals)
+    data['evaluations inluding repetitions'] = np.array(evals_repeat)
     for key, value in metrics.items():
         data[key] = np.array(value)
     if algo_type == 'ns_rand_multi_bd':
         data['eligibility rates'] = np.array(bd_rates)
     if plot:
         fig, fig_2, fig_3, fig_4 = plotting.plot_launch(details, data)
-    
+
         figures['figure'] = fig
         figures['figure_2'] = fig_2
         figures['figure_3'] = fig_3
@@ -1818,7 +1809,7 @@ def novelty_algo(
     for key, value in data['qualities'].items():
         data[key] = np.array(value)
     data['qualities'] = np.array(list(data['qualities'].keys())) # save the keys instead of the dict
-    
+
     if plot_gif:
         interval = int(GIF_LENGHT * 1000 / len(ims))
         if interval >= 1000:

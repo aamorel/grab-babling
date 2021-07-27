@@ -305,7 +305,7 @@ def callback(gen, archive, pop, max_size=10000, *args, **kwargs):
     else:
         return None
 
-def analyze_triumphants(triumphant_archive, run_name, max_size=20000):
+def analyze_triumphants(triumphant_archive, run_name, max_size=15000):
     if len(triumphant_archive) < 2:
         print('No individual completed the is_success.')
         return None, None, None, None
