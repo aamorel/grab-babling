@@ -1767,6 +1767,7 @@ def novelty_algo(
     details['number of successful before filter'] = len(save_ind)
     details['n evaluations'] = nb_offsprings_to_generate * details['nb of generations']
     details['n evaluations including repetitions'] = n_evaluations_including_repetition
+    details['n offsprings per generation'] = nb_offsprings_to_generate
     if final_filter is not None: # re-evaluate if asked
         save_ind = [ind for ind, info in zip(save_ind, toolbox.map(final_filter, save_ind)) if info[save_ind_cond]]
 
@@ -1792,7 +1793,7 @@ def novelty_algo(
     data['successes'] = np.array(successes)
     data['successes including repetitions'] = np.array(successes_repeat)
     data['evaluations'] = np.array(evals)
-    data['evaluations inluding repetitions'] = np.array(evals_repeat)
+    data['evaluations including repetitions'] = np.array(evals_repeat)
     for key, value in metrics.items():
         data[key] = np.array(value)
     if algo_type == 'ns_rand_multi_bd':
