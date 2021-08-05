@@ -32,7 +32,7 @@ def cleanStr(x):
 parser = argparse.ArgumentParser()
 parser.add_argument("-r", "--robot", help="The robot environment", type=cleanStr, default="baxter", choices=["baxter", "kuka", "pepper", "crustcrawler", "kuka_iiwa_allegro", "ur10_shadow", "franka_panda"])
 parser.add_argument("-o", "--object", help="The object to grasp", type=str, default="sphere")
-parser.add_argument("-p", "--population", help="The poulation size", type=partial(greater, "population size", 1), default=96)
+parser.add_argument("-p", "--population", help="The poulation size", type=partial(greater, "population size", 1), default=100)
 parser.add_argument("-g", "--generation", help="The number of generation", type=partial(greater, "number of generation", 1), default=1000)
 parser.add_argument("-n", "--nruns", help="The number of time to repeat the search", type=partial(greater, "number of runs", 0), default=1)
 parser.add_argument("-c", "--cells", help="The number of cells to measure the coverage", type=partial(greater, "number of cells", 1), default=1000)
