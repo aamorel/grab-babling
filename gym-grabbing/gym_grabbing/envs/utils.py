@@ -36,7 +36,7 @@ color_list = ["#000000", "#FFFF00", "#1CE6FF", "#FF34FF", "#FF4A46", "#008941", 
 class CVT():
     def __init__(self, num_centroids=7, bounds=[[-1, 1]], num_samples=100000,
                  num_replicates=1, max_iterations=20, tolerance=0.001):
-        
+
         self.num_centroids = num_centroids
         self.bounds = bounds
         self.num_samples = num_samples
@@ -56,7 +56,7 @@ class CVT():
                         max_iter=max_iterations,
                         tol=tolerance,
                         verbose=0)
-        
+
         kmeans.fit(X)
 
         self.centroids = kmeans.cluster_centers_
@@ -100,7 +100,7 @@ def compute_uniformity(grid):
     uniformity = 1 - distance.jensenshannon(P, Q)
     return uniformity
 
-    
+
 class PDControllerStable(object):
   """
   Implementation based on: Tan, J., Liu, K., & Turk, G. (2011). "Stable proportional-derivative controllers"
@@ -181,8 +181,8 @@ class MLP(BaseModel):
         self.mlp = th.nn.Sequential(*layers)
         self.optimizer_kwargs['lr'] = self.optimizer_kwargs.get('lr', 5e-4)
         self.optimizer = self.optimizer_class(self.parameters(), **self.optimizer_kwargs)
-    
-    
+
+
     def forward(self, data, deterministic=False):
         out = self.mlp(self.features_extractor(data))
         if self.distribution is None:
@@ -210,12 +210,15 @@ class MLP(BaseModel):
 
 class InterpolateKeyPointsGrip():
 
-    def __init__(self, individual, n_iter, genes_per_keypoint, nb_keypoints, initial=None):
+    def __init__(self, individual, n_iter, genes_per_keypoint, nb_keypoints, initial=None, a_min=None, a_max=None):
         """Interpolate actions between keypoints
            Only one parameter (last gene) for the gripper, specifying the time at which it should close
         """
         assert len(individual) == nb_keypoints * genes_per_keypoint + 1, f"len(individual)={len(individual)} must be equal to nb_keypoints({nb_keypoints}) * genes_per_keypoint({genes_per_keypoint}) + 1(gripper) = {nb_keypoints * genes_per_keypoint + 1}"
+        assert (a_min is None and a_max is None) or (a_min is not None and a_max is not None), "a_min and a_max must be both defined or both undefined."
         self.n_iter = n_iter
+        self.a_min = a_min
+        self.a_max = a_max
         actions = np.split(np.array(individual[:-1]), nb_keypoints)
 
         interval_size = int(n_iter / nb_keypoints)
@@ -233,6 +236,8 @@ class InterpolateKeyPointsGrip():
         if i <= self.n_iter:
             action = self.action_polynome(i)
             action = np.append(action, 1 if i < self.grip_time else -1)  # gripper: 1=open, -1=closed
-            return action
         else: # feed last action
-            return self.get_action(self.n_iter)
+            action = self.get_action(self.n_iter)
+        if self.a_min: # clip
+            action = np.clip(action, self.a_min, self.a_max)
+        return action

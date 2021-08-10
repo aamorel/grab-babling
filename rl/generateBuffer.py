@@ -25,15 +25,16 @@ root = Path(__file__).parent.parent
 sys.path.append(str(root/'src'))
 from controllers import InterpolateKeyPointsEndPauseGripAssumption, InterpolateKeyPointsGrip
 
-FOLDER = "/Users/Yakumo/Downloads/kukaPdStable/kukaSingleConfPdStable"
+from sbil.utils import TimeLimitAware, scale_action
+
+FOLDER = "/Users/Yakumo/Downloads/exp2/kukaVel"#"/Users/Yakumo/Downloads/kukaPdStable/kukaSingleConfPdStable"
 with open(next(Path(FOLDER).glob('**/run_details.yaml')), 'r') as f:
 	INFO = yaml.safe_load(f) # get some common parameters
-INFO['mode'] = 'joint torques' # set it if pd stable to joint torques
-ENV = gym.make(f"{INFO['env id']}", display=False, obj=INFO['object'] ,steps_to_roll=INFO['steps to roll'], mode=INFO['mode'])
-#ENV = gym.make(**INFO['env kwargs'])
-time_limit_aware = True
+#INFO['mode'] = 'joint torques' # set it if pd stable to joint torques
+#ENV = gym.make(f"{INFO['env id']}", display=False, obj=INFO['object'] ,steps_to_roll=INFO['steps to roll'], mode=INFO['mode'])
+ENV = gym.make(**INFO['env kwargs'])
+time_limit_aware = False
 if time_limit_aware:
-	from sbil.utils import TimeLimitAware
 	ENV = TimeLimitAware(ENV, max_episode_steps=INFO['controller info']['n_iter'])
 
 def simulate(ind, object_position=None, object_xyzw=None, joint_positions=None, position2torque=False, success_only=False, fast_only=float('inf'), noise=0): # return a list of transitions (s, s', a, r, done) if there is a grasping else None
@@ -43,14 +44,14 @@ def simulate(ind, object_position=None, object_xyzw=None, joint_positions=None, 
 	l, u, = ENV.lowerLimits, ENV.upperLimits
 	controller_info = INFO['controller info']
 	o = previous_observation = ENV.reset(object_position=object_position, object_xyzw=object_xyzw, joint_positions=joint_positions)
-	controller = InterpolateKeyPointsGrip(ind, **controller_info, initial=ENV.get_joint_state())
+	controller = InterpolateKeyPointsGrip(ind, **controller_info, initial=ENV.get_joint_state(), a_min=-1, a_max=1)
 	transitions = []
 	achieved = False
 	time_before_success = 0
 	for k in range(controller_info['n_iter']): # simulation
 		action = controller.get_action(k,o)
 		if position2torque: # convert position to torque
-			assert INFO['mode'] == 'joint torques', "When using position2torque, INFO['mode'] must be 'joint torques'"
+			#assert INFO['mode'] == 'joint torques', "When using position2torque, INFO['mode'] must be 'joint torques'"
 			action[:-1] = ENV.pd_controller.computePD(
 				bodyUniqueId=ENV.robot_id,
 				jointIndices=ENV.joint_ids,
@@ -64,6 +65,8 @@ def simulate(ind, object_position=None, object_xyzw=None, joint_positions=None, 
 		action_w_noise = np.array(action)
 		action_w_noise[:-1] += np.random.normal(0,noise, size=(ENV.n_actions-1,))
 
+		if np.logical_or(action>1, action<-1).any():
+			return None # invalid action
 		o, r, done, inf = ENV.step(action_w_noise)
 
 		if r and not achieved:
@@ -90,9 +93,10 @@ def generateBuffer(bufferSize=1000000, reward_on=False, success_only=True, npmp_
 	for run_details in inPath.glob('**/run_details.yaml'):
 		with open(run_details, 'r') as f:
 			d = yaml.safe_load(f)
-		if INFO['env id'] != d['env id'] or not d['successful']: continue
-		individuals += [(np.load(f),d['object_position'], d['object_xyzw'], d['joint_positions'], d['mode']=='pd stable') for f in run_details.parent.glob('type*.npy')]
-		other_individuals += [(ind,d['object_position'], d['object_xyzw'], d['joint_positions'], d['mode']=='pd stable') for ind in np.load(run_details.parent/"individuals.npz")["genotypes"]]
+		if not d['successful']: continue
+		data = d["initial state"]['object_position'], d["initial state"]['object_xyzw'], d["initial state"]['joint_positions'], d['env kwargs']['mode']=='pd stable'
+		individuals += [(np.load(f), *data) for f in run_details.parent.glob('type*.npy')]
+		other_individuals += [(ind, *data) for ind in np.load(run_details.parent/"individuals.npz")["genotypes"]]
 	if len(individuals) == 0: sys.exit("no individual found")
 	#individuals = individuals[:10]
 
@@ -112,7 +116,13 @@ def generateBuffer(bufferSize=1000000, reward_on=False, success_only=True, npmp_
 
 	if bufferSize<0:
 		bufferSize = sum([len(episode)-K for episode in episodes])
-	replayBuffer = ReplayBuffer(buffer_size=bufferSize, observation_space=ENV.observation_space, action_space=ENV.action_space if npmp_encoder is None else gym.spaces.Box(low=-np.inf, high=np.inf, shape=(latent_dim,)), optimize_memory_usage=True)
+	replayBuffer = ReplayBuffer(
+		buffer_size=bufferSize,
+		observation_space=ENV.observation_space,
+		action_space=ENV.action_space if npmp_encoder is None else gym.spaces.Box(low=-np.inf, high=np.inf, shape=(latent_dim,)),
+		optimize_memory_usage=True
+	)
+
 	def add(episodes):
 		for episode in episodes:
 			robot_states = np.array([t[5]['robot state'] for t in episode])
@@ -122,6 +132,7 @@ def generateBuffer(bufferSize=1000000, reward_on=False, success_only=True, npmp_
 					meanlatent_logstd = npmp_encoder_(th.as_tensor(robot_states[j+1:j+K+1].flatten(), dtype=th.float))
 					mean_latent, log_std = th.split(meanlatent_logstd, int(npmp_encoder_.action_space.shape[0]/2), dim=-1)
 					action = distribution.actions_from_params(mean_latent, log_std, deterministic=True).detach().numpy() # deterministic
+				action = scale_action(action, replayBuffer.action_space)
 				replayBuffer.add(state, nextState, action, True if reward_on else reward, True if j==len(episode)-K-1 else done, [info])
 				if replayBuffer.full: return
 
@@ -137,10 +148,11 @@ def generateBuffer(bufferSize=1000000, reward_on=False, success_only=True, npmp_
 		print("success", len(episodes), "eval", n_evals)
 		add(episodes)
 
-	path = Path(__file__).resolve().parent/f"data/replay_buffer_reward_{'on' if reward_on else 'off'}_{INFO['object']}_{INFO['robot']}{'_success_only' if success_only else ''}{'_npmp_encoded' if npmp_encoder is not None else ''}{'_time_limit_aware' if time_limit_aware else ''}"
+	#path = Path(__file__).resolve().parent/f"data/replay_buffer_reward_{'on' if reward_on else 'off'}_{INFO['object']}_{INFO['robot']}{'_success_only' if success_only else ''}{'_npmp_encoded' if npmp_encoder is not None else ''}{'_time_limit_aware' if time_limit_aware else ''}"
+	path = Path(__file__).resolve().parent/f"data/replay_buffer_reward_{'on' if reward_on else 'off'}_{INFO['env kwargs']['obj']}_{INFO['robot']}_{INFO['env kwargs']['mode'].replace(' ', '_')}{'_success_only' if success_only else ''}{'_npmp_encoded' if npmp_encoder is not None else ''}{'_time_limit_aware' if time_limit_aware else ''}"
 	save_to_pkl(path=path, obj=replayBuffer)
 	print(f"Saved as {path}.pkl")
 
 
 if __name__ == "__main__":
-	generateBuffer(bufferSize=1000000, reward_on=False, success_only=False, noise=0.1)#, npmp_encoder="/Users/Yakumo/Downloads/npmp_encoder")
+	generateBuffer(bufferSize=1000000, reward_on=False, success_only=False, noise=0)#, npmp_encoder="/Users/Yakumo/Downloads/npmp_encoder")

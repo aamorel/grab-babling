@@ -28,7 +28,7 @@ class DiscreteKeyPoints():
         action_index = i // self.n_iter_per_action
         action = self.actions[action_index]
         return action
-        
+
 
 class InterpolateKeyPoints():
 
@@ -124,12 +124,15 @@ class InterpolateKeyPointsEndPauseGripAssumption():
 
 class InterpolateKeyPointsGrip():
 
-    def __init__(self, individual, n_iter, genes_per_keypoint, nb_keypoints, initial=None):
+    def __init__(self, individual, n_iter, genes_per_keypoint, nb_keypoints, initial=None, a_min=None, a_max=None):
         """Interpolate actions between keypoints
            Only one parameter (last gene) for the gripper, specifying the time at which it should close
         """
         assert len(individual) == nb_keypoints * genes_per_keypoint + 1, f"len(individual)={len(individual)} must be equal to nb_keypoints({nb_keypoints}) * genes_per_keypoint({genes_per_keypoint}) + 1(gripper) = {nb_keypoints * genes_per_keypoint + 1}"
+        assert (a_min is None and a_max is None) or (a_min is not None and a_max is not None), "a_min and a_max must be both defined or both undefined."
         self.n_iter = n_iter
+        self.a_min = a_min
+        self.a_max = a_max
         actions = np.split(np.array(individual[:-1]), nb_keypoints)
 
         interval_size = int(n_iter / nb_keypoints)
@@ -147,9 +150,11 @@ class InterpolateKeyPointsGrip():
         if i <= self.n_iter:
             action = self.action_polynome(i)
             action = np.append(action, 1 if i < self.grip_time else -1)  # gripper: 1=open, -1=closed
-            return action
         else: # feed last action
-            return self.get_action(self.n_iter)
+            action = self.get_action(self.n_iter)
+        if self.a_min is not None: # clip
+            action = np.clip(action, self.a_min, self.a_max)
+        return action
 
 class DMPGripLift():
     def __init__(self, ind, info, initial):
@@ -165,18 +170,17 @@ class DMPGripLift():
     def get_action(self, i, observation):
         end_effetor_pose = observation[2]+[observation[3][j] for j in (3,0,1,2)]
         for i in range(self.rollout): pose = self.dmp.step(end_effetor_pose)
-        #print("goal error",self.dmp.distance(observation[2], self.dmp.goal), "current error", self.dmp.distance(observation[2], pose[0]),  "goal", self.dmp.goal, "command", pose[0], "current", observation[2])
         if self.dmp.distance(observation[2], self.dmp.goal) < 1e-3:
             self.get_action = self.lift
             self.vertical_inter = interpolate.interp1d(np.array([i, i+self.liftTime*240/self.rollout]), np.array([self.dmp.goal[2], self.dmp.goal[2]+0.1]), kind='linear', bounds_error=False, fill_value='extrapolate')
             self.quaternion_inter = Quaternion.intermediates(Quaternion(self.goalQuaternion), Quaternion(self.liftQuaternion), n=int(self.liftTime*240/self.rollout), include_endpoints=True)
             self.grip_time = i
         return {'position': pose[0], 'quaternion':pose[1], 'gripper close':False}
-        
+
     def lift(self, i, observation):
 
         return {'position': [self.dmp.goal[0], self.dmp.goal[1], self.vertical_inter(i)], 'quaternion':next(self.quaternion_inter, self.liftQuaternion), 'gripper close':True}
-        
+
 
 
 # ######################################### CLOSE LOOP CONTROLLERS #####################################################
@@ -220,9 +224,9 @@ class ClosedLoopEndPauseGripAssumption():
 
                 # hypothesis: control in speed instead of position
                 action = self.last_action[:7] + self.gain * action
-                
+
                 utils.bound(action, self.action_bounds)
-                
+
             if i < self.grip_time:
                 action = np.append(action, 1)  # gripper is open
             else:
