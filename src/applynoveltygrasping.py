@@ -194,7 +194,7 @@ if BD == 'pos_div_grip':
             # MULTI_QUALITY_MEASURES = [['mean positive slope', 'grasp robustness', None], ['min', 'min', None]]
             MULTI_QUALITY_MEASURES = [['-energy'], ['+grasp robustness'], ['-energy']]
         else:
-            MULTI_QUALITY_MEASURES = [['-energy'], ['-energy'], ['-energy']]
+            MULTI_QUALITY_MEASURES = None #[['-energy'], ['-energy'], ['-energy']]
 if BD == 'pos_div_pos':
     BD_BOUNDS = [[-0.35, 0.35], [-0.15, 0.2], [-0.2, 0.5], [-1, 1], [-1, 1], [-1, 1], [-1, 1],
                  [-0.35, 0.35], [-0.15, 0.2], [-0.2, 0.5]]
@@ -205,7 +205,7 @@ if BD == 'pos_div_pos':
             # MULTI_QUALITY_MEASURES = [['mean positive slope', 'grasp robustness', None], ['min', 'min', None]]
             MULTI_QUALITY_MEASURES = [['-energy'], ['+grasp robustness'], ['+grasp robustness']]
         else:
-            MULTI_QUALITY_MEASURES = [['-energy'], ['-energy'], ['-energy']]
+            MULTI_QUALITY_MEASURES = None #[['-energy'], ['-energy'], ['-energy']]
 if BD == 'pos_div_pos_grip':
     BD_BOUNDS = [[-0.35, 0.35], [-0.15, 0.2], [-0.2, 0.5], [-1, 1], [-1, 1], [-1, 1], [-1, 1],
                  [-0.35, 0.35], [-0.15, 0.2], [-0.2, 0.5], [-1, 1], [-1, 1], [-1, 1], [-1, 1]]
@@ -217,7 +217,7 @@ if BD == 'pos_div_pos_grip':
         elif QUALITY:
             MULTI_QUALITY_MEASURES = [['-energy'], ['+grasp robustness'], ['+grasp robustness'], ['-energy']]
         else:
-            MULTI_QUALITY_MEASURES = None if args.mode=='joint torques' else [['-energy'], ['-energy'], ['-energy'], ['-energy']]
+            MULTI_QUALITY_MEASURES = None #if args.mode=='joint torques' else [['-energy'], ['-energy'], ['-energy'], ['-energy']]
 if BD == 'aurora':
     BD_BOUNDS = None
 if ALGO == 'ns_rand_change_bd':

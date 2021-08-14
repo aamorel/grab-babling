@@ -23,7 +23,7 @@ class KukaRobotiq(RobotGrasping):
         urdf = Path(cwd/f"robots/generated/kuka_{gripper}.urdf")
         urdf.parent.mkdir(exist_ok=True)
         if not urdf.is_file(): # create the file if doesn't exist
-            _process(str(cwd/f"robots/LBR_iiwa/urdf/kuka_robotiq_{gripper}.xacro"), dict(output=urdf, just_deps=False, xacro_ns=True, verbosity=1, mappings={'arg_gripper':gripper})) # convert xacro to urdf
+            _process(str(cwd/f"robots/LBR_iiwa/urdf/lbr_iiwa_robotiq.xacro"), dict(output=urdf, just_deps=False, xacro_ns=True, verbosity=1, mappings={'arg_gripper':gripper})) # convert xacro to urdf
 
 
         def load_kuka_robotiq():
