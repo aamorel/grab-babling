@@ -18,16 +18,16 @@ class KukaGrasping(RobotGrasping):
         object_position=[0, 0.1, 0],
         **kwargs
 	):
-        
+
         self.obstacle_pos = None if obstacle_pos is None else np.array(obstacle_pos)
         self.obstacle_size = obstacle_size
         cwd = Path(gym_grabbing.__file__).resolve().parent/"envs"
-        
-        urdf = Path(cwd/f"robots/generated/kuka_iiwa_gripper.urdf")
-        urdf.parent.mkdir(exist_ok=True)
+
+        #urdf = Path(cwd/f"robots/generated/kuka_iiwa_gripper.urdf")
+        #urdf.parent.mkdir(exist_ok=True)
         #if not urdf.is_file(): # create the file if doesn't exist
         #_process(cwd/"robots/lbr_iiwa/urdf/lbr_iiwa_14_r820_gripper.xacro", dict(output=urdf, just_deps=False, xacro_ns=True, verbosity=1, mappings={}))
-        
+
         def load_kuka():
             #id = self.p.loadURDF(str(urdf))
             #id = self.p.loadSDF("kuka_iiwa/kuka_with_gripper.sdf")[0]
@@ -37,7 +37,7 @@ class KukaGrasping(RobotGrasping):
 
         super().__init__(
             robot=load_kuka,
-            camera={'target':(0,0,0.3), 'distance':0.7, 'pitch':-30, 'fov':90},
+            camera={'target':(0,0,0.3), 'distance':0.7, 'pitch':-20, 'fov':90},
             object_position=object_position,
             table_height=kwargs.pop('table_height') if 'table_height' in kwargs else 0.8,
             joint_ids=[0, 1, 2, 3, 4, 5, 6, 8, 10, 11, 13],#[0,1,2,3,4,5,6,9,11,12,14]
@@ -69,7 +69,7 @@ class KukaGrasping(RobotGrasping):
             self.p.resetBasePositionAndOrientation(obs_id, pos_obstacle, [0, 0, 0, 1])
 
 
-    
+
     def get_object(self, obj=None):
         if obj == 'cuboid':
             return {"shape":'cuboid', "x":0.06, "y":0.06, "z":0.16}
@@ -107,26 +107,29 @@ class KukaGrasping(RobotGrasping):
             commands = 2*(commands-self.upperLimits)/(self.upperLimits-self.lowerLimits) + 1 # set between -1, 1
             commands[-4:] = fingers # add fingers
             commands = commands.tolist()
-            
+
         elif self.mode in {'joint torques', 'joint velocities', 'inverse dynamics', 'pd stable'}:
             # control the gripper in positions
-            #fingers = np.array([-1, -1, 1, 1]) * -1
             for id, a, v, f, u, l in zip(self.joint_ids[-4:], fingers, self.maxVelocity[-4:], self.maxForce[-4:], self.upperLimits[-4:], self.lowerLimits[-4:]):
                 self.p.setJointMotorControl2(bodyIndex=self.robot_id, jointIndex=id, controlMode=self.p.POSITION_CONTROL, targetPosition=l+(a+1)/2*(u-l), maxVelocity=v, force=f)
-            if self.mode in {'joint torques', 'joint velocities'}:
-                commands = action[:-1]
-            elif self.mode in {'inverse dynamics', 'pd stable'}:
-                commands = np.hstack((action[:-1], fingers))
+            commands = action[:-1]
+
 
         # apply the commands
         return super().step(commands)
-    
+
     def get_fingers(self, x):
         return np.array([-x, -x, x, x])
 
-    
+
     def reset_robot(self):
         for i, in zip(self.joint_ids,):
             self.p.resetJointState(self.robot_id, i, targetValue=0)
 
 
+if __name__ == "__main__": # testing
+    env = KukaGrasping(display=True, gripper_display=False)#, mode="pd stable")
+    for i in range(env.p.getNumJoints(env.robot_id)): print("joint info", env.p.getJointInfo(env.robot_id, i))
+
+    for i in range(10000000000):
+        env.step([0,0,0,0,0,np.cos(i/1000),0, np.cos(i/100)])

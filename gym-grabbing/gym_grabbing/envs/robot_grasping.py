@@ -216,7 +216,6 @@ class RobotGrasping(GoalEnv):
         self.joint_ids = np.array([i for i in range(self.p.getNumJoints(self.robot_id)) if self.p.getJointInfo(self.robot_id, i)[3]>-1] if self.joint_ids is None else self.joint_ids, dtype=int)
         self.n_joints = len(self.joint_ids)
         self.n_actions = 8 if self.mode=='inverse kinematics' else self.n_joints - self.n_control_gripper + 1
-        self.kps, self.kds = np.ones(self.n_joints)*self.kps, np.ones(self.n_joints)*self.kds
 
         self.center_workspace_cartesian = np.array(self.p.getLinkState(self.robot_id, self.center_workspace)[0] if isinstance(self.center_workspace, int) else self.center_workspace)
         self.center_workspace_robot_frame = self.p.multiplyTransforms(*self.p.invertTransform(*self.p.getBasePositionAndOrientation(self.robot_id)), self.center_workspace_cartesian, [0,0,0,1]) # the pose of center_workspace in the robot frame
@@ -229,7 +228,8 @@ class RobotGrasping(GoalEnv):
             self.lowerLimits[i], self.upperLimits[i], self.maxForce[i], self.maxVelocity[i] = self.p.getJointInfo(self.robot_id, id)[8:12]
             self.p.enableJointForceTorqueSensor(self.robot_id, id)
 
-        for id, args in self.change_dynamics.items(): # change dynamics
+        # change dynamics
+        for id, args in self.change_dynamics.items():
             if id in self.joint_ids: # update limits if needed
                 index = np.nonzero(self.joint_ids==id)[0][0]
                 if 'jointLowerLimit' in args and 'jointUpperLimit' in args:
@@ -248,6 +248,18 @@ class RobotGrasping(GoalEnv):
         self.maxForce = np.where(self.maxForce<=0, 100, self.maxForce)# replace bad values
         self.maxVelocity = np.where(self.maxVelocity<=0, 1, self.maxVelocity)
         self.maxAcceleration = np.ones(self.n_joints)*10# set maximum acceleration for inverse dynamics
+
+        # store infos for all joints for inverse dynamics and pd stable
+        self.all_joint_ids = [i for i in range(self.p.getNumJoints(self.robot_id)) if self.p.getJointInfo(self.robot_id, i)[2] == self.p.JOINT_REVOLUTE]
+        self.all_upper_limits = np.zeros(len(self.all_joint_ids))
+        self.all_lower_limits = np.zeros(len(self.all_joint_ids))
+        self.all_max_forces = np.zeros(len(self.all_joint_ids))
+        for i, id in enumerate(self.all_joint_ids):
+            info = self.p.getJointInfo(self.robot_id, i)
+            self.all_upper_limits[i] = info[9]
+            self.all_lower_limits[i] = info[8]
+            self.all_max_forces[i] = info[10]
+        self.kps, self.kds = np.ones(len(self.all_joint_ids))*self.kps, np.ones(len(self.all_joint_ids))*self.kds
 
         self.jointRanges = self.upperLimits-self.lowerLimits
         self.restPoses = [s[0] for s in self.p.getJointStates(self.robot_id, self.joint_ids)]
@@ -316,15 +328,27 @@ class RobotGrasping(GoalEnv):
                     self.p.setJointMotorControlArray(bodyIndex=self.robot_id, jointIndices=self.joint_ids[:-self.n_control_gripper], controlMode=self.p.TORQUE_CONTROL, forces=torques[:-self.n_control_gripper])
                     self.p.stepSimulation()
             elif self.mode == 'pd stable': # action must contain all joints
-                u, l = self.upperLimits[:la], self.lowerLimits[:la]
+                # We suppose there are first the arm then the gripper joint ids
+                action_ = np.zeros(len(self.all_joint_ids))
+                action_[:self.n_actions-1] = action
+
                 for _ in range(self.steps_to_roll):
-                    torques = self.pd_controller.computePD(bodyUniqueId=self.robot_id, jointIndices=self.joint_ids[:la], desiredPositions=l+(action+1)/2*(u-l), desiredVelocities=np.zeros(la), kps=self.kps, kds=self.kds, maxForces=self.maxForce, timeStep=self.time_step)
-                    #torques[-self.n_control_gripper-1] = 0
-                    self.p.setJointMotorControlArray(bodyIndex=self.robot_id, jointIndices=self.joint_ids[:-self.n_control_gripper], controlMode=self.p.TORQUE_CONTROL, forces=torques[:-self.n_control_gripper])
+                    torques = self.pd_controller.computePD(
+                        bodyUniqueId=self.robot_id,
+                        jointIndices=self.all_joint_ids,
+                        desiredPositions=self.all_lower_limits + (action_+1)/2*(self.all_upper_limits - self.all_lower_limits),
+                        desiredVelocities=np.zeros(len(self.all_joint_ids)),
+                        kps=self.kps,
+                        kds=self.kds,
+                        maxForces=self.all_max_forces,
+                        timeStep=self.time_step
+                    )
+
+                    self.p.setJointMotorControlArray(bodyIndex=self.robot_id, jointIndices=self.joint_ids[:-self.n_control_gripper], controlMode=self.p.TORQUE_CONTROL, forces=torques[:self.n_actions-1])
                     self.p.stepSimulation()
         else:
             for _ in range(self.steps_to_roll): self.p.stepSimulation()
-        #time.sleep(0.001)
+
 
         self.info['contact object robot'] = self.p.getContactPoints(bodyA=self.obj_id, bodyB=self.robot_id)
         self.info['contact object plane'] = self.p.getContactPoints(bodyA=self.obj_id, bodyB=self.plane_id)
@@ -354,7 +378,7 @@ class RobotGrasping(GoalEnv):
         if self.mode == 'joint torques': # getJointState does not report the applied torques if using torque control
             self.info['applied joint motor torques'][:-self.n_control_gripper] = action*self.maxForce[:-self.n_control_gripper]
         elif self.mode in {'inverse dynamics', 'pd stable'}:
-            self.info['applied joint motor torques'][:-self.n_control_gripper] = torques[:-self.n_control_gripper]
+            self.info['applied joint motor torques'][:-self.n_control_gripper] = torques[:self.n_actions-1]
 
         if self.reach: # compute distance as reward
             if self.goal:

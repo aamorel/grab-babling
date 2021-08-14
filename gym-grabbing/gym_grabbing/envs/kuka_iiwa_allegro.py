@@ -20,16 +20,16 @@ class Kuka_iiwa_allegro(RobotGrasping):
         left=False, # the default is the right hand
         **kwargs
 	):
-        
+
         self.obstacle_size = obstacle_size
         cwd = Path(gym_grabbing.__file__).resolve().parent/"envs"
-        
+
         urdf = Path(cwd/f"robots/generated/kuka_iiwa_allegro_{'left' if left else 'right'}.urdf")
         urdf.parent.mkdir(exist_ok=True)
         if not urdf.is_file(): # create the file if doesn't exist
             _process(cwd/"robots/lbr_iiwa/urdf/lbr_iiwa_14_r820_allegro.xacro", dict(output=urdf, just_deps=False, xacro_ns=True, verbosity=1, mappings={'arg_left':'true' if left else 'false'})) # convert xacro to urdf
-        
-        
+
+
         def load_kuka():
             #id = self.p.loadSDF("kuka_iiwa/kuka_with_gripper.sdf")[0]
             #id = self.p.loadURDF("franka_panda/panda.urdf", basePosition=[1, -0.5, -0.5], baseOrientation=[0., 0., 0., 1.], useFixedBase=True)
@@ -66,7 +66,7 @@ class Kuka_iiwa_allegro(RobotGrasping):
 
 
 
-    
+
     def get_object(self, obj=None):
         if obj == 'cuboid':
             return {"shape":'cuboid', "x":0.06, "y":0.06, "z":0.16}
@@ -86,7 +86,7 @@ class Kuka_iiwa_allegro(RobotGrasping):
     def step(self, action=None):
         if action is None:
             return super().step()
-        
+
         fingers = self.get_fingers(action[-1])
         if self.mode == 'joint positions':
             # we want one action per joint (gripper is composed by 4 joints but considered as one)
@@ -105,23 +105,20 @@ class Kuka_iiwa_allegro(RobotGrasping):
             commands = 2*(commands-self.upperLimits)/(self.upperLimits-self.lowerLimits) + 1 # set between -1, 1
             commands[-4:] = fingers # add fingers
             commands = commands.tolist()
-            
+
         elif self.mode in {'joint torques', 'joint velocities', 'inverse dynamics', 'pd stable'}:
             # control the gripper in positions
-            #fingers = np.array([-1, -1, 1, 1]) * -1
             for id, a, v, f, u, l in zip(self.joint_ids[-16:], fingers, self.maxVelocity[-16:], self.maxForce[-16:], self.upperLimits[-16:], self.lowerLimits[-16:]):
                 self.p.setJointMotorControl2(bodyIndex=self.robot_id, jointIndex=id, controlMode=self.p.POSITION_CONTROL, targetPosition=l+(a+1)/2*(u-l), maxVelocity=v, force=f)
-            if self.mode in {'joint torques', 'joint velocities'}:
-                commands = action[:-1]
-            elif self.mode in {'inverse dynamics', 'pd stable'}:
-                commands = np.hstack((action[:-1], fingers))
+            commands = action[:-1]
+
 
         # apply the commands
         return super().step(commands)
 
     def get_fingers(self, x):
         return np.array([0, -x, -x, -x, 0, -x, -x, -x, 0, -x, -x, -x, -x, -x, -x, -x])
-    
+
     def reset_robot(self):
         for i, in zip(self.joint_ids,):
             self.p.resetJointState(self.robot_id, i, targetValue=0)
@@ -130,6 +127,6 @@ class Kuka_iiwa_allegro(RobotGrasping):
 if __name__ == "__main__": # testing
     env = Kuka_iiwa_allegro(display=True, gripper_display=True, left=True)
     #for i in range(env.p.getNumJoints(env.robot_id)): print("joint info", env.p.getJointInfo(env.robot_id, i))
-    
+
     for i in range(10000000000):
             env.step([0,np.sin(i/1000),0,0,0,0,np.sin(i/1000), np.sin(i/1000)])

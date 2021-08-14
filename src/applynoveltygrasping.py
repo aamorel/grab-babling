@@ -30,7 +30,7 @@ def cleanStr(x):
     return str(x).strip().lower()
 
 parser = argparse.ArgumentParser()
-parser.add_argument("-r", "--robot", help="The robot environment", type=cleanStr, default="baxter", choices=["baxter", "kuka", "pepper", "crustcrawler", "kuka_iiwa_allegro", "ur10_shadow", "franka_panda"])
+parser.add_argument("-r", "--robot", help="The robot environment", type=cleanStr, default="baxter", choices=["baxter", "kuka", "pepper", "crustcrawler", "kuka_iiwa_allegro", "ur10_shadow", "franka_panda", "jaco", "kuka_robotiq"])
 parser.add_argument("-o", "--object", help="The object to grasp", type=str, default="sphere")
 parser.add_argument("-p", "--population", help="The poulation size", type=partial(greater, "population size", 1), default=100)
 parser.add_argument("-g", "--generation", help="The number of generation", type=partial(greater, "number of generation", 1), default=1000)
@@ -89,7 +89,7 @@ if ROBOT == 'baxter':
     LINK_ID_CONTACT = [47, 48, 49, 50, 51, 52]  # link ids that can have a grasping contact
     NB_STEPS_TO_ROLLOUT = 10
     NB_ITER = int(2000 / NB_STEPS_TO_ROLLOUT)
-    ENV_KWARGS.update({'fixed_arm':RESET_MODE}) # best performance
+    ENV_KWARGS.update({'fixed_arm': RESET_MODE}) # best performance
 
 elif ROBOT == 'pepper':
     ENV_NAME = 'pepper_grasping-v0'
@@ -100,10 +100,15 @@ elif ROBOT == 'pepper':
     AUTO_COLLIDE = False
 
 
-elif ROBOT in {'kuka', 'kuka_iiwa_allegro', 'franka_panda'}:
-    ENV_NAME = {'kuka':'kuka_grasping-v0', 'kuka_iiwa_allegro':'kuka_iiwa_allegro-v0', 'franka_panda':'franka_panda-v0'}[args.robot]
+elif ROBOT in {'kuka', 'kuka_iiwa_allegro', 'franka_panda', "jaco", "kuka_robotiq"}:
+    ENV_NAME = {
+        'kuka':'kuka_grasping-v0',
+        'kuka_iiwa_allegro':'kuka_iiwa_allegro-v0',
+        'franka_panda':'franka_panda-v0',
+        "jaco":'jaco_grasping-v0',
+        "kuka_robotiq":"kuka_robotiq-v0"
+    }[args.robot]
     GENE_PER_KEYPOINTS = 7  # kuka is controlled in joints space: 7 joints
-    LINK_ID_CONTACT = [8, 9, 10, 11, 12, 13]  # link ids that can have a grasping contact
     NB_STEPS_TO_ROLLOUT = 1
     NB_ITER = int((1500 if args.mode == "pd stable" else 2000) / NB_STEPS_TO_ROLLOUT)
 
@@ -189,7 +194,7 @@ if BD == 'pos_div_grip':
             # MULTI_QUALITY_MEASURES = [['mean positive slope', 'grasp robustness', None], ['min', 'min', None]]
             MULTI_QUALITY_MEASURES = [['-energy'], ['+grasp robustness'], ['-energy']]
         else:
-            MULTI_QUALITY_MEASURES = None#[['-energy'], ['-energy'], ['-energy']]
+            MULTI_QUALITY_MEASURES = [['-energy'], ['-energy'], ['-energy']]
 if BD == 'pos_div_pos':
     BD_BOUNDS = [[-0.35, 0.35], [-0.15, 0.2], [-0.2, 0.5], [-1, 1], [-1, 1], [-1, 1], [-1, 1],
                  [-0.35, 0.35], [-0.15, 0.2], [-0.2, 0.5]]
@@ -200,7 +205,7 @@ if BD == 'pos_div_pos':
             # MULTI_QUALITY_MEASURES = [['mean positive slope', 'grasp robustness', None], ['min', 'min', None]]
             MULTI_QUALITY_MEASURES = [['-energy'], ['+grasp robustness'], ['+grasp robustness']]
         else:
-            MULTI_QUALITY_MEASURES = None#[['-energy'], ['-energy'], ['-energy']]
+            MULTI_QUALITY_MEASURES = [['-energy'], ['-energy'], ['-energy']]
 if BD == 'pos_div_pos_grip':
     BD_BOUNDS = [[-0.35, 0.35], [-0.15, 0.2], [-0.2, 0.5], [-1, 1], [-1, 1], [-1, 1], [-1, 1],
                  [-0.35, 0.35], [-0.15, 0.2], [-0.2, 0.5], [-1, 1], [-1, 1], [-1, 1], [-1, 1]]
@@ -212,7 +217,7 @@ if BD == 'pos_div_pos_grip':
         elif QUALITY:
             MULTI_QUALITY_MEASURES = [['-energy'], ['+grasp robustness'], ['+grasp robustness'], ['-energy']]
         else:
-            MULTI_QUALITY_MEASURES = None #if args.mode=='joint torques' else [['-energy'], ['+reward'], ['-energy'], ['-energy']]
+            MULTI_QUALITY_MEASURES = None if args.mode=='joint torques' else [['-energy'], ['-energy'], ['-energy'], ['-energy']]
 if BD == 'aurora':
     BD_BOUNDS = None
 if ALGO == 'ns_rand_change_bd':
