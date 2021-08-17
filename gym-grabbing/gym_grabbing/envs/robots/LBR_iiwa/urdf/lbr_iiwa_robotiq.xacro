@@ -26,4 +26,36 @@
     <parent link="kuka_link_7"/>
     <child link="robotiq_arg2f_base_link"/>
   </joint>
+  
+  
+  <link name="base">
+      <inertial>
+        <origin rpy="0 0 0" xyz="0 0 0"/>
+        <mass value="10"/>
+        <inertia ixx="1" ixy="0" ixz="0" iyy="1" iyz="0" izz="1"/>
+      </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+          <box size=" 1 2 0.5 "/>
+      </geometry>
+      <material name="Grey"/>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+          <box size=" 0.5 0.5 0.5 "/>
+      </geometry>
+    </collision>
+    <contact>
+        <lateral_friction value="0.1"/>
+    </contact>
+  </link>
+  
+  <joint name="base_to_kuka" type="fixed">
+    <origin xyz="0 0 0.25" rpy="0 0 0"/>
+    <parent link="base"/>
+    <child link="kuka_base_link"/>
+  </joint>
+  
 </robot>

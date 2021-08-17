@@ -22,14 +22,12 @@ class KukaRobotiq(RobotGrasping):
 
         urdf = Path(cwd/f"robots/generated/kuka_{gripper}.urdf")
         urdf.parent.mkdir(exist_ok=True)
-        if not urdf.is_file(): # create the file if doesn't exist
+        if True:#not urdf.is_file(): # create the file if doesn't exist
             _process(str(cwd/f"robots/LBR_iiwa/urdf/lbr_iiwa_robotiq.xacro"), dict(output=urdf, just_deps=False, xacro_ns=True, verbosity=1, mappings={'arg_gripper':gripper})) # convert xacro to urdf
 
 
         def load_kuka_robotiq():
-            id = self.p.loadURDF(str(urdf), basePosition=[0, -0.5, -0.5], baseOrientation=[0., 0., 0., 1.], useFixedBase=True)#, flags=self.p.URDF_USE_SELF_COLLISION)
-            for i, pos in {1:0, 2:-np.pi/2, 3:0, 4:0, 5:0, 6:0}.items():
-                self.p.resetJointState(id, i, targetValue=pos)
+            id = self.p.loadURDF(str(urdf), basePosition=[0, -0.5, -0.75], baseOrientation=[0., 0., 0., 1.], useFixedBase=False)#, flags=self.p.URDF_USE_SELF_COLLISION)
             #for i in range(self.p.getNumJoints(id)): print("joint info", self.p.getJointInfo(id, i))
             return id
 
@@ -37,14 +35,22 @@ class KukaRobotiq(RobotGrasping):
             robot=load_kuka_robotiq,
             camera={'target':(0,0,0.3), 'distance':0.7, 'pitch':-20, 'fov':90},
             table_height=0.8,
-            joint_ids=[0,1,2,3,4,5,6, 12],
-            contact_ids=(11,14),
+            joint_ids=[1,2,3,4,5,6,7, 13],
+            contact_ids=(12,13),
             n_control_gripper=1,
-            end_effector_id = 7,
-            center_workspace = 0,
+            end_effector_id = 8,
+            center_workspace = 1,
             radius = 1,
-            disable_collision_pair = [],
-            change_dynamics = {i:{'maxJointVelocity':0.5} for i in range(7)}, # jointLimitForce
+            disable_collision_pair = [[16,12],[17,15], [11,12], [14,15]],
+            change_dynamics = { # decrease jointLimitForce: we suppose the payload is light
+                1:{'maxJointVelocity':0.5, 'jointLimitForce':50},
+                2:{'maxJointVelocity':0.5, 'jointLimitForce':60},
+                3:{'maxJointVelocity':0.5, 'jointLimitForce':40},
+                4:{'maxJointVelocity':0.5, 'jointLimitForce':30},
+                5:{'maxJointVelocity':0.5, 'jointLimitForce':20},
+                6:{'maxJointVelocity':0.5, 'jointLimitForce':10},
+                7:{'maxJointVelocity':0.5, 'jointLimitForce':5},
+            }, # jointLimitForce
             **kwargs,
         )
 
@@ -52,14 +58,14 @@ class KukaRobotiq(RobotGrasping):
         #self.lines = [self.p.addUserDebugLine([0, 0, 0], end, color, parentObjectUniqueId=self.robot_id, parentLinkIndex=self._id) for end, color in zip(np.eye(3)*0.2, np.eye(3))]
         #self.lines1 = [self.p.addUserDebugLine([0, 0, 0], end, color, parentObjectUniqueId=self.robot_id, parentLinkIndex=self._id) for end, color in zip(np.eye(3)*0.2, np.eye(3))]
         # change colors
-        for i in (11,14,): #8, 9, 12, 14, 17,
+        for i in (12,15,): #8, 9, 12, 14, 17,
             self.p.changeVisualShape(objectUniqueId=self.robot_id, linkIndex=i, rgbaColor=[1,1,1,1]) # white
-        for i in (8, 10, 13, 15, 16, 17):
+        for i in (9, 11, 14, 16, 17, 18):
             self.p.changeVisualShape(objectUniqueId=self.robot_id, linkIndex=i, rgbaColor=[0.2,0.2,0.2,1]) # black
 
         # geometric constraints of the gripper
-        for k, v in {15:11, 16:14}.items():#{13:11, 18:16}
-            b = (k==15)*2-1
+        for k, v in {16:12, 17:15}.items():#{13:11, 18:16}
+            b = (k==16)*2-1
             c = self.p.createConstraint(
                 parentBodyUniqueId=self.robot_id,
                 parentLinkIndex=k,
@@ -73,14 +79,14 @@ class KukaRobotiq(RobotGrasping):
                 #childFramePosition={"2f_140":[0,-0.01, -0.004], "2f_85":[0,0,0]}[gripper]
             )
             self.p.changeConstraint(c, erp=0.1, maxForce=1000)
-        for i in (9,11,12,14,15,16):#(11,13,14,16,18): # disable motor constrains
+        for i in (10,12,13,15,16,17):#(11,13,14,16,18): # disable motor constrains
             self.p.setJointMotorControl2(self.robot_id, i, self.p.VELOCITY_CONTROL, targetVelocity=0, force=0)
         # left right symmetric
         c = self.p.createConstraint(
             parentBodyUniqueId=self.robot_id,
-            parentLinkIndex=9,#9,
+            parentLinkIndex=10,
             childBodyUniqueId=self.robot_id,
-            childLinkIndex=12,#14,
+            childLinkIndex=13,
             jointType=self.p.JOINT_GEAR,
             jointAxis=[1,0,0],
             parentFramePosition=[0,0,0],
@@ -153,8 +159,9 @@ class KukaRobotiq(RobotGrasping):
 
 if __name__ == "__main__": # testing
     import time
-    env = KukaRobotiq(display=True, gripper_display=False, gripper="2f_140", mode="pd stable")
+    env = KukaRobotiq(display=True, gripper_display=False, gripper="2f_140")#, mode="pd stable")
     for i in range(env.p.getNumJoints(env.robot_id)): print("joint info", env.p.getJointInfo(env.robot_id, i))
 
     for i in range(10000000000):
-        env.step([0,0,0,0,0,0,0, np.cos(i/100)])
+        env.step([0,0.7,0,0,0,0,0, -1])#np.cos(i/100)])
+        #print(env.info['applied joint motor torques'])

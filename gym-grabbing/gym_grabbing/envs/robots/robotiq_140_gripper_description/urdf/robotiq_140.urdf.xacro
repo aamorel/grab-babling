@@ -147,6 +147,10 @@
         <geometry>
           <mesh filename="package://robotiq_140_gripper_description/meshes/robotiq_140_left_inner_finger.dae" scale="0.001 0.001 0.001" />
         </geometry>
+        <!--origin xyz="-0.022 0 0.046" rpy="0 0 0" />
+        <geometry>
+            <box size=" 0.0064 0.022 0.065 "></box>
+        </geometry-->
         <material name="Gazebo/Black">
           <color rgba="0.1 0.1 0.1 1" />
         </material>
@@ -154,9 +158,17 @@
       <collision>
         <origin xyz="0 0 0" rpy="0 0 0" />
         <geometry>
-          <mesh filename="package://robotiq_140_gripper_description/meshes/robotiq_140_left_inner_finger.obj" scale="0.001 0.001 0.001" />
+          <mesh filename="package://robotiq_140_gripper_description/meshes/robotiq_140_left_inner_finger.dae" scale="0.001 0.001 0.001" />
         </geometry>
+        <!--origin xyz="-0.022 0 0.046" rpy="0 0 0" />
+        <geometry>
+            <box size=" 0.0064 0.022 0.065 "></box>
+        </geometry-->
       </collision>
+      <!--contact>
+          <rolling_friction value="0.01"/>
+          <spinning_friction value="0.01"/>
+      </contact-->
     </link>
     <gazebo reference="${prefix}left_inner_finger">
       <material>Gazebo/Black</material>
@@ -174,6 +186,10 @@
         <geometry>
           <mesh filename="package://robotiq_140_gripper_description/meshes/robotiq_140_right_inner_finger.dae" scale="0.001 0.001 0.001"/>
         </geometry>
+        <!--origin xyz="0.022 0 0.046" rpy="0 0 0" />
+        <geometry>
+            <box size=" 0.0064 0.022 0.065 "></box>
+        </geometry-->
         <material name="Gazebo/Black">
           <color rgba="0.1 0.1 0.1 1" />
         </material>
@@ -181,7 +197,7 @@
       <collision>
         <origin xyz="0 0 0" rpy="0 0 0" />
         <geometry>
-          <mesh filename="package://robotiq_140_gripper_description/meshes/robotiq_140_right_inner_finger.obj" scale="0.001 0.001 0.001"/>
+          <mesh filename="package://robotiq_140_gripper_description/meshes/robotiq_140_right_inner_finger.dae" scale="0.001 0.001 0.001"/>
         </geometry>
       </collision>
     </link>

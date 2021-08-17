@@ -28,9 +28,7 @@ class JacoGrasping(RobotGrasping):
 
 
         def load_jaco():
-            id = self.p.loadURDF(str(urdf), basePosition=[0, -0.5, -0.5], baseOrientation=[0., 0., 0., 1.], useFixedBase=True, flags=self.p.URDF_USE_SELF_COLLISION) # kuka_with_gripper2 gripper have a continuous joint (7)
-            for i, pos in {1:0, 2:-np.pi/2, 3:0, 4:0, 5:0, 6:0}.items():
-                self.p.resetJointState(id, i, targetValue=pos)
+            id = self.p.loadURDF(str(urdf), basePosition=[0, -0.5, -0.5], baseOrientation=[0., 0., 0., 1.], useFixedBase=True)#, flags=self.p.URDF_USE_SELF_COLLISION)
             #for i in range(self.p.getNumJoints(id)): print("joint info", self.p.getJointInfo(id, i))
             return id
 
