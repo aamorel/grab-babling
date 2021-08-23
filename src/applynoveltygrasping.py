@@ -194,7 +194,7 @@ if BD == 'pos_div_grip':
             # MULTI_QUALITY_MEASURES = [['mean positive slope', 'grasp robustness', None], ['min', 'min', None]]
             MULTI_QUALITY_MEASURES = [['-energy'], ['+grasp robustness'], ['-energy']]
         else:
-            MULTI_QUALITY_MEASURES = [['-energy'], ['-energy'], ['-energy']]
+            MULTI_QUALITY_MEASURES = None#[['-energy'], ['-energy'], ['-energy']]
 if BD == 'pos_div_pos':
     BD_BOUNDS = [[-0.35, 0.35], [-0.15, 0.2], [-0.2, 0.5], [-1, 1], [-1, 1], [-1, 1], [-1, 1],
                  [-0.35, 0.35], [-0.15, 0.2], [-0.2, 0.5]]
@@ -205,7 +205,7 @@ if BD == 'pos_div_pos':
             # MULTI_QUALITY_MEASURES = [['mean positive slope', 'grasp robustness', None], ['min', 'min', None]]
             MULTI_QUALITY_MEASURES = [['-energy'], ['+grasp robustness'], ['+grasp robustness']]
         else:
-            MULTI_QUALITY_MEASURES = [['-energy'], ['-energy'], ['-energy']]
+            MULTI_QUALITY_MEASURES = None#[['-energy'], ['-energy'], ['-energy']]
 if BD == 'pos_div_pos_grip':
     BD_BOUNDS = [[-0.35, 0.35], [-0.15, 0.2], [-0.2, 0.5], [-1, 1], [-1, 1], [-1, 1], [-1, 1],
                  [-0.35, 0.35], [-0.15, 0.2], [-0.2, 0.5], [-1, 1], [-1, 1], [-1, 1], [-1, 1]]
@@ -217,7 +217,7 @@ if BD == 'pos_div_pos_grip':
         elif QUALITY:
             MULTI_QUALITY_MEASURES = [['-energy'], ['+grasp robustness'], ['+grasp robustness'], ['-energy']]
         else:
-            MULTI_QUALITY_MEASURES =  [['-energy'], ['-energy'], ['-energy'], ['-energy']]
+            MULTI_QUALITY_MEASURES =  None#[['-energy'], ['-energy'], ['-energy'], ['-energy']]
 if BD == 'aurora':
     BD_BOUNDS = None
 if ALGO == 'ns_rand_change_bd':
@@ -512,7 +512,7 @@ def three_d_bd(individual):
     return (behavior, (fitness,), info)
 
 
-def pos_div_pos_grip_bd(individual):
+def pos_div_pos_grip_bd(individual, n=2):
     """Evaluates an individual: computes its value in the behavior descriptor space,
     and its fitness value.
     In this case, we consider the behavior space where we give the maximum amount of information
@@ -533,6 +533,7 @@ def pos_div_pos_grip_bd(individual):
 
     Args:
         individual (Individual): an individual
+        n int : number of times to re-evaluate if RESET_MODE
 
     Returns:
         tuple: tuple of behavior (list) fitness(tuple) info(dict)
@@ -663,6 +664,7 @@ def pos_div_pos_grip_bd(individual):
     grasp = r and grip_info['time close touch']<1*240/NB_STEPS_TO_ROLLOUT and len(grip_info['contact object table'])>0 # and not contact_robot_table
 
     if grasp: # there is maybe a grasp
+        # stop the movement to check the grasp is stable
         action_current_pos = np.hstack((ENV.get_joint_state(position=True, normalized=True), -1)) # get the current position + close the gripper
         if args.mode in {'joint positions', 'joint velocities', 'inverse kinematics'}: # set to position control
             ENV.env.mode = 'joint positions'
@@ -673,6 +675,17 @@ def pos_div_pos_grip_bd(individual):
             o, r, eo, inf = ENV.step(action_current_pos) # the robot stops moving
         ENV.env.mode = args.mode # unset the mode
         grasp = r
+
+        # if there is a grasp and reset mode, we re-evaluate to make sur it is ok
+        if grasp and RESET_MODE:
+            for _ in range(n):
+                ENV.reset()
+                for i in range(NB_ITER):
+                    o, r, done, inf = ENV.step(controller.get_action(i, o))
+                if not inf['is_success']:
+                    grasp = False
+                    break # fail, this is not a success
+
 
     info['is_success'] = binary_goal = False
     if grasp:
@@ -1127,7 +1140,7 @@ if __name__ == "__main__":
                 archive_limit_size=ARCHIVE_LIMIT,    nb_cells=NB_CELLS,
                 novelty_metric=NOVELTY_METRIC,       save_ind_cond='is_success',
                 bootstrap_individuals=boostrap_inds, multi_quality=MULTI_QUALITY_MEASURES,
-                monitor_print=True,                  final_filter=final_filter if RESET_MODE else None,
+                monitor_print=True,                  final_filter=None,#final_filter if RESET_MODE else None,
                 repeat=simulate if QUALITY else None,reduce_repeat=reduce_repeat if QUALITY else None,
                 early_stopping=args.early_stopping,  callback=callback,
             )

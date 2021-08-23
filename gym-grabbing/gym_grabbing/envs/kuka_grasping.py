@@ -128,8 +128,9 @@ class KukaGrasping(RobotGrasping):
 
 
 if __name__ == "__main__": # testing
-    env = KukaGrasping(display=True, gripper_display=False)#, mode="pd stable")
+    env = KukaGrasping(display=True, gripper_display=False, mode="inverse kinematics")
     for i in range(env.p.getNumJoints(env.robot_id)): print("joint info", env.p.getJointInfo(env.robot_id, i))
 
     for i in range(10000000000):
-        env.step([0,0,0,0,0,np.cos(i/1000),0, np.cos(i/100)])
+        #env.step([0,0,0,0,0,0,0, np.cos(i/100)])
+        env.step([0,-0.2, 0, 1,0,0,0,-1])

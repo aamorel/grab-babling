@@ -159,9 +159,9 @@ class KukaRobotiq(RobotGrasping):
 
 if __name__ == "__main__": # testing
     import time
-    env = KukaRobotiq(display=True, gripper_display=False, gripper="2f_140")#, mode="pd stable")
+    env = KukaRobotiq(display=True, gripper_display=False, gripper="2f_140", mode="pd stable")
     for i in range(env.p.getNumJoints(env.robot_id)): print("joint info", env.p.getJointInfo(env.robot_id, i))
 
     for i in range(10000000000):
-        env.step([0,0.7,0,0,0,0,0, -1])#np.cos(i/100)])
+        env.step([0,0,0,0,0,0,0, -1])#np.cos(i/100)])
         #print(env.info['applied joint motor torques'])

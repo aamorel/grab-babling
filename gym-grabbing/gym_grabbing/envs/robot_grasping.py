@@ -329,14 +329,18 @@ class RobotGrasping(GoalEnv):
                     self.p.stepSimulation()
             elif self.mode == 'pd stable': # action must contain all joints
                 # We suppose there are first the arm then the gripper joint ids
-                action_ = np.zeros(len(self.all_joint_ids))
-                action_[:self.n_actions-1] = action
+
+                u = self.all_upper_limits[:self.n_actions-1]
+                l = self.all_lower_limits[:self.n_actions-1]
+
 
                 for _ in range(self.steps_to_roll):
+                    action_ = np.array([s[0] for s in self.p.getJointStates(self.robot_id, self.all_joint_ids)])
+                    action_[:self.n_actions-1] = l + (action+1)/2*(u - l)
                     torques = self.pd_controller.computePD(
                         bodyUniqueId=self.robot_id,
                         jointIndices=self.all_joint_ids,
-                        desiredPositions=self.all_lower_limits + (action_+1)/2*(self.all_upper_limits - self.all_lower_limits),
+                        desiredPositions=action_,
                         desiredVelocities=np.zeros(len(self.all_joint_ids)),
                         kps=self.kps,
                         kds=self.kds,

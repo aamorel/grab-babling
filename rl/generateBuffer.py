@@ -27,13 +27,14 @@ from controllers import InterpolateKeyPointsEndPauseGripAssumption, InterpolateK
 
 from sbil.utils import TimeLimitAware, scale_action
 
-FOLDER = "/Users/Yakumo/Downloads/exp2/kukaVel"#"/Users/Yakumo/Downloads/kukaPdStable/kukaSingleConfPdStable"
+FOLDER = "/Users/Yakumo/Downloads/exp2/kukaVel2"#"/Users/Yakumo/Downloads/kukaPdStable/kukaSingleConfPdStable/run10"
 with open(next(Path(FOLDER).glob('**/run_details.yaml')), 'r') as f:
 	INFO = yaml.safe_load(f) # get some common parameters
 #INFO['mode'] = 'joint torques' # set it if pd stable to joint torques
 #ENV = gym.make(f"{INFO['env id']}", display=False, obj=INFO['object'] ,steps_to_roll=INFO['steps to roll'], mode=INFO['mode'])
+#INFO['env kwargs']['display']=True
 ENV = gym.make(**INFO['env kwargs'])
-time_limit_aware = False
+time_limit_aware = True
 if time_limit_aware:
 	ENV = TimeLimitAware(ENV, max_episode_steps=INFO['controller info']['n_iter'])
 
@@ -79,8 +80,23 @@ def simulate(ind, object_position=None, object_xyzw=None, joint_positions=None, 
 			transitions.append([previous_observation, o, action, r, done, inf])
 		previous_observation = o
 		time_before_success += not achieved
+	if success_only:
+			# put the robot into a reasonable position to get good examples
+			# works only with otor control, not torque control
+			ENV.env.mode = "inverse kinematics"
+			for i in range(500):
+				o, r, done, info = ENV.step([0,-0.2,0, 1,0,0,0, -1])
+				if r:
+					transitions.append([previous_observation, o, action, r, done, inf])
+					previous_observation = o
+				else:
+					ENV.env.mode = INFO["env kwargs"]["mode"]
+					return None
+			ENV.env.mode = INFO["env kwargs"]["mode"]
+
 	if r and time_before_success<fast_only:
 		transitions[-1][4] = True # done
+		transitions[-1][5]['TimeLimit.truncated'] = True
 		return transitions
 	else: return None
 
@@ -95,6 +111,7 @@ def generateBuffer(bufferSize=1000000, reward_on=False, success_only=True, npmp_
 			d = yaml.safe_load(f)
 		if not d['successful']: continue
 		data = d["initial state"]['object_position'], d["initial state"]['object_xyzw'], d["initial state"]['joint_positions'], d['env kwargs']['mode']=='pd stable'
+		#data = d['object_position'], d['object_xyzw'], d['joint_positions'], d['mode']=='pd stable'
 		individuals += [(np.load(f), *data) for f in run_details.parent.glob('type*.npy')]
 		other_individuals += [(ind, *data) for ind in np.load(run_details.parent/"individuals.npz")["genotypes"]]
 	if len(individuals) == 0: sys.exit("no individual found")
@@ -144,12 +161,12 @@ def generateBuffer(bufferSize=1000000, reward_on=False, success_only=True, npmp_
 	while not replayBuffer.full:
 		n_evals = int(2 * (bufferSize-replayBuffer.pos) / episode_length)
 		with Pool() as p:
-			episodes = tuple(filter(None, p.starmap(partial(simulate, success_only=success_only, fast_only=float('inf'), noise=0.1), [other_individuals[i] for i in np.random.choice(len(other_individuals), n_evals, replace=True)])))
+			episodes = tuple(filter(None, p.starmap(partial(simulate, success_only=success_only, fast_only=float('inf'), noise=noise), [other_individuals[i] for i in np.random.choice(len(other_individuals), n_evals, replace=True)])))
 		print("success", len(episodes), "eval", n_evals)
 		add(episodes)
 
 	#path = Path(__file__).resolve().parent/f"data/replay_buffer_reward_{'on' if reward_on else 'off'}_{INFO['object']}_{INFO['robot']}{'_success_only' if success_only else ''}{'_npmp_encoded' if npmp_encoder is not None else ''}{'_time_limit_aware' if time_limit_aware else ''}"
-	path = Path(__file__).resolve().parent/f"data/replay_buffer_reward_{'on' if reward_on else 'off'}_{INFO['env kwargs']['obj']}_{INFO['robot']}_{INFO['env kwargs']['mode'].replace(' ', '_')}{'_success_only' if success_only else ''}{'_npmp_encoded' if npmp_encoder is not None else ''}{'_time_limit_aware' if time_limit_aware else ''}"
+	path = Path(__file__).resolve().parent/f"data/demo_{INFO['env kwargs']['obj']}_{INFO['robot']}_{INFO['env kwargs']['mode'].replace(' ', '_')}{'_success_only' if success_only else ''}{'_npmp_encoded' if npmp_encoder is not None else ''}{'_time_limit_aware' if time_limit_aware else ''}"
 	save_to_pkl(path=path, obj=replayBuffer)
 	print(f"Saved as {path}.pkl")
 
