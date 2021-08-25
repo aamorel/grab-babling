@@ -289,7 +289,8 @@ def assess_novelties(pop, archive, algo_type, bd_bounds, bd_indexes, bd_filters,
 
     else:
         # extract all the behavior descriptors that are not None to create the tree
-        b_ds = np.array([ind.behavior_descriptor.values for ind in reference_pop if ind.behavior_descriptor.values is not None])
+        reference_pop = [ind for ind in reference_pop if ind.behavior_descriptor.values is not None] # filter
+        b_ds = np.array([ind.behavior_descriptor.values for ind in reference_pop])
         k_tree = Nearest(n_neighbors=K + 1, metric=novelty_metric)
         k_tree.fit(b_ds)
         # compute novelty for current individuals (loop only on the pop)
@@ -300,7 +301,18 @@ def assess_novelties(pop, archive, algo_type, bd_bounds, bd_indexes, bd_filters,
                     novelties.append(compute_average_distance(b_descriptors[i], k_tree))
                 else:
                     novelties.append((0.0,))
-        else:
+        elif multi_qual: # compute novelty and local quality
+            novelties = [None]*len(pop)
+            q = multi_qual[1:] # quality name
+            m = (multi_qual[0]=='+')*2-1 # maximization or minimization
+            for i, ind in enumerate(pop): # assign in-place local quality
+                novelty, neighbours_indices = compute_average_distance(b_descriptors[i], k_tree)
+                novelties[i] = (novelty,)
+                neighbours_quality = np.array([reference_pop[j].info.values[q]*m if q in reference_pop[j].info.values else -np.inf for j in neighbours_indices])
+                qual = ind.info.values[q]*m if q in ind.info.values else -np.inf
+                ind.info.values[q + '_local'] = np.count_nonzero(qual > neighbours_quality) # local quality
+
+        else: # copute novelty only
             novelties = compute_average_distance_array([ind.behavior_descriptor.values for ind in pop], k_tree)
 
         if altered:
@@ -771,9 +783,9 @@ def novelty_algo(
         quality_names = np.unique([quality_name.strip() for bd_qual in multi_quality for quality_name in bd_qual]) # get unqiue quality names
         for quality_name in quality_names:
             assert quality_name[0] in {'+', '-'}, f"the quality name must begin with + or - indicating maximization or minimization, quality_name={quality_name}"
-            quality_name = quality_name[1:] # discard + or -
+        quality_names = [quality_name[1:] for quality_name in quality_names]
     elif isinstance(multi_quality, str):
-        quality_names = multi_quality[1:]
+        quality_names = [multi_quality[1:]]
     else:
         quality_names = None
 
@@ -1269,13 +1281,11 @@ def novelty_algo(
             if multi_quality is None:
                 pop[:] = toolbox.replace(current_pool, pop_size, fit_attr='novelty')
             else: # NSLC
-                m = (multi_quality[0] == '+')*2-1
-                q = quality_names
+                q = quality_names[0] + '_local'
                 nov = np.array([ind.novelty.values[0] for ind in current_pool])
                 # if the quality is not defined, we suppose it is a very bad solution
-                qual = np.array([ind.info.values[q]*m if q in ind.info.values else -np.inf for ind in current_pool])
-                for ind in pop:
-                    ind = current_pool[multi_objective_selection(nov, qual, minimization=False)]
+                qual = np.array([ind.info.values[q] for ind in current_pool])
+                pop[:] = [current_pool[multi_objective_selection(nov, qual, minimization=False)] for _ in pop]
 
         if algo_type == 'ns_rand_binary_removal':
             # remove individuals that satisfy the is_success
@@ -1657,27 +1667,6 @@ def novelty_algo(
                 pop_uni_hist.append(uniformities)
                 pop_cov_hist.append(coverages)
 
-                # save the qualities
-                if multi_quality is not None:
-                    for quality_name in quality_names:
-                        mean_quality = [ind.info.values[quality_name[1:]] for ind in offsprings if quality_name[1:] in ind.info.values]
-                        mean_quality = np.mean(mean_quality).item() if len(mean_quality)>0 else 0
-                        multi_quality_hist[quality_name].append(mean_quality)
-                    """
-                    qualities = [[] for _ in range(len(multi_quality[0]))]
-                    for ind in offsprings:
-                        for i, quality in enumerate(multi_quality[0]):
-                            if (quality is not None) and (quality in ind.info.values):
-                                qualities[i].append(ind.info.values[quality])
-                    quality_means = []
-                    for quality_arr in qualities:
-                        quality_arr = np.array(quality_arr)
-                        if len(quality_arr) != 0:
-                            quality_means.append(np.mean(quality_arr))
-                        else:
-                            quality_means.append(0)
-                    multi_quality_hist.append(quality_means)
-                    """
 
             else:
 
@@ -1696,6 +1685,13 @@ def novelty_algo(
                 full_uni_hist.append(uniformity)
                 uniformity = utils.compute_uniformity(grid_pop)
                 pop_uni_hist.append(uniformity)
+
+            # save the qualities
+            if multi_quality is not None:
+                for quality_name in quality_names:
+                    mean_quality = [ind.info.values[quality_name] for ind in offsprings if quality_name in ind.info.values]
+                    mean_quality = np.mean(mean_quality).item() if len(mean_quality)>0 else 0
+                    multi_quality_hist[quality_name].append(mean_quality)
 
         arch_size_hist.append(len(archive))
         mean_hist.append(mean_fit)
