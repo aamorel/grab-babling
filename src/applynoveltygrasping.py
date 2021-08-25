@@ -357,7 +357,7 @@ def analyze_triumphants(triumphant_archive, run_name, max_size=100000):
                 np.save(run_name + 'type' + str(i) + '_' + str(j), ind,
                         allow_pickle=True)
 
-    triumphant_archive = np.random.shuffle(triumphant_archive)
+    np.random.shuffle(triumphant_archive)
     xyzws = np.array([m.info.values['end effector xyzw relative object'] for m in triumphant_archive])
     xyzws /= np.linalg.norm(xyzws, axis=-1)[:,None]
     np.savez_compressed(
