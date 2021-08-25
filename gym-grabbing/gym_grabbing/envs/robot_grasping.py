@@ -329,10 +329,8 @@ class RobotGrasping(GoalEnv):
                     self.p.stepSimulation()
             elif self.mode == 'pd stable': # action must contain all joints
                 # We suppose there are first the arm then the gripper joint ids
-
                 u = self.all_upper_limits[:self.n_actions-1]
                 l = self.all_lower_limits[:self.n_actions-1]
-
 
                 for _ in range(self.steps_to_roll):
                     action_ = np.array([s[0] for s in self.p.getJointStates(self.robot_id, self.all_joint_ids)])

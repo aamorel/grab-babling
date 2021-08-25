@@ -194,7 +194,7 @@ if BD == 'pos_div_grip':
             # MULTI_QUALITY_MEASURES = [['mean positive slope', 'grasp robustness', None], ['min', 'min', None]]
             MULTI_QUALITY_MEASURES = [['-energy'], ['+grasp robustness'], ['-energy']]
         else:
-            MULTI_QUALITY_MEASURES = None#[['-energy'], ['-energy'], ['-energy']]
+            MULTI_QUALITY_MEASURES = [['-energy'], ['-energy'], ['-energy']]
 if BD == 'pos_div_pos':
     BD_BOUNDS = [[-0.35, 0.35], [-0.15, 0.2], [-0.2, 0.5], [-1, 1], [-1, 1], [-1, 1], [-1, 1],
                  [-0.35, 0.35], [-0.15, 0.2], [-0.2, 0.5]]
@@ -205,7 +205,7 @@ if BD == 'pos_div_pos':
             # MULTI_QUALITY_MEASURES = [['mean positive slope', 'grasp robustness', None], ['min', 'min', None]]
             MULTI_QUALITY_MEASURES = [['-energy'], ['+grasp robustness'], ['+grasp robustness']]
         else:
-            MULTI_QUALITY_MEASURES = None#[['-energy'], ['-energy'], ['-energy']]
+            MULTI_QUALITY_MEASURES = [['-energy'], ['-energy'], ['-energy']]
 if BD == 'pos_div_pos_grip':
     BD_BOUNDS = [[-0.35, 0.35], [-0.15, 0.2], [-0.2, 0.5], [-1, 1], [-1, 1], [-1, 1], [-1, 1],
                  [-0.35, 0.35], [-0.15, 0.2], [-0.2, 0.5], [-1, 1], [-1, 1], [-1, 1], [-1, 1]]
@@ -217,13 +217,15 @@ if BD == 'pos_div_pos_grip':
         elif QUALITY:
             MULTI_QUALITY_MEASURES = [['-energy'], ['+grasp robustness'], ['+grasp robustness'], ['-energy']]
         else:
-            MULTI_QUALITY_MEASURES =  None#[['-energy'], ['-energy'], ['-energy'], ['-energy']]
+            MULTI_QUALITY_MEASURES =  [['-energy'], ['-energy'], ['-energy'], ['-energy']]
 if BD == 'aurora':
     BD_BOUNDS = None
 if ALGO == 'ns_rand_change_bd':
     BD = 'change_bd'
     # list of 3D bd and orientation bd
     BD_BOUNDS = [[[-0.35, 0.35], [-0.15, 0.2], [-0.2, 0.5]], [[-1, 1], [-1, 1], [-1, 1], [-1, 1]]]
+elif ALGO == 'ns_nov':
+    MULTI_QUALITY_MEASURES = '-energy'
 
 
 # deal with Scoop parallelization
@@ -310,7 +312,7 @@ def callback(gen, archive, pop, max_size=10000, *args, **kwargs):
     else:
         return None
 
-def analyze_triumphants(triumphant_archive, run_name, max_size=15000):
+def analyze_triumphants(triumphant_archive, run_name, max_size=100000):
     if len(triumphant_archive) < 2:
         print('No individual completed the is_success.')
         return None, None, None, None
@@ -354,6 +356,8 @@ def analyze_triumphants(triumphant_archive, run_name, max_size=15000):
 
                 np.save(run_name + 'type' + str(i) + '_' + str(j), ind,
                         allow_pickle=True)
+
+    triumphant_archive = np.random.shuffle(triumphant_archive)
     xyzws = np.array([m.info.values['end effector xyzw relative object'] for m in triumphant_archive])
     xyzws /= np.linalg.norm(xyzws, axis=-1)[:,None]
     np.savez_compressed(
@@ -677,7 +681,7 @@ def pos_div_pos_grip_bd(individual, n=2):
         grasp = r
 
         # if there is a grasp and reset mode, we re-evaluate to make sur it is ok
-        if grasp and RESET_MODE:
+        if grasp and RESET_MODE and not QUALITY:
             for _ in range(n):
                 ENV.reset()
                 for i in range(NB_ITER):

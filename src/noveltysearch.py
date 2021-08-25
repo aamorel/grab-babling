@@ -767,11 +767,13 @@ def novelty_algo(
     callback=None, # callback at the end of each generation to log metrics
 ):
 
-    if multi_quality is not None:
+    if isinstance(multi_quality, list):
         quality_names = np.unique([quality_name.strip() for bd_qual in multi_quality for quality_name in bd_qual]) # get unqiue quality names
         for quality_name in quality_names:
             assert quality_name[0] in {'+', '-'}, f"the quality name must begin with + or - indicating maximization or minimization, quality_name={quality_name}"
             quality_name = quality_name[1:] # discard + or -
+    elif isinstance(multi_quality, str):
+        quality_names = multi_quality[1:]
     else:
         quality_names = None
 
@@ -1264,7 +1266,16 @@ def novelty_algo(
             pass
         else:
             # replacement: keep the most novel individuals
-            pop[:] = toolbox.replace(current_pool, pop_size, fit_attr='novelty')
+            if multi_quality is None:
+                pop[:] = toolbox.replace(current_pool, pop_size, fit_attr='novelty')
+            else: # NSLC
+                m = (multi_quality[0] == '+')*2-1
+                q = quality_names
+                nov = np.array([ind.novelty.values[0] for ind in current_pool])
+                # if the quality is not defined, we suppose it is a very bad solution
+                qual = np.array([ind.info.values[q]*m if q in ind.info.values else -np.inf for ind in current_pool])
+                for ind in pop:
+                    ind = current_pool[multi_objective_selection(nov, qual, minimization=False)]
 
         if algo_type == 'ns_rand_binary_removal':
             # remove individuals that satisfy the is_success
