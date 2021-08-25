@@ -306,7 +306,7 @@ def assess_novelties(pop, archive, algo_type, bd_bounds, bd_indexes, bd_filters,
             q = multi_qual[1:] # quality name
             m = (multi_qual[0]=='+')*2-1 # maximization or minimization
             for i, ind in enumerate(pop): # assign in-place local quality
-                novelty, neighbours_indices = compute_average_distance(b_descriptors[i], k_tree)
+                novelty, neighbours_indices = compute_average_distance(ind.behavior_descriptor.values, k_tree)
                 novelties[i] = (novelty,)
                 neighbours_quality = np.array([reference_pop[j].info.values[q]*m if q in reference_pop[j].info.values else -np.inf for j in neighbours_indices])
                 qual = ind.info.values[q]*m if q in ind.info.values else -np.inf
