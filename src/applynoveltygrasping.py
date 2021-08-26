@@ -245,10 +245,11 @@ if PARALLELIZE:
     else:
         creator.create('Novelty', base.Fitness, weights=(1.0,))
     # container for fitness
-    if MINI:
-        creator.create('Fit', base.Fitness, weights=(-1.0,))
+    # When using NSLC (NS+quality), the fitness contains (novelty, local_quality) in order to use it with selNSGA2
+    if ALGO == "ns_nov" and MULTI_QUALITY_MEASURES:
+        creator.create('Fit', base.Fitness, weights=(1.0, 1.0))
     else:
-        creator.create('Fit', base.Fitness, weights=(1.0,))
+        creator.create('Fit', base.Fitness, weights=(-1.0 if MINI else 1.,)
 
     # container for individual
     creator.create('Individual', list, behavior_descriptor=creator.BehaviorDescriptor,

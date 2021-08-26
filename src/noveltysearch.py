@@ -1032,7 +1032,10 @@ def novelty_algo(
     for ind, fit, bd, inf in zip(pop, fitnesses, b_descriptors, infos):
         ind.behavior_descriptor.values = bd
         ind.info.values = inf
-        ind.fitness.values = fit
+        # we use a custom fitness for NSLC (novelty, local_quality) to use it with selNSGA2
+        if algo_type != 'ns_nov':
+            ind.fitness.values = fit
+
         if monitor_print:
             if inf['is_success']:
                 count_success += 1
@@ -1188,7 +1191,8 @@ def novelty_algo(
         for ind, fit, bd, inf in zip(invalid_ind, inv_fitnesses, inv_b_descriptors, inv_infos):
             ind.behavior_descriptor.values = bd  # can be None in the change_bd case
             ind.info.values = inf
-            ind.fitness.values = fit
+            if algo_type != 'ns_nov':
+                ind.fitness.values = fit
 
             if monitor_print:
                 if inf['is_success']:
@@ -1282,10 +1286,14 @@ def novelty_algo(
                 pop[:] = toolbox.replace(current_pool, pop_size, fit_attr='novelty')
             else: # NSLC
                 q = quality_names[0] + '_local'
-                nov = np.array([ind.novelty.values[0] for ind in current_pool])
+                #nov = np.array([ind.novelty.values[0] for ind in current_pool])
                 # if the quality is not defined, we suppose it is a very bad solution
-                qual = np.array([ind.info.values[q] for ind in current_pool])
-                pop[:] = [current_pool[multi_objective_selection(nov, qual, minimization=False)] for _ in pop]
+                #qual = np.array([ind.info.values[q] for ind in current_pool])
+                #pop[:] = [current_pool[multi_objective_selection(nov, qual, minimization=False)] for _ in pop]
+                for ind in current_pool:
+                    ind.fitness.values = (ind.novelty.values[0], ind.info.values[q])
+                pop[:] = tools.selNSGA2(current_pool, pop_size)
+
 
         if algo_type == 'ns_rand_binary_removal':
             # remove individuals that satisfy the is_success
