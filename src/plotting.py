@@ -68,7 +68,7 @@ def plot_analysis():
     color_dicts = []
     for color in colors:
         color_dicts.append({'color': color})
-    
+
     line_dicts = []
     for color in colors:
         line_dicts.append({'color': '#000000'})
@@ -121,7 +121,7 @@ def plot_analysis():
                         if val:
                             list_first.append(i)
                             break
-                
+
         data_cov.append(np.array(list_cov))
         data_uni.append(np.array(list_uni))
         data_first.append(np.array(list_first))
@@ -280,7 +280,7 @@ def plot_launch(details, data):
                                         title='Evolution of novelty distributions with respect to generations',
                                         legend=False, kind='counts', bins=30, ylim='max',
                                         figsize=(15, 15), color='red', linecolor='black')
-    
+
     fig_3 = 0
     if multi_qual is not None:
         """
@@ -301,8 +301,8 @@ def plot_launch(details, data):
         ax_3 = np.array(ax_3).reshape(len(qualities))
         for i, (quality_name, quality_mean) in enumerate(qualities.items()):
             ax_3[i].plot(quality_mean)#, color=utils.color_list[i])
-            ax_3[i].set(title='Evolution of mean ' + quality_name[1:] + ' in offsprings', xlabel='Generations')
-    
+            ax_3[i].set(title='Evolution of mean ' + quality_name + ' in offsprings', xlabel='Generations')
+
     fig_4 = 0
     if algo_type == 'ns_rand_multi_bd':
         fig_4, ax_4 = plt.subplots()
@@ -336,7 +336,7 @@ def collect_launchs(conditions, number, folder):
             valid_launches.append(launch)
         if count == number:
             break
-    
+
     if len(valid_launches) != number:
         raise Exception('Not enough launches match your criteria')
 
@@ -354,7 +354,7 @@ def add_coverage_uniformity(data, df, legend):
         df_temp = pd.DataFrame(data, columns=['coverage', 'uniformity'])
         df_temp['legend'] = data.shape[0] * [legend]
         df = df.append(df_temp)
-    
+
     return df
 
 
@@ -396,7 +396,7 @@ def plot_experiment(temoin_dict, variation_key, variation_colors,
 
     if savepath is not None:
         fig.savefig(savepath)
-    
+
 
 def plot_archive_management(env, arch_size, pop, gen, nb_cells, n_required, folder, savepath=None):
     size = 15
@@ -415,7 +415,7 @@ def plot_archive_management(env, arch_size, pop, gen, nb_cells, n_required, fold
                       'n_rep': n_required}
         with open(savepath + '_params.json', 'w') as fp:
             json.dump(param_dict, fp)
-    
+
     fig, ax = plt.subplots(2, 1, figsize=(20, 15))
     df = pd.DataFrame(columns=['coverage', 'uniformity', 'legend'])
 
@@ -524,7 +524,7 @@ def plot_archive_importance(env, pop, gen, nb_cells, n_required, folder, savepat
 
     if savepath is not None:
         fig.savefig(savepath)
-    
+
     plot_end_cov_box(df, temoin_dict['nb of generations'], variation_colors, savepath)
 
     plt.show()
@@ -557,7 +557,7 @@ def prepare_and_plot_exp():
     n_required = [5, 5, 5]
     title = 'Archive importance in deceptive maze'
     exp_folder = 'results'
-    
+
     plot_experiment(temoin_dict, variation_key, variation_colors,
                     variation_possibilities, title, n_required, exp_folder)
 
@@ -610,7 +610,7 @@ if __name__ == "__main__":
     # ax.set_zlabel('value')
 
     # plot_heat_circle(num=num, positions=points, values=values)
-    
+
     # with open('../long_run_kuka_cup/run_data.json') as f:
     #     data = json.load(f)
     # with open('../long_run_kuka_cup/run_details.json') as f:

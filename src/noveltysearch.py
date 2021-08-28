@@ -154,7 +154,7 @@ def compute_average_distance(query, k_tree):
         # workaround:
         real_neighbours_distances = neighbours_distances[neighbours_distances < INF]
         # compute mean distance
-        avg_distance = np.mean(real_neighbours_distances)
+        avg_distance = np.mean(real_neighbours_distances).item()
     if isinstance(k_tree, Nearest):
         n_samples = k_tree.n_samples_fit_
         query = np.array(query)
@@ -169,7 +169,7 @@ def compute_average_distance(query, k_tree):
         if len(neighbours_distances) == 0:
             avg_distance = INF
         else:
-            avg_distance = np.mean(neighbours_distances)
+            avg_distance = np.mean(neighbours_distances).item()
     return avg_distance, neighbours_indices
 
 
@@ -1286,13 +1286,22 @@ def novelty_algo(
                 pop[:] = toolbox.replace(current_pool, pop_size, fit_attr='novelty')
             else: # NSLC
                 q = quality_names[0] + '_local'
+                #m = 1 if multi_quality[0]=='+' else -1
                 #nov = np.array([ind.novelty.values[0] for ind in current_pool])
-                # if the quality is not defined, we suppose it is a very bad solution
                 #qual = np.array([ind.info.values[q] for ind in current_pool])
                 #pop[:] = [current_pool[multi_objective_selection(nov, qual, minimization=False)] for _ in pop]
                 for ind in current_pool:
-                    ind.fitness.values = (ind.novelty.values[0], ind.info.values[q])
-                pop[:] = tools.selNSGA2(current_pool, pop_size)
+                    ind.info.values[quality_names[0]] = ind.info.values.get(quality_names[0], -np.inf)
+                    ind.fitness.values = (ind.novelty.values[0], ind.info.values[quality_names[0]])#*m if q in ind.info.values else -np.inf)
+                #pop[:] = tools.selNSGA2(current_pool, pop_size)
+                pop[:] = select_n_multi_bd_tournsize(
+                    pop=current_pool,
+                    n=pop_size,
+                    tournsize='max',
+                    bd_filters=np.ones_like(bd_indexes).reshape(1,-1),
+                    multi_quality=[[multi_quality]],
+                    putback=False
+                )
 
 
         if algo_type == 'ns_rand_binary_removal':
