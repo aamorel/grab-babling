@@ -1193,6 +1193,8 @@ def novelty_algo(
             ind.info.values = inf
             if algo_type != 'ns_nov':
                 ind.fitness.values = fit
+            elif multi_quality is not None: # assign default quality
+                ind.info.values[quality_names[0]] = ind.info.values.get(quality_names[0], -np.inf if multi_quality[0] == "+" else np.inf)
 
             if monitor_print:
                 if inf['is_success']:
@@ -1214,7 +1216,11 @@ def novelty_algo(
             t_success.update(n=count_success)
 
         # compute novelty for all current individuals (novelty of population may have changed)
-        if algo_type != 'random_search' and algo_type != 'map_elites':
+        if False:#algo_type == 'ns_nov':
+            novelties = assess_novelties(current_pool, archive, 'ns_rand_multi_bd', bd_bounds, bd_indexes=np.zeros_like(bd, dtype=int), bd_filters=np.ones_like(bd, dtype=bool).reshape(1,-1),
+                                         novelty_metric=[novelty_metric], multi_qual=[[multi_quality]],
+                                         altered=altered_novelty, degree=alteration_degree, info=details)
+        elif algo_type != 'random_search' and algo_type != 'map_elites':
             novelties = assess_novelties(current_pool, archive, algo_type, bd_bounds, bd_indexes, bd_filters,
                                          novelty_metric, multi_quality,
                                          altered=altered_novelty, degree=alteration_degree, info=details)
@@ -1291,7 +1297,7 @@ def novelty_algo(
                 #qual = np.array([ind.info.values[q] for ind in current_pool])
                 #pop[:] = [current_pool[multi_objective_selection(nov, qual, minimization=False)] for _ in pop]
                 for ind in current_pool:
-                    ind.info.values[quality_names[0]] = ind.info.values.get(quality_names[0], -np.inf)
+                    #ind.info.values[quality_names[0]] = ind.info.values.get(quality_names[0], -np.inf if multi_quality[0]=="+" else np.inf)
                     ind.fitness.values = (ind.novelty.values[0], ind.info.values[quality_names[0]])#*m if q in ind.info.values else -np.inf)
                 #pop[:] = tools.selNSGA2(current_pool, pop_size)
                 pop[:] = select_n_multi_bd_tournsize(
