@@ -1712,7 +1712,7 @@ def novelty_algo(
             # save the qualities
             if multi_quality is not None:
                 for quality_name in quality_names:
-                    mean_quality = [ind.info.values[quality_name] for ind in offsprings if quality_name in ind.info.values]
+                    mean_quality = [ind.info.values[quality_name] for ind in offsprings if np.isfinite(ind.info.values.get(quality_name, np.nan))]
                     mean_quality = np.mean(mean_quality).item() if len(mean_quality)>0 else 0
                     multi_quality_hist[quality_name].append(mean_quality)
 
