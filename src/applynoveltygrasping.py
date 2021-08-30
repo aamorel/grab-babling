@@ -224,7 +224,7 @@ if ALGO == 'ns_rand_change_bd':
     BD = 'change_bd'
     # list of 3D bd and orientation bd
     BD_BOUNDS = [[[-0.35, 0.35], [-0.15, 0.2], [-0.2, 0.5]], [[-1, 1], [-1, 1], [-1, 1], [-1, 1]]]
-if ALGO != 'pos_div_pos_grip':
+if ALGO != 'ns_rand_multi_bd':
     MULTI_QUALITY_MEASURES = '-energy'
 
 
