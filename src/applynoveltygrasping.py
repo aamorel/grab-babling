@@ -42,7 +42,7 @@ parser.add_argument("-i", "--initial-random", help="Set reset_random_initial_obj
 parser.add_argument("-t", "--contact-table", help="Enable grasp success without touching the table", action="store_true")
 parser.add_argument("-m", "--mode", help="Controller mode", type=str, default="joint positions", choices=["joint positions", "joint velocities", "joint torques", "inverse kinematics", "inverse dynamics", "pd stable"])
 parser.add_argument("-b", "--bootstrap", help="Bootstrap folder", type=str, default=None)
-parser.add_argument("-a", "--algorithm", help="Algorithm", type=cleanStr, default="qdmos", choices=["qdmos", "map-elites", "random", "ns", "ea"])
+parser.add_argument("-a", "--algorithm", help="Algorithm", type=cleanStr, default="nsmbs", choices=["nsmbs", "map-elites", "random", "ns", "ea", 'nsmbs_optimal'])
 parser.add_argument("-e", "--early-stopping", help="Early stopping: the algorithm stops when the number of successes exceed the value", type=int, default=-1)
 parser.add_argument("-d", "--behaviour-descriptor", help="The behaviour descriptor to use", type=cleanStr, default="pos_div_pos_grip", choices=["pos_div_grip", "pos_div_pos", "pos_div_pos_grip"])
 parser.add_argument("-s", "--disable-state", help="Disable restore state: load each time the environment (slower) but it is more deterministic", action="store_false")
@@ -68,7 +68,7 @@ NB_GEN = args.generation
 OBJECT = args.object  # 'cuboid', 'mug.urdf', 'cylinder', 'deer.urdf', 'cylinder_r', 'glass.urdf'
 ROBOT = args.robot  # 'baxter', 'pepper', 'kuka'
 CONTROLLER = 'interpolate keypoints grip'#'dynamic movement primitives'#  # see controllers_dict for list
-ALGO = {'qdmos':'ns_rand_multi_bd', 'ns':'ns_nov', 'map-elites':'map_elites', 'random':'random_search', 'ea':'classic_ea'}[args.algorithm] # algorithm
+ALGO = {'nsmbs':'ns_rand_multi_bd', 'ns':'ns_nov', 'map-elites':'map_elites', 'random':'random_search', 'ea':'classic_ea', 'nsmbs_optimal':'nsmbs_optimal'}[args.algorithm] # algorithm
 BD = args.behaviour_descriptor  # behavior descriptor type '2D', '3D', 'pos_div_grip', 'pos_div_pos_grip'
 BOOTSTRAP_FOLDER = args.bootstrap
 QUALITY = args.quality
@@ -194,7 +194,7 @@ if BD == 'pos_div_grip':
             # MULTI_QUALITY_MEASURES = [['mean positive slope', 'grasp robustness', None], ['min', 'min', None]]
             MULTI_QUALITY_MEASURES = [['-energy'], ['+grasp robustness'], ['-energy']]
         else:
-            MULTI_QUALITY_MEASURES = [['-energy'], ['-energy'], ['-energy']]
+            MULTI_QUALITY_MEASURES = None#[['-energy'], ['-energy'], ['-energy']]
 if BD == 'pos_div_pos':
     BD_BOUNDS = [[-0.35, 0.35], [-0.15, 0.2], [-0.2, 0.5], [-1, 1], [-1, 1], [-1, 1], [-1, 1],
                  [-0.35, 0.35], [-0.15, 0.2], [-0.2, 0.5]]
@@ -205,11 +205,11 @@ if BD == 'pos_div_pos':
             # MULTI_QUALITY_MEASURES = [['mean positive slope', 'grasp robustness', None], ['min', 'min', None]]
             MULTI_QUALITY_MEASURES = [['-energy'], ['+grasp robustness'], ['+grasp robustness']]
         else:
-            MULTI_QUALITY_MEASURES = [['-energy'], ['-energy'], ['-energy']]
+            MULTI_QUALITY_MEASURES = None#[['-energy'], ['-energy'], ['-energy']]
 if BD == 'pos_div_pos_grip':
     BD_BOUNDS = [[-0.35, 0.35], [-0.15, 0.2], [-0.2, 0.5], [-1, 1], [-1, 1], [-1, 1], [-1, 1],
                  [-0.35, 0.35], [-0.15, 0.2], [-0.2, 0.5], [-1, 1], [-1, 1], [-1, 1], [-1, 1]]
-    if ALGO == 'ns_rand_multi_bd':
+    if ALGO in {'ns_rand_multi_bd', 'nsmbs_optimal'}:
         BD_INDEXES = [0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 3, 3, 3, 3]
         NOVELTY_METRIC = ['minkowski', 'minkowski', 'minkowski', 'minkowski']
         if QUALITY and NO_CONTACT_TABLE:
@@ -217,7 +217,7 @@ if BD == 'pos_div_pos_grip':
         elif QUALITY:
             MULTI_QUALITY_MEASURES = [['-energy'], ['+grasp robustness'], ['+grasp robustness'], ['-energy']]
         else:
-            MULTI_QUALITY_MEASURES =  [['-energy'], ['-energy'], ['-energy'], ['-energy']]
+            MULTI_QUALITY_MEASURES =  None#[['-energy'], ['-energy'], ['-energy'], ['-energy']]
 if BD == 'aurora':
     BD_BOUNDS = None
 if ALGO == 'ns_rand_change_bd':
@@ -239,7 +239,7 @@ if PARALLELIZE:
     # container for info
     creator.create('Info', dict)
     # container for novelty
-    if ALGO == 'ns_rand_multi_bd':
+    if ALGO in {'ns_rand_multi_bd', 'nsmbs_optimal'}:
         # novelty must be a list, and selection is not used directly with DEAP
         creator.create('Novelty', list)
     else:

@@ -20,6 +20,7 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
 from functools import partial
+import time
 
 creator = None
 
@@ -485,7 +486,7 @@ def remove_from_grid(member, grid, cvt, measures, algo_type, bd_filters):
             grid[grid_index] -= 1
 
 
-def is_pareto(costs, minimise=False):
+def is_pareto(costs, minimize=False):
     """
     :param costs: An (n_points, n_costs) array
     :maximise: boolean. True for maximising, False for minimising
@@ -494,11 +495,38 @@ def is_pareto(costs, minimise=False):
     is_efficient = np.ones(costs.shape[0], dtype=bool)
     for i, c in enumerate(costs):
         if is_efficient[i]:
-            if minimise:
+            if minimize:
                 is_efficient[is_efficient] = np.any(costs[is_efficient] <= c, axis=1)  # Remove dominated points
             else:
                 is_efficient[is_efficient] = np.any(costs[is_efficient] >= c, axis=1)  # Remove dominated points
     return is_efficient
+
+def is_pareto_efficient(costs, return_mask = True, minimize=True):
+    """
+    Find the pareto-efficient points
+    :param costs: An (n_points, n_costs) array
+    :param return_mask: True to return a mask
+    :return: An array of indices of pareto-efficient points.
+        If return_mask is True, this will be an (n_points, ) boolean array
+        Otherwise it will be a (n_efficient_points, ) integer array of indices.
+    """
+
+    costs_ = costs if minimize else -costs
+    is_efficient = np.arange(costs.shape[0])
+    n_points = costs.shape[0]
+    next_point_index = 0  # Next index in the is_efficient array to search for
+    while next_point_index<len(costs_):
+        nondominated_point_mask = np.any(costs_<costs_[next_point_index], axis=1)
+        nondominated_point_mask[next_point_index] = True
+        is_efficient = is_efficient[nondominated_point_mask]  # Remove dominated points
+        costs_ = costs_[nondominated_point_mask]
+        next_point_index = np.sum(nondominated_point_mask[:next_point_index])+1
+    if return_mask:
+        is_efficient_mask = np.zeros(n_points, dtype = bool)
+        is_efficient_mask[is_efficient] = True
+        return is_efficient_mask
+    else:
+        return is_efficient
 
 
 def multi_objective_selection(novelties, qualities, minimization):
@@ -651,6 +679,50 @@ def choose_bd_strategy(inventory):
 
     return bd_idx
 
+def pareto_dynamic_programming(data, k=10, minimize=True):
+    """
+    return the image of the Pareto front, and the indices of the selected object
+    k: param: number of object to select
+    """
+    # list of dictionnaries, this represents the previous row
+    # the key is the objective vector and the value is a list of indices of selected objects
+    dim = data.shape[1]
+    prevSolutions = [{tuple(0 for _ in range(dim)):[]}]*data.shape[0]
+    for i in range(k):
+        solutions = [{():[]}]*(data.shape[0]-i) # current row
+        for j,y in enumerate(data[i:]):
+            F = {tuple(obj[k]+y[k] for k in range(dim)):sel for obj,sel in prevSolutions[j].items()} # add y to F in the keys
+            G = solutions[j-1] # solutions[-1] -> empty
+            Fnp = np.stack(list(F.keys())) # convert to np.array
+            Gnp = np.array(list(G.keys()), dtype=data.dtype)
+            Gnp = Gnp.reshape(0 if Gnp.shape[1]==0 else Gnp.shape[0], dim)
+            #paretos = triLexico(np.vstack([Fnp, Gnp]), min=min) # filter
+            fg = np.vstack([Fnp, Gnp])
+            paretos = fg[is_pareto_efficient(fg, minimize=minimize)]
+            solutions[j] = {tuple(p):G[tuple(p)] if tuple(p) in G else F[tuple(p)]+[i+j] for p in paretos} # update
+        prevSolutions = solutions
+    return np.stack(list(solutions[-1].keys())), np.stack(list(solutions[-1].values()))
+
+def select_nsmbs_optimal(current_pool, pop_size, bd_filters, quality_name, n=100):
+    """
+    Find candidate offspring sets then choose the set with the best quality to break the tie
+    It is a multi-objective problem where each objective is a novelty
+    This is a pareto subset selection problem
+    n: param: the number of times to sample from select_n_multi_bd_tournsize (without quality) for approximation
+    """
+    if n: # approximate
+        candidates = [select_n_multi_bd_tournsize(current_pool, pop_size, 'max', bd_filters, multi_quality=None, putback=False) for _ in range(n)]
+        novelties = np.array([np.sum([[nov for nov in ind.novelty.values] for ind in solutions], axis=0) for solutions in candidates])
+        candidates = [candidates[i] for i in is_pareto_efficient(novelties, minimize=False)] # filter dominated candidates
+    else: # optimal but too slow
+        novelties = np.array([[nov for nov in ind.novelty.values] for ind in current_pool])
+        _, indexes = pareto_dynamic_programming(novelties, k=pop_size, minimize=False) # find pareto candidates
+        candidates = [[current_pool[i] for i in index] for index in indexes]
+
+    sum_qualities = [np.nansum([ind.info.values.get(quality_name[1:], np.nan) for ind in solutions]) for solutions in candidates] # their corresponding quality
+    return candidates[(np.argmax if quality_name[0]=='+' else np.argmin)(sum_qualities)] # choose the set with the best quality
+
+
 
 def add_to_grid_map(member, grid, cvt, toolbox):
 
@@ -778,6 +850,11 @@ def novelty_algo(
     early_stopping=-1, # stop if count_success > early_stopping
     callback=None, # callback at the end of each generation to log metrics
 ):
+    #print(is_pareto(np.array([[0,1], [1,1.1], [0,0]]), minimize=False))
+    #objectives, indices = pareto_dynamic_programming(np.array([[1,4], [2,3], [5,2], [2,2], [3,1], [2,5], [3,4]]), k=3, minimize=True) # C
+    #for o,i in zip(objectives, indices):
+        #print(f"objectives={o}\tindices={i}")
+    #exit()
 
     if isinstance(multi_quality, list):
         quality_names = np.unique([quality_name.strip() for bd_qual in multi_quality for quality_name in bd_qual]) # get unqiue quality names
@@ -943,11 +1020,11 @@ def novelty_algo(
     cvt = None
     bd_filters = None
 
-    if algo_type == 'ns_rand_multi_bd':
+    if algo_type in {'ns_rand_multi_bd', 'nsmbs_optimal'}:
         bd_indexes = np.array(bd_indexes)
         nb_bd = len(np.unique(bd_indexes))
 
-        if multi_quality is not None:
+        if multi_quality is not None and algo_type=='ns_rand_multi_bd':
             if len(multi_quality) != nb_bd:
                 raise Exception('Number of quality measures not equal to number of behavioral descriptors.')
 
@@ -1045,7 +1122,12 @@ def novelty_algo(
         t_success.update(n=count_success)
 
     if algo_type != 'random_search' and algo_type != 'map_elites':
-        novelties = assess_novelties(pop, archive, algo_type, bd_bounds, bd_indexes, bd_filters,
+        if algo_type=="nsmbs_optimal":
+            novelties = assess_novelties(pop, archive, 'ns_rand_multi_bd', bd_bounds, bd_indexes, bd_filters,
+                                     novelty_metric, None,
+                                     altered=altered_novelty, degree=alteration_degree, info=details)
+        else:
+            novelties = assess_novelties(pop, archive, algo_type, bd_bounds, bd_indexes, bd_filters,
                                      novelty_metric, multi_quality,
                                      altered=altered_novelty, degree=alteration_degree, info=details)
         for ind, nov in zip(pop, novelties):
@@ -1210,18 +1292,19 @@ def novelty_algo(
         n_evaluations_including_repetition += eval_repeat
 
         #success_ratio_per_generation.append(count_success_per_gen/n_eval)
-
+        #print(algo_type)
         if monitor_print:
             t_eval.update(n=len(invalid_ind))
             t_success.update(n=count_success)
 
         # compute novelty for all current individuals (novelty of population may have changed)
-        if False:#algo_type == 'ns_nov':
-            novelties = assess_novelties(current_pool, archive, 'ns_rand_multi_bd', bd_bounds, bd_indexes=np.zeros_like(bd, dtype=int), bd_filters=np.ones_like(bd, dtype=bool).reshape(1,-1),
-                                         novelty_metric=[novelty_metric], multi_qual=[[multi_quality]],
-                                         altered=altered_novelty, degree=alteration_degree, info=details)
-        elif algo_type != 'random_search' and algo_type != 'map_elites':
-            novelties = assess_novelties(current_pool, archive, algo_type, bd_bounds, bd_indexes, bd_filters,
+        if algo_type != 'random_search' and algo_type != 'map_elites':
+            if algo_type == 'nsmbs_optimal':
+                novelties = assess_novelties(current_pool, archive, 'ns_rand_multi_bd', bd_bounds, bd_indexes=bd_indexes, bd_filters=bd_filters,
+                                             novelty_metric=novelty_metric, multi_qual=None,
+                                             altered=altered_novelty, degree=alteration_degree, info=details)
+            else:
+                novelties = assess_novelties(current_pool, archive, algo_type, bd_bounds, bd_indexes, bd_filters,
                                          novelty_metric, multi_quality,
                                          altered=altered_novelty, degree=alteration_degree, info=details)
             if measures:
@@ -1286,6 +1369,8 @@ def novelty_algo(
             pop[:] = random.sample(current_pool, pop_size)
         elif algo_type == 'map_elites':
             pass
+        elif algo_type == 'nsmbs_optimal':
+            pop[:] = select_nsmbs_optimal(current_pool, pop_size, bd_filters, multi_quality)
         else:
             # replacement: keep the most novel individuals
             if multi_quality is None:
