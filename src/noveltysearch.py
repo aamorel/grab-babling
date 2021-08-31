@@ -711,7 +711,7 @@ def select_nsmbs_optimal(current_pool, pop_size, bd_filters, quality_name, n=100
     n: param: the number of times to sample from select_n_multi_bd_tournsize (without quality) for approximation
     """
     if n: # approximate
-        candidates = [select_n_multi_bd_tournsize(current_pool, pop_size, 'max', bd_filters, multi_quality=None, putback=False) for _ in range(n)]
+        candidates = [random.sample(current_pool, pop_size) for _ in range(n)]#select_n_multi_bd_tournsize(current_pool, pop_size, 'max', bd_filters, multi_quality=None, putback=False) for _ in range(n)]
         novelties = np.array([np.sum([[nov for nov in ind.novelty.values] for ind in solutions], axis=0) for solutions in candidates])
         candidates = [candidates[i] for i in is_pareto_efficient(novelties, minimize=False)] # filter dominated candidates
     else: # optimal but too slow
@@ -1875,7 +1875,6 @@ def novelty_algo(
                 if metrics is None:
                     metrics = {key:[value] for key, value in metric.items()}
                 else:
-                    assert set(metric.keys()) == set(metrics.keys()), "metrics are inconsistent"
                     for key, value in metric.items():
                         metrics[key].append(value)
 
