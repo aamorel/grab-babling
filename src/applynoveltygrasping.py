@@ -307,7 +307,8 @@ def cluster_quaternion(triumphant_archive, max_size):
     return cluster, archive
 
 def callback(gen, archive, pop, max_size=10000, *args, **kwargs):
-    energy = np.nanmean([ind.info.values.get('energy', np.nan) for ind in pop]).item()
+    energy = [ind.info.values['energy'] for ind in pop if 'energy' in ind.info.values and np.isfinite(ind.info.values['energy'])]
+    energy = np.mean(energy) if len(energy)>0 else np.nan
     if gen % 100 == 0:
         cluster, _ = cluster_quaternion(archive, max_size)
         return {'n clusters': cluster.n_clusters_ if cluster else len(archive), 'energy': energy}

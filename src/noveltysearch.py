@@ -501,22 +501,27 @@ def is_pareto(costs, minimize=False):
                 is_efficient[is_efficient] = np.any(costs[is_efficient] >= c, axis=1)  # Remove dominated points
     return is_efficient
 
-def is_pareto_efficient(costs, return_mask = True, minimize=True):
+def is_pareto_efficient(costs, return_mask = True, minimize=True, ε=None):
     """
     Find the pareto-efficient points
     :param costs: An (n_points, n_costs) array
     :param return_mask: True to return a mask
+    :param ε: ε-approxiamtion, this is the time-computation trade-off, the lower, the more accurate but the slower
     :return: An array of indices of pareto-efficient points.
         If return_mask is True, this will be an (n_points, ) boolean array
         Otherwise it will be a (n_efficient_points, ) integer array of indices.
     """
 
-    costs_ = costs if minimize else -costs
+    costs_ = np.array(costs)
+    compare = (lambda a,b: a<b) if minimize else (lambda a,b: a>b)
+    if ε is not None:
+        assert 0<ε and not minimize
+        costs_ = np.floor(np.log(costs_.clip(min=1e-6)) / np.log(1+ε))
     is_efficient = np.arange(costs.shape[0])
     n_points = costs.shape[0]
     next_point_index = 0  # Next index in the is_efficient array to search for
     while next_point_index<len(costs_):
-        nondominated_point_mask = np.any(costs_<costs_[next_point_index], axis=1)
+        nondominated_point_mask = np.any(compare(costs_,costs_[next_point_index]), axis=1)
         nondominated_point_mask[next_point_index] = True
         is_efficient = is_efficient[nondominated_point_mask]  # Remove dominated points
         costs_ = costs_[nondominated_point_mask]
@@ -679,10 +684,10 @@ def choose_bd_strategy(inventory):
 
     return bd_idx
 
-def pareto_dynamic_programming(data, k=10, minimize=True):
+def pareto_dynamic_programming(data, k=10, minimize=True, ε=None):
     """
     return the image of the Pareto front, and the indices of the selected object
-    k: param: number of object to select
+    :param k: number of object to select
     """
     # list of dictionnaries, this represents the previous row
     # the key is the objective vector and the value is a list of indices of selected objects
@@ -696,27 +701,26 @@ def pareto_dynamic_programming(data, k=10, minimize=True):
             Fnp = np.stack(list(F.keys())) # convert to np.array
             Gnp = np.array(list(G.keys()), dtype=data.dtype)
             Gnp = Gnp.reshape(0 if Gnp.shape[1]==0 else Gnp.shape[0], dim)
-            #paretos = triLexico(np.vstack([Fnp, Gnp]), min=min) # filter
             fg = np.vstack([Fnp, Gnp])
-            paretos = fg[is_pareto_efficient(fg, minimize=minimize)]
+            paretos = fg[is_pareto_efficient(fg, minimize=minimize, ε=ε)]
             solutions[j] = {tuple(p):G[tuple(p)] if tuple(p) in G else F[tuple(p)]+[i+j] for p in paretos} # update
         prevSolutions = solutions
     return np.stack(list(solutions[-1].keys())), np.stack(list(solutions[-1].values()))
 
-def select_nsmbs_optimal(current_pool, pop_size, bd_filters, quality_name, n=100):
+def select_nsmbs_optimal(current_pool, pop_size, bd_filters, quality_name, n=None):
     """
     Find candidate offspring sets then choose the set with the best quality to break the tie
     It is a multi-objective problem where each objective is a novelty
     This is a pareto subset selection problem
-    n: param: the number of times to sample from select_n_multi_bd_tournsize (without quality) for approximation
+    :param n: the number of times to sample from select_n_multi_bd_tournsize (without quality) for approximation
     """
     if n: # approximate
-        candidates = [random.sample(current_pool, pop_size) for _ in range(n)]#select_n_multi_bd_tournsize(current_pool, pop_size, 'max', bd_filters, multi_quality=None, putback=False) for _ in range(n)]
+        candidates = [select_n_multi_bd_tournsize(current_pool, pop_size, 'max', bd_filters, multi_quality=None, putback=False) for _ in range(n)]
         novelties = np.array([np.sum([[nov for nov in ind.novelty.values] for ind in solutions], axis=0) for solutions in candidates])
         candidates = [candidates[i] for i in is_pareto_efficient(novelties, minimize=False)] # filter dominated candidates
     else: # optimal but too slow
         novelties = np.array([[nov for nov in ind.novelty.values] for ind in current_pool])
-        _, indexes = pareto_dynamic_programming(novelties, k=pop_size, minimize=False) # find pareto candidates
+        _, indexes = pareto_dynamic_programming(novelties, k=pop_size, minimize=False, ε=0.5) # find pareto candidates
         candidates = [[current_pool[i] for i in index] for index in indexes]
 
     sum_qualities = [np.nansum([ind.info.values.get(quality_name[1:], np.nan) for ind in solutions]) for solutions in candidates] # their corresponding quality
