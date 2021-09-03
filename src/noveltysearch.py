@@ -720,7 +720,7 @@ def select_nsmbs_optimal(current_pool, pop_size, bd_filters, quality_name, n=Non
         candidates = [candidates[i] for i in is_pareto_efficient(novelties, minimize=False)] # filter dominated candidates
     else: # optimal but too slow
         novelties = np.array([[nov for nov in ind.novelty.values] for ind in current_pool])
-        _, indexes = pareto_dynamic_programming(novelties, k=pop_size, minimize=False, ε=0.5) # find pareto candidates
+        _, indexes = pareto_dynamic_programming(novelties, k=pop_size, minimize=False, ε=0.1) # find pareto candidates
         candidates = [[current_pool[i] for i in index] for index in indexes]
 
     sum_qualities = [np.nansum([ind.info.values.get(quality_name[1:], np.nan) for ind in solutions]) for solutions in candidates] # their corresponding quality
