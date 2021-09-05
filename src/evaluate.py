@@ -40,7 +40,7 @@ if args.environment == "baxter":
 elif args.environment == "kuka":
     ENVS = {obj:gym.make('kuka_grasping-v0', display=False, obj=obj) for obj in ["mug"]}; print("Using Kuka")
 
-def extract_individuals(folder, select, keep: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+def extract_individuals(folder, select: Union[int, str], keep: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
     folder_path = Path(folder)
     out = []
     runs = list(folder_path.glob("**/run_details.yaml"))
@@ -77,6 +77,7 @@ def extract_individuals(folder, select, keep: Optional[Dict[str, Any]] = None) -
     return out
 
 def evaluate_robustness(folder, repeat=10, linspace={"start":0, "stop":0.05, "num":11}, select=20, keep=None):
+    """ Evaluate individuals with different noises. """
     folder_path = Path(folder)
     df = pd.DataFrame(columns=["robot", "object", "robustness", "σ", "success rate", "controller info", "ind"])
     linspace['start'] = linspace.get('start', 0)
@@ -128,7 +129,8 @@ def simulate1(data):
     return successRatio / len(delta_pos)
 
 
-def evaluate_robustness_object(folder, r=0.02, repeat=20, select=20, keep=None):
+def evaluate_robustness_object(folder, r=0.02, repeat=20, select="transfer", keep=None):
+    """ Evaluate individuals with differents objects. """
     folder_path = Path(folder)
 
     df = pd.DataFrame(extract_individuals(folder, select, keep)).set_index('name')

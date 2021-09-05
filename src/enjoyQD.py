@@ -55,8 +55,8 @@ def main(
 	for i, ind in enumerate(individuals):
 
 		env.p.removeAllUserDebugItems()
-		o = env.reset(load='state')#multiply_friction={'lateral':1/1.2, 'rolling':1/10, 'spinning':1/10})
-		#env.p.removeBody(env.robot_id); env.p.removeBody(env.obj_id); time.sleep(1000000)
+		o = env.reset(load='state')
+
 		controller = InterpolateKeyPointsGrip(
 			ind,
 			**controller_info,
@@ -76,7 +76,7 @@ def main(
 				lines = [env.p.addUserDebugLine([0, 0, 0], end, color, parentObjectUniqueId=env.obj_id, replaceItemUniqueId=id) for end, color, id in zip(np.eye(3)*0.2, np.eye(3), lines)]
 
 			action = controller.get_action(k, o) #np.random.rand(8)*2-1
-			o, r, done, inf = env.step(action)#; print(action)
+			o, r, done, inf = env.step(action)
 
 			# print "close"
 			if action[-1]==-1 and opened and print_close:
@@ -173,8 +173,8 @@ if __name__ == "__main__":
 	parser.add_argument("-i", "--individual-selection", help="The individual selection", type=str, default="diversity", choices=["all", "diversity", "genotype"])
 	parser.add_argument("-c", "--close", help="Print close", action="store_true")
 	parser.add_argument("-o", "--object-frame", help="Enable object frame", action="store_true")
-	parser.add_argument("-s", "--speed", help="Enable object frame", type=float, default=None)
-	parser.add_argument("-t", "--trajectory", help="Enable object frame", type=int, default=None)
+	parser.add_argument("-s", "--speed", help="Control the speed for visualization", type=float, default=None)
+	parser.add_argument("-t", "--trajectory", help="Enable trajectory plotting", type=int, default=None)
 	args = parser.parse_args()
 	main(
 		path=args.runs,
