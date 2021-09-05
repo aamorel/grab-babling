@@ -1154,7 +1154,6 @@ if __name__ == "__main__":
                 boostrap_inds.append(ind)
             print('Novelty Search boostrapped with ', len(boostrap_inds), ' individuals.')
 
-        assert os.path.exists('runs'), "runs folder doesn't exist"
         res = None
         i = 0
         while res is None: # if res is None, it means the whole population is invalid (collision), so we do the search again

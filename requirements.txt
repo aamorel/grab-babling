@@ -9,3 +9,4 @@ sklearn
 imageio
 gym
 sb3-contrib
+tqdm
