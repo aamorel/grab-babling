@@ -1,0 +1,38 @@
+env:
+    gym package: gym_grabbing
+    id: kuka_grasping-v0
+    mode: joint velocities
+    max_episode_steps: &T 1500
+    TimeLimitAware: true
+
+
+learner:
+    class: SAC
+    policy: MlpPolicy
+    batch_size: 1024
+    train_freq: *T
+    gradient_steps: *T
+    use_sde: true
+    use_sde_at_warmup: true
+    learning_starts: 500000
+    tensorboard_log: /home/me/grab-babling/rl/log
+    #load: /Users/Yakumo/Downloads/log/kuka_SAC_AWAC_2/last_model.zip
+
+algorithm: # imitation
+    demo: awac
+    demo_buffer: /home/me/grab-babling/rl/data/replay_buffer_reward_off_cube_kuka_time_limit_aware.pkl
+    demo_rate: 0.5
+    λ: null
+    #mix: true
+    ok:
+
+learn:
+    total_timesteps: 100000000
+    callback:
+        EvalSaveGif:
+            n_eval_episodes: 2
+            deterministic: true
+            eval_freq: 25000
+            period: 20
+    tb_log_name: kuka_sac_awac
+    #reset_num_timesteps: false

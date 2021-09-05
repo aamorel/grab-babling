@@ -1,0 +1,11 @@
+qibullet
+seaborn
+pyquaternion
+ruamel.yaml
+pyyaml
+deap
+scoop
+sklearn
+imageio
+gym
+sb3-contrib

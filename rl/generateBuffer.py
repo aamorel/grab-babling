@@ -1,5 +1,15 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+# Generate a demo_buffer to learn from demonstrations
+
+import argparse
+from pathlib import Path
+import json, yaml
+from multiprocessing import Pool
+import sys
+from itertools import starmap
+from functools import partial
+
 from stable_baselines3.common.env_checker import check_env
 from stable_baselines3.common.buffers import ReplayBuffer
 from stable_baselines3.common.save_util import save_to_pkl
@@ -8,34 +18,29 @@ from stable_baselines3.common.preprocessing import get_action_dim
 from stable_baselines3.sac import SAC
 
 import gym
-from pathlib import Path
 import numpy as np
-import json, yaml
-from multiprocessing import Pool
-import sys
-from itertools import starmap
-from functools import partial
 import gym_grabbing
 from gym_grabbing.envs.utils import MLP
 import torch as th
-
-# bad!
-import sys, os
-root = Path(__file__).parent.parent
-sys.path.append(str(root/'src'))
-from controllers import InterpolateKeyPointsEndPauseGripAssumption, InterpolateKeyPointsGrip
+from gym_grabbing.envs.utils import InterpolateKeyPointsGrip
 
 from sbil.utils import TimeLimitAware, scale_action
 
-FOLDER = "/Users/Yakumo/Downloads/exp2/kukaVel2"#"/Users/Yakumo/Downloads/kukaPdStable/kukaSingleConfPdStable/run10"
+parser = argparse.ArgumentParser()
+parser.add_argument("-r", "--runs", help="The directory containing runs", type=str, default=str(Path(__file__).parent.parent/'runs'))
+parser.add_argument("-a", "--time-limit-aware", help="Enable TimeLimitAware", action="store_true")
+parser.add_argument("-t", "--torque", help="Enable position to torque convertion", action="store_true")
+parser.add_argument("-d", "--display", help="Enable display", action="store_true")
+args = parser.parse_args()
+FOLDER = args.runs
 with open(next(Path(FOLDER).glob('**/run_details.yaml')), 'r') as f:
 	INFO = yaml.safe_load(f) # get some common parameters
-#INFO['mode'] = 'joint torques' # set it if pd stable to joint torques
-#ENV = gym.make(f"{INFO['env id']}", display=False, obj=INFO['object'] ,steps_to_roll=INFO['steps to roll'], mode=INFO['mode'])
-#INFO['env kwargs']['display']=True
+if args.torque:
+	INFO['mode'] = 'joint torques' # set it if pd stable to joint torques
+if args.display:
+	INFO['env kwargs']['display']=True
 ENV = gym.make(**INFO['env kwargs'])
-time_limit_aware = True
-if time_limit_aware:
+if args.time_limit_aware:
 	ENV = TimeLimitAware(ENV, max_episode_steps=INFO['controller info']['n_iter'])
 
 def simulate(ind, object_position=None, object_xyzw=None, joint_positions=None, position2torque=False, success_only=False, fast_only=float('inf'), noise=0): # return a list of transitions (s, s', a, r, done) if there is a grasping else None

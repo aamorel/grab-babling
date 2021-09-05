@@ -42,6 +42,8 @@ parser.add_argument("-i", "--initial-random", help="Set reset_random_initial_obj
 parser.add_argument("-t", "--contact-table", help="Enable grasp success without touching the table", action="store_true")
 parser.add_argument("-m", "--mode", help="Controller mode", type=str, default="joint positions", choices=["joint positions", "joint velocities", "joint torques", "inverse kinematics", "inverse dynamics", "pd stable"])
 parser.add_argument("-b", "--bootstrap", help="Bootstrap folder", type=str, default=None)
+parser.add_argument("-f", "--folder-name", help="Run folder name suffix", type=str, default="run")
+parser.add_argument("-l", "--log-path", help="Run folder name suffix", type=str, default=str(Path(__file__).parent.parent/"runs"))
 parser.add_argument("-a", "--algorithm", help="Algorithm", type=cleanStr, default="nsmbs", choices=["nsmbs", "map-elites", "random", "ns", "ea", 'nsmbs_optimal'])
 parser.add_argument("-e", "--early-stopping", help="Early stopping: the algorithm stops when the number of successes exceed the value", type=int, default=-1)
 parser.add_argument("-d", "--behaviour-descriptor", help="The behaviour descriptor to use", type=cleanStr, default="pos_div_pos_grip", choices=["pos_div_grip", "pos_div_pos", "pos_div_pos_grip"])
@@ -334,6 +336,7 @@ def analyze_triumphants(triumphant_archive, run_name, max_size=15000):
     coverage = np.count_nonzero(grid) / NB_CELLS
     uniformity = utils.compute_uniformity(grid).item()
 
+    # diversity clustering
     clustering, triumphant_archive = cluster_quaternion(triumphant_archive, max_size) # subsample
 
     number_of_clusters = clustering.n_clusters_
@@ -347,28 +350,47 @@ def analyze_triumphants(triumphant_archive, run_name, max_size=15000):
     print('Coverage of', coverage, 'and uniformity of', uniformity)
 
     # saving the triumphants
+    diversity_clustered = []
     for i, clustered in enumerate(clustered_triumphants):
         # save first 3 grasping of each types
         if QUALITY:
             clustered = sorted(clustered, key=lambda ind: ind.info.values['grasp robustness'], reverse=True)
         else:
             clustered = sorted(clustered, key=lambda ind: ind.info.values['energy'], reverse=False)
+        diversity_clustered.append(clustered[0])
         for j in range(3):
             if len(clustered) > j:
                 ind = np.around(np.array(clustered[j]), 3)
 
-                np.save(run_name + 'type' + str(i) + '_' + str(j), ind,
+                np.save(run_name / f"type{i}_{j}", ind,
                         allow_pickle=True)
+
+    # genotype clustering
+    cluster = AgglomerativeClustering(
+        n_clusters=None,
+        compute_full_tree=True,
+        distance_threshold=1.1,
+        linkage='average'
+    )
+    cluster.fit(triumphant_archive)
+    n_clusters = cluster.n_clusters_
+
+    # group clusters
+    indices, toSplit = np.nonzero(cluster.labels_==np.arange(n_clusters)[:,None])
+    indices = np.cumsum(np.count_nonzero(indices==np.arange(n_clusters-1)[:,None], axis=-1))
+    clustered = [[triumphant_archive[i] for i in subindices] for subindices in np.split(toSplit, indices)]
 
     np.random.shuffle(triumphant_archive)
     xyzws = np.array([m.info.values['end effector xyzw relative object'] for m in triumphant_archive])
     xyzws /= np.linalg.norm(xyzws, axis=-1)[:,None]
-    np.savez_compressed(
-        file=run_name + 'individuals',
-        genotypes=np.array(triumphant_archive),
-        xyzws=xyzws, # quaternions
-        positions=np.array([m.info.values['end effector position relative object'] for m in triumphant_archive]),
-    ) # save all triumphants and infos
+    saving = {
+        "genotypes": np.array(triumphant_archive),
+        "xyzws": xyzws, # quaternions
+        "positions": np.array([m.info.values['end effector position relative object'] for m in triumphant_archive]),
+        "diversity samples": diversity_clustered, # keep one individual per diversity cluster
+        "genotype samples": [c[0] for c in clustered], # keep one individual per genotype cluster
+    }
+    np.savez_compressed(file=run_name / 'individuals', **saving) # save all triumphants and infos
 
     return coverage, uniformity, clustered_triumphants, number_of_clusters
 
@@ -1159,11 +1181,15 @@ if __name__ == "__main__":
         print('Number of triumphants: ', nb_of_triumphants)
         if len(triumphant_archive)==0 and not args.keep_fail: continue # do not report the logs
 
+        Path(args.log_path).mkdir(exist_ok=True)
         i = 0 # create run directory
-        while os.path.exists('runs/run%i/' % i):
+        while True:#os.path.exists('runs/run%i/' % i):
+            run_name = Path(f"{args.log_path}/{args.folder_name}{i}")
+            if not run_name.exists():
+                break
             i += 1
-        run_name = 'runs/run%i/' % i
-        os.mkdir(run_name)
+
+        run_name.mkdir()
 
         # analyze triumphant archive diversity
         coverage, uniformity, clustered_triumphants, number_of_clusters = analyze_triumphants(triumphant_archive, run_name)
@@ -1194,15 +1220,15 @@ if __name__ == "__main__":
         # direct plotting and saving figures
         if PLOT:
             fig = figures['figure']
-            fig.savefig(run_name + 'novelty_search_plots.png')
+            fig.savefig(run_name / 'novelty_search_plots.png')
 
             if ALGO == 'ns_rand_multi_bd':
                 fig_4 = figures['figure_4']
-                fig_4.savefig(run_name + 'eligibility_rates.png')
+                fig_4.savefig(run_name / 'eligibility_rates.png')
 
             if MULTI_QUALITY_MEASURES is not None:
                 fig_3 = figures['figure_3']
-                fig_3.savefig(run_name + 'qualities.png')
+                fig_3.savefig(run_name / 'qualities.png')
 
             if BD != 'change_bd':
                 # plot final states
@@ -1217,7 +1243,7 @@ if __name__ == "__main__":
                 ax.scatter(pop_behavior[:, 0], pop_behavior[:, 1], color='blue', label='Population')
                 ax.scatter(hof_behavior[:, 0], hof_behavior[:, 1], color='green', label='Hall of Fame')
                 plt.legend()
-                plt.savefig(run_name + 'bd_plot.png')
+                plt.savefig(run_name / 'bd_plot.png')
             elif archive_behavior is not None and pop_behavior is not None and hof_behavior is not None and len(archive_behavior[0]) == 3:
                 fig = plt.figure(figsize=(5, 5))
                 ax = fig.add_subplot(111, projection='3d')
@@ -1228,7 +1254,7 @@ if __name__ == "__main__":
                 ax.scatter(hof_behavior[:, 0], hof_behavior[:, 1], hof_behavior[:, 2],
                            color='green', label='Hall of Fame')
                 plt.legend()
-                plt.savefig(run_name + 'bd_plot.png')
+                plt.savefig(run_name / 'bd_plot.png')
 
             # plot genetic diversity
             gen_div_pop = np.array(data['population genetic statistics'])
@@ -1263,7 +1289,7 @@ if __name__ == "__main__":
                         color_index += 1
                         ax[1].plot(gen_div_off[:, i], color=utils.color_list[color_index])
                 ax[1].legend()
-                plt.savefig(run_name + 'genetic_diversity_plot.png')
+                plt.savefig(run_name / 'genetic_diversity_plot.png')
         plt.close('all')
         # don't save some stuff
         if not SAVE_ALL:
@@ -1273,11 +1299,11 @@ if __name__ == "__main__":
 
 
         # saving the run
-        utils.save_yaml(details, run_name + 'run_details.yaml')
+        utils.save_yaml(details, run_name / 'run_details.yaml')
 
         # cleaning data
         data = {key:value for key, value in data.items() if not value is None or isinstance(value, np.ndarray) and value.dtype == np.dtype(object)}
-        np.savez_compressed(run_name+'run_data', **data) # or maybe save to parquet as a dataFrame
+        np.savez_compressed(run_name/'run_data', **data) # or maybe save to parquet as a dataFrame
 
         # display some individuals
         if DISPLAY_HOF:
